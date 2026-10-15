@@ -2,8 +2,10 @@
 // Usage: cd extension/test && npm install && npm test   (CHROME=/path/to/chromium to override the browser)
 import { chromium } from 'playwright-core';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import http from 'node:http';
+import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,27 +24,34 @@ const exe = process.env.CHROME || path.join(cache, newest, 'chrome-mac-arm64/Goo
 // Strings the test looks for, per UI language.
 const T = {
   ru: {
-    connected: 'Подключено · 7 клиентов', noHost: 'Нет связи', none: 'Ничего не найдено', changed: 'Обновить в EasyPass?',
+    connected: 'Подключено · 7 клиентов', noHost: 'Нет связи', insecure: 'Небезопасная страница', none: 'Ничего не найдено', changed: 'Обновить в EasyPass?',
     update: 'Обновить', no: 'Нет', added: 'Сохранить?', first: 'Имя', save: 'Сохранить', search: 'Поиск клиента',
   },
   tr: {
-    connected: 'Bağlı · 7 müşteri', noHost: 'Bağlantı yok', none: 'Sonuç yok', changed: 'güncellensin mi?',
+    connected: 'Bağlı · 7 müşteri', noHost: 'Bağlantı yok', insecure: 'Güvensiz sayfa', none: 'Sonuç yok', changed: 'güncellensin mi?',
     update: 'Güncelle', no: 'Hayır', added: 'Kaydedilsin mi?', first: 'Ad', save: 'Kaydet', search: 'Müşteri ara',
   },
 };
 
-const page0 = fs.readFileSync(path.join(here, 'login.html'));
-const server = http.createServer((req, res) => {
-  req.resume().on('end', () => res.end(page0));
-}).listen(0, '127.0.0.1');
-await new Promise((r) => server.once('listening', r));
-// Two sites with different host names, both resolved to the local server by --host-resolver-rules.
-const base = `http://portal-x.test:${server.address().port}`;
-const baseY = `http://portal-y.test:${server.address().port}`;
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'easypass-'));
+const page0 = fs.readFileSync(path.join(here, 'login.html'), 'utf8');
+const serve = (req, res) => req.resume().on('end', () =>
+  // /autofocus: the field is focused while parsing, i.e. before the content script loads (document_idle)
+  res.end(req.url.startsWith('/autofocus') ? page0.replace('</body>', "<script>document.getElementById('user').focus()</script></body>") : page0));
+// The extension fills only on https, so the sites are served over TLS (throwaway self-signed cert, errors ignored).
+execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1', '-subj', '/CN=portal-x.test',
+  '-keyout', path.join(tmp, 'key.pem'), '-out', path.join(tmp, 'cert.pem')], { stdio: 'ignore' });
+const tls = { key: fs.readFileSync(path.join(tmp, 'key.pem')), cert: fs.readFileSync(path.join(tmp, 'cert.pem')) };
+const server = https.createServer(tls, serve).listen(0, '127.0.0.1');
+const plain = http.createServer(serve).listen(0, '127.0.0.1');
+await Promise.all([server, plain].map((s) => new Promise((r) => s.once('listening', r))));
+// Sites with different host names, all resolved to the local servers by --host-resolver-rules.
+const at = (host, s = server) => `${s === server ? 'https' : 'http'}://${host}:${s.address().port}`;
+const base = at('portal-x.test');
+const baseY = at('portal-y.test');
 
 // Chrome on Mac reads user-level host manifests from <user-data-dir>/NativeMessagingHosts,
 // so the fake host manifest lives in the throwaway profile and nothing global is touched.
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'easypass-'));
 const log = path.join(tmp, 'host.log');
 const external = path.join(tmp, 'external.json');
 function profile(name, lang) {
@@ -58,7 +67,7 @@ function profile(name, lang) {
   }
   return chromium.launchPersistentContext(dir, {
     executablePath: exe, headless: true,
-    args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, '--host-resolver-rules=MAP *.test 127.0.0.1'],
+    args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, '--host-resolver-rules=MAP *.test 127.0.0.1', '--ignore-certificate-errors'],
   });
 }
 const hostLog = () => (fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n').map((l) => JSON.parse(l)) : []);
@@ -235,6 +244,25 @@ async function suite(lang) {
       await waitFor(async () => (await page.inputValue('#pass')) === 'eski123', 'portal-x password filled');
     });
 
+    await scenario('autofocused login field: panel opens without a click', async () => {
+      const pa = await ctx.newPage();
+      await pa.goto(base + '/autofocus');
+      await waitFor(async () => (await options(pa)).length, 'panel on autofocused field');
+      await pa.close();
+    });
+
+    await scenario('http page: panel says insecure, no search or get reaches the host', async () => {
+      const ph = await ctx.newPage();
+      await ph.goto(at('portal-x.test', plain) + '/login');
+      const asked = () => hostLog().filter((r) => r.cmd === 'search' || r.cmd === 'get').length;
+      const before = asked();
+      await ph.click('#user');
+      await waitFor(() => hasText(ph, t.insecure), 'insecure message');
+      assert.equal((await options(ph)).length, 0);
+      assert.equal(asked(), before);
+      await ph.close();
+    });
+
     await scenario('no result cache: entry added by the app appears on the next keystroke while panel is open', async () => {
       await page.click('h1');
       await page.click('#user');
@@ -323,6 +351,78 @@ async function suite(lang) {
       await sleep(500);
       assert.ok(!(await hasText(page, t.added)) && !(await hasText(page, t.changed)), 'no prompt on second submit');
     });
+
+    await scenario('fill one customer, log in by hand as another → change form leaves the filled entry alone', async () => {
+      await page.click('#user');
+      await page.keyboard.type('yılmaz');
+      await waitFor(async () => (await options(page)).length === 1, 'Yılmaz');
+      await page.keyboard.press('Enter');
+      await waitFor(async () => (await page.inputValue('#user')) === 'ahmet.yilmaz', 'filled');
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.type('akaya');
+      await page.click('#pass');
+      await page.keyboard.press('Escape');
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.type('kaya999');
+      const mark = hostLog().length;
+      await submitAndLoad(page, () => page.click('#go'));
+      await page.fill('#cur', 'kaya999');
+      await page.fill('#new1', 'other-new');
+      await page.fill('#new2', 'other-new');
+      await submitAndLoad(page, () => page.click('#save'));
+      await sleep(500);
+      assert.ok(!(await hasText(page, t.changed)), 'no update prompt');
+      assert.ok(!hostLog().slice(mark).some((r) => r.cmd === 'check' && r.entryId === 'e1'), 'stale filled entry not checked');
+    });
+
+    await scenario('login on login.* redirects to app.* of the same domain → save prompt there, add keeps the login host', async () => {
+      const p = await ctx.newPage();
+      await p.goto(at('login.portal-x.test') + '/login');
+      await p.evaluate((a) => { document.getElementById('login').action = a; }, at('app.portal-x.test') + '/home');
+      await p.click('#user');
+      await p.keyboard.press('Escape');
+      await p.keyboard.type('sub.user');
+      await p.click('#pass');
+      await p.keyboard.press('Escape');
+      await p.keyboard.type('sub-pw');
+      await submitAndLoad(p, () => p.click('#go'));
+      assert.equal(new URL(p.url()).hostname, 'app.portal-x.test');
+      await waitFor(() => hasText(p, t.added), 'save prompt on app.*');
+      await clickNode(p, await button(p, t.save));
+      await waitFor(async () => hostLog().some((r) => r.cmd === 'add' && r.username === 'sub.user'), 'add sent');
+      const a = hostLog().find((r) => r.cmd === 'add' && r.username === 'sub.user');
+      assert.deepEqual([a.site, a.password], ['login.portal-x.test', 'sub-pw']);
+      await p.close();
+    });
+
+    await scenario('login that redirects to an unrelated site → no prompt there', async () => {
+      const p = await ctx.newPage();
+      await p.goto(base + '/login');
+      await p.evaluate((a) => { document.getElementById('login').action = a; }, baseY + '/home');
+      await p.click('#user');
+      await p.keyboard.press('Escape');
+      await p.keyboard.type('cross.user');
+      await p.click('#pass');
+      await p.keyboard.press('Escape');
+      await p.keyboard.type('cross-pw');
+      await submitAndLoad(p, () => p.click('#go'));
+      await sleep(500);
+      assert.ok(!(await hasText(p, t.added)), 'no save prompt on portal-y');
+      await p.close();
+    });
+
+    await scenario('synthetic submit / Enter from a page script sends nothing', async () => {
+      const mark = hostLog().length;
+      await page.evaluate(() => {
+        document.getElementById('user').value = 'fake';
+        const pass = document.getElementById('pass');
+        pass.value = 'fake-pw';
+        document.getElementById('login').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        pass.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      });
+      await sleep(300);
+      assert.ok(!hostLog().slice(mark).some((r) => r.cmd === 'check'), 'no check sent');
+    });
   } finally {
     await ctx.close();
   }
@@ -348,6 +448,7 @@ try {
   for (const lang of process.argv.slice(2).length ? process.argv.slice(2) : ['ru', 'tr']) await suite(lang);
 } finally {
   server.close();
+  plain.close();
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 console.log(results.join('\n'));

@@ -21,6 +21,7 @@ public partial class MainWindow : Window
 
     Vault? vault;
     string? editingId;      // null = yeni kayıt
+    Entry? loaded;          // forma doldurulan kayıt; kasa kayıtları yerinde değişmez, her okuma/kayıt yeni nesne verir
     bool refreshing;        // liste kodla yenilenirken seçim olayını yok say
     bool asking;            // soru kutusu açıkken arka plan yenilemesi beklesin
     bool passwordShown;
@@ -41,6 +42,13 @@ public partial class MainWindow : Window
     void Start()
     {
         var path = AppPaths.VaultPath;
+        if (path != null && !File.Exists(path) && (File.Exists(path + ".bak") || File.Exists(path + ".tmp")))
+        {
+            // yarım kalmış kayıt ya da bitmemiş bulut eşitlemesi: yedeğin üstüne yeni kasa önerme
+            ShowSetup(cancelable: false);
+            SetupError.Text = string.Format(L("ErrVaultMissing"), path);
+            return;
+        }
         if (path == null || !File.Exists(path)) { ShowSetup(cancelable: false); return; }
         try
         {
@@ -81,7 +89,7 @@ public partial class MainWindow : Window
         KeyCache.Save(v.Salt, v.Key);
         ShowPanel(MainPanel);
         if (resetForm) { lastSite = ""; SearchBox.Text = ""; Edit(null); }
-        else RefreshList();
+        RefreshList();
         SearchBox.Focus();
     }
 
@@ -137,7 +145,7 @@ public partial class MainWindow : Window
         var password = NewPassword1.Password;
         SetupError.Text =
             path == "" ? L("ErrPickLocation") :
-            File.Exists(path) ? L("ErrFileExists") :
+            File.Exists(path) || File.Exists(path + ".bak") || File.Exists(path + ".tmp") ? L("ErrFileExists") :
             password.Length < 8 ? L("ErrShortPassword") :
             password != NewPassword2.Password ? L("ErrMismatch") : "";
         if (SetupError.Text != "") return;
@@ -188,21 +196,26 @@ public partial class MainWindow : Window
         try
         {
             if (!vault.ReloadIfChanged()) return;
-            if (dirty) RefreshList();
-            else Edit(editingId);
+            if (!dirty) Edit(editingId);
+            RefreshList();
         }
-        catch (CryptographicException)
+        catch (VaultPasswordChangedException)
         {
             // ana şifre başka bilgisayarda değişti; formda yazılmamış veri varsa kilitleyip silme
             if (dirty) SetStatus(L("ErrKeyChangedDirty"), error: true);
             else Lock(L("ErrKeyChanged"));
+        }
+        catch (Exception ex) when (ex is CryptographicException or InvalidDataException)
+        {
+            // yarım yazılmış/eşitlenen dosya: anahtar önbelleği kalır (eklenti çalışmaya devam eder), sonraki tik yeniden dener
+            SetStatus(L("ErrReload") + L("ErrUnreadable"), error: true);
         }
         catch (Exception ex) { SetStatus(L("ErrReload") + ex.Message, error: true); }
     }
 
     void Window_Closing(object? sender, CancelEventArgs e)
     {
-        if (!ConfirmLeave()) e.Cancel = true;
+        if (!IsEnabled || !ConfirmLeave()) e.Cancel = true; // !IsEnabled: kasa işi arka planda sürüyor
     }
 
     void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => RefreshList();
@@ -232,7 +245,7 @@ public partial class MainWindow : Window
     void EntryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (refreshing || EntryList.SelectedItem is not Entry picked || picked.Id == editingId) return;
-        if (ConfirmLeave()) Edit(picked.Id);
+        if (ConfirmLeave()) Edit(picked.Id); // listeyi yeniden kurmaz: veri değişmedi, kaydırma yerinde kalsın
         else RefreshList(); // seçimi düzenlenen kayda geri al
     }
 
@@ -240,6 +253,7 @@ public partial class MainWindow : Window
     {
         if (!ConfirmLeave()) return;
         Edit(null);
+        RefreshList();
         FirstNameBox.Focus();
     }
 
@@ -254,11 +268,11 @@ public partial class MainWindow : Window
         EditTitle.SetResourceReference(TextBlock.TextProperty, editingId == null ? "NewEntry" : "EditTitleEdit");
         DeleteButton.IsEnabled = editingId != null;
         SetStatus("");
-        RefreshList();
     }
 
     void FillForm(Entry? entry)
     {
+        loaded = entry;
         SiteBox.Text = entry?.Site ?? "";
         FirstNameBox.Text = entry?.FirstName ?? "";
         LastNameBox.Text = entry?.LastName ?? "";
@@ -272,7 +286,7 @@ public partial class MainWindow : Window
 
     bool IsDirty()
     {
-        var e = Current;
+        var e = loaded; // Current değil: arka planda gelen değişiklik kullanıcının değişikliği sayılmasın
         return (e != null && SiteBox.Text != e.Site) // yeni kayıtta önceden doldurulan site değişiklik sayılmaz
             || FirstNameBox.Text != (e?.FirstName ?? "") || LastNameBox.Text != (e?.LastName ?? "")
             || Extra1Box.Text != (e?.Extra1 ?? "") || Extra2Box.Text != (e?.Extra2 ?? "")
@@ -293,34 +307,57 @@ public partial class MainWindow : Window
     {
         if (vault == null) return false;
         var site = Sites.Normalize(SiteBox.Text);
-        SiteError.Text = site == "" ? L("ErrNeedSite") : "";
-        if (site == "") { SiteBox.Focus(); return false; }
+        // yalnız "com" gibi bir ad her .com sitesiyle eşleşirdi (spec §3a): gerçek bir host adı iste
+        var validSite = site.Contains('.') && Uri.CheckHostName(site) is UriHostNameType.Dns or UriHostNameType.IPv4;
+        SiteError.Text = site == "" ? L("ErrNeedSite") : !validSite ? L("ErrBadSite") : "";
+        if (SiteError.Text != "") { SiteBox.Focus(); return false; }
         var first = FirstNameBox.Text.Trim();
         var last = LastNameBox.Text.Trim();
         var extra1 = Extra1Box.Text.Trim();
         var extra2 = Extra2Box.Text.Trim();
         var username = UsernameBox.Text.Trim();
         var password = FormPassword;
-        if (first == "" && last == "") { SetStatus(L("ErrNeedName"), error: true); return false; }
+        // eklentinin adsız eklediği kayıt da düzenlenebilsin: ad yalnız yeni kayıtta zorunlu
+        if (editingId == null && first == "" && last == "") { SetStatus(L("ErrNeedName"), error: true); return false; }
         if (username == "") { SetStatus(L("ErrNeedUsername"), error: true); return false; }
         if (password == "") { SetStatus(L("ErrNeedPassword"), error: true); return false; }
 
         var id = editingId ?? Guid.NewGuid().ToString("N");
+        var was = loaded;
+        var form = (site: SiteBox.Text, first: FirstNameBox.Text, last: LastNameBox.Text, extra1: Extra1Box.Text,
+            extra2: Extra2Box.Text, username: UsernameBox.Text, password);
         try
         {
             vault.Update(list =>
             {
-                // yerinde değiştirme yok: kayıt başarısız olursa bellekteki kasa eski hâliyle kalsın
-                var entry = new Entry { Id = id, Site = site, FirstName = first, LastName = last, Extra1 = extra1, Extra2 = extra2, Username = username, Password = password };
                 var index = list.FindIndex(x => x.Id == id);
+                var now = index < 0 ? null : list[index];
+                // yalnız kullanıcının değiştirdiği alan yazılır; dokunulmayan alan diskteki güncel değeri korur
+                // (form açıkken eklenti şifreyi güncellemiş ya da başka bilgisayar değiştirmiş olabilir)
+                string Pick(string box, Func<Entry, string> field, string value) =>
+                    was != null && now != null && box == field(was) ? field(now) : value;
+                // yerinde değiştirme yok: kayıt başarısız olursa bellekteki kasa eski hâliyle kalsın
+                var entry = new Entry
+                {
+                    Id = id,
+                    Site = Pick(form.site, e => e.Site, site),
+                    FirstName = Pick(form.first, e => e.FirstName, first),
+                    LastName = Pick(form.last, e => e.LastName, last),
+                    Extra1 = Pick(form.extra1, e => e.Extra1, extra1),
+                    Extra2 = Pick(form.extra2, e => e.Extra2, extra2),
+                    Username = Pick(form.username, e => e.Username, username),
+                    Password = Pick(form.password, e => e.Password, password),
+                };
                 if (index < 0) list.Add(entry); // yeni ya da bu arada başka yerde silinmiş
                 else list[index] = entry;
             });
         }
-        catch (CryptographicException) { SetStatus(L("ErrKeyChangedDirty"), error: true); return false; }
+        catch (VaultPasswordChangedException) { SetStatus(L("ErrKeyChangedDirty"), error: true); return false; }
+        catch (Exception ex) when (ex is CryptographicException or InvalidDataException) { SetStatus(L("ErrSave") + L("ErrUnreadable"), error: true); return false; }
         catch (Exception ex) { SetStatus(L("ErrSave") + ex.Message, error: true); return false; }
 
         Edit(id);
+        RefreshList();
         SetStatus(L("Saved"));
         return true;
     }
@@ -335,6 +372,7 @@ public partial class MainWindow : Window
         try { vault.Update(list => list.RemoveAll(x => x.Id == id)); }
         catch (Exception ex) { SetStatus(L("ErrDelete") + ex.Message, error: true); return; }
         Edit(null);
+        RefreshList();
         SetStatus(L("Deleted"));
     }
 
@@ -350,9 +388,26 @@ public partial class MainWindow : Window
 
     void CopyPassword_Click(object sender, RoutedEventArgs e)
     {
-        if (FormPassword == "") return;
-        try { Clipboard.SetText(FormPassword); SetStatus(L("Copied")); }
-        catch (Exception) { SetStatus(L("ErrClipboard"), error: true); }
+        var password = FormPassword;
+        if (password == "") return;
+        try
+        {
+            var data = new DataObject(DataFormats.UnicodeText, password);
+            // Win+V geçmişine ve bulut panosuna gitmesin
+            data.SetData("ExcludeClipboardContentFromMonitorProcessing", new MemoryStream(new byte[4]));
+            Clipboard.SetDataObject(data, copy: true);
+            SetStatus(L("Copied"));
+        }
+        catch (Exception) { SetStatus(L("ErrClipboard"), error: true); return; }
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            // kullanıcı bu arada başka bir şey kopyaladıysa ona dokunma
+            try { if (Clipboard.ContainsText() && Clipboard.GetText() == password) Clipboard.Clear(); }
+            catch (Exception) { } // pano meşgul: bırak
+        };
+        timer.Start();
     }
 
     void SetStatus(string text, bool error = false)
@@ -366,9 +421,11 @@ public partial class MainWindow : Window
     void Settings_Click(object sender, RoutedEventArgs e)
     {
         if (vault == null) return;
+        var lang = AppPaths.Lang;
         var settings = new SettingsWindow(vault) { Owner = this };
         settings.ShowDialog();
         RefreshList(); // dil değiştiyse sayaç metni de yenilensin
+        if (AppPaths.Lang != lang) SetStatus(""); // koddan yazılmış durum metni eski dilde kalmasın
         switch (settings.Choice)
         {
             case SettingsChoice.OpenOther when ConfirmLeave():

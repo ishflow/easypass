@@ -59,7 +59,7 @@
     <sys:String x:Key="DeleteTitle" xml:space="preserve">Müşteriyi sil</sys:String>
     <sys:String x:Key="ErrDelete" xml:space="preserve">Silinemedi: </sys:String>
     <sys:String x:Key="Deleted" xml:space="preserve">Silindi.</sys:String>
-    <sys:String x:Key="Copied" xml:space="preserve">Şifre panoya kopyalandı.</sys:String>
+    <sys:String x:Key="Copied" xml:space="preserve">Şifre panoya kopyalandı. Pano 30 saniye sonra temizlenecek.</sys:String>
     <sys:String x:Key="ErrClipboard" xml:space="preserve">Pano şu an kullanılamıyor, tekrar deneyin.</sys:String>
     <sys:String x:Key="ErrTitle" xml:space="preserve">EasyPass — hata</sys:String>
     <sys:String x:Key="SettingsWindowTitle" xml:space="preserve">Ayarlar — EasyPass</sys:String>
@@ -86,4 +86,7 @@
     <sys:String x:Key="LanguageTitle" xml:space="preserve">Язык / Dil</sys:String>
     <sys:String x:Key="Site" xml:space="preserve">Site</sys:String>
     <sys:String x:Key="ErrNeedSite" xml:space="preserve">Site gerekli</sys:String>
+    <sys:String x:Key="ErrBadSite" xml:space="preserve">Sitenin tam adresini yazın, örn. portal.example.com</sys:String>
+    <sys:String x:Key="ErrUnreadable" xml:space="preserve">kasa dosyası şu an okunamıyor (bulut eşitlemesi sürüyor olabilir). Birkaç saniye sonra yeniden deneyin; formdaki bilgiler kaybolmadı.</sys:String>
+    <sys:String x:Key="ErrVaultMissing" xml:space="preserve">Kasa dosyası bulunamadı: {0}&#10;Yanında yedeği var (.bak ya da .tmp): kayıt yarıda kalmış ya da bulut klasörü henüz eşitlenmemiş. Bekleyip EasyPass'i yeniden açın. Dosya yine gelmezse {0}.bak dosyasını kasa adıyla kopyalayıp "Var olan kasayı aç" ile açın. Bu klasörde yeni kasa oluşturmayın.</sys:String>
 </ResourceDictionary>

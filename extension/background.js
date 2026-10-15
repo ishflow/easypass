@@ -3,7 +3,6 @@ const HOST = 'com.easypass.host';
 const PENDING_TTL = 2 * 60 * 1000;
 let port = null;
 let seq = 0;
-let lang = null; // UI language from the app settings, via host status replies
 const waiting = new Map();
 const checking = new Map(); // tabId → in-flight check, so a freshly loaded page waits for it
 
@@ -11,7 +10,6 @@ function ask(msg) {
   if (!port) {
     port = chrome.runtime.connectNative(HOST);
     port.onMessage.addListener((r) => {
-      if (r.lang) lang = r.lang;
       waiting.get(r.id)?.(r);
       waiting.delete(r.id);
     });
@@ -32,15 +30,26 @@ function ask(msg) {
 const keyOf = (tab) => 'tab' + tab;
 const load = async (tab) => (await chrome.storage.session.get(keyOf(tab)))[keyOf(tab)] || {};
 const store = (tab, state) => chrome.storage.session.set({ [keyOf(tab)]: state });
+// shortcut: "same domain" = same last two labels, no public-suffix list (so a.github.io ~ b.github.io); it only lets a
+// prompt follow a login redirect in the same tab within PENDING_TTL. Use a PSL if that ever shows a wrong prompt.
+const domain = (host) => host.split('.').slice(-2).join('.');
+// The page-side script gets only what the prompt shows; the password stays in the background.
+const shown = (p) => p && { result: p.result, name: p.name, username: p.username };
+const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 async function submitted({ username, password, change, site }, tab) {
   const state = await load(tab);
-  const filled = state.lastFilled?.site === site ? state.lastFilled : null;
-  const req = { cmd: 'check', site, username, password };
-  // Password-change form (or same login as the one we filled) → compare with the filled entry.
-  if (filled && (change || filled.username.toLowerCase() === username.toLowerCase())) {
-    Object.assign(req, { username: filled.username, entryId: filled.entryId });
+  let filled = state.lastFilled?.site === site ? state.lastFilled : null;
+  const same = filled?.username.toLowerCase() === username.toLowerCase();
+  if (filled && username && !same) {
+    // Another login typed by hand: the filled entry is stale and must not take this or a later password change.
+    delete state.lastFilled;
+    filled = null;
+    await store(tab, state);
   }
+  const req = { cmd: 'check', site, username, password };
+  // Password-change form without a username field (or the same login we filled) → compare with the filled entry.
+  if (filled && (change || same)) Object.assign(req, { username: filled.username, entryId: filled.entryId });
   if (!req.username || !password) return null;
   const r = await ask(req);
   if (!r.ok || (r.result !== 'changed' && r.result !== 'new')) return null;
@@ -49,15 +58,19 @@ async function submitted({ username, password, change, site }, tab) {
     username: req.username, password, site, at: Date.now(),
   };
   await store(tab, state);
-  return state.pending;
+  return shown(state.pending);
 }
 
-async function handle(msg, tab, site) {
+async function handle(msg, tab, url) {
+  const site = url.hostname;
   msg = { ...msg, site }; // the sender's real host, never what the page-side script claims
   switch (msg.cmd) {
+    case 'search':
     case 'get': {
-      const r = await ask({ cmd: 'get', site, entryId: msg.entryId });
-      if (r.ok) await store(tab, { ...(await load(tab)), lastFilled: { entryId: msg.entryId, username: r.username, site } });
+      // No filling into plain-http pages: anyone on the network path could inject a script and read the password.
+      if (url.protocol !== 'https:' && !LOCAL.has(site)) return { ok: false, error: 'insecure' };
+      const r = await ask(msg);
+      if (msg.cmd === 'get' && r.ok) await store(tab, { ...(await load(tab)), lastFilled: { entryId: msg.entryId, username: r.username, site } });
       return r;
     }
     case 'submitted': {
@@ -67,13 +80,20 @@ async function handle(msg, tab, site) {
     }
     case 'pending': {
       await checking.get(tab);
-      const { pending } = await load(tab);
-      return pending && pending.site === site && Date.now() - pending.at < PENDING_TTL ? pending : null;
+      const { pending: p } = await load(tab);
+      // login.x.com often redirects to app.x.com: the question follows within the same domain
+      return p && domain(p.site) === domain(site) && Date.now() - p.at < PENDING_TTL ? shown(p) : null;
     }
     case 'dismiss':
     case 'update':
     case 'add': {
-      const r = msg.cmd === 'dismiss' ? { ok: true } : await ask(msg);
+      const { pending: p } = await load(tab);
+      if (!p) return msg.cmd === 'dismiss' ? { ok: true } : { ok: false, error: 'not_found' };
+      // site, login and password come from the captured submit, never from the page-side script
+      const r = msg.cmd === 'dismiss' ? { ok: true }
+        : await ask(msg.cmd === 'update'
+          ? { cmd: 'update', site: p.site, entryId: p.entryId, password: p.password }
+          : { cmd: 'add', site: p.site, firstName: msg.firstName, lastName: msg.lastName, username: p.username, password: p.password });
       if (r.ok) {
         const state = await load(tab);
         delete state.pending;
@@ -81,17 +101,19 @@ async function handle(msg, tab, site) {
       }
       return r;
     }
-    case 'lang':
-      if (!lang) await ask({ cmd: 'status' });
-      return lang || 'ru';
-    default: // status, search
+    case 'lang': // asked again each time, so a language switch in the app shows on the next page
+      return (await ask({ cmd: 'status' })).lang || 'ru';
+    default: // status
       return ask(msg);
   }
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, reply) => {
-  handle(msg, sender.tab?.id, new URL(sender.url).hostname).then(reply);
+  handle(msg, sender.tab?.id, new URL(sender.url)).then(reply, () => reply({ ok: false, error: 'no_host' }));
   return true;
 });
 
-chrome.tabs.onRemoved.addListener((tab) => chrome.storage.session.remove(keyOf(tab)));
+chrome.tabs.onRemoved.addListener((tab) => {
+  checking.delete(tab);
+  chrome.storage.session.remove(keyOf(tab));
+});

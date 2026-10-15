@@ -109,7 +109,19 @@
                                                    Text="{Binding Site, Mode=OneWay}" FontSize="12" TextTrimming="CharacterEllipsis"
                                                    ToolTip="{Binding Site, Mode=OneWay}" Foreground="{StaticResource AccentBrush}" />
                                     <StackPanel>
-                                        <TextBlock Text="{Binding FullName, Mode=OneWay}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                        <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Style>
+                                                <!-- eklentinin adsız eklediği kayıtta kullanıcı adı görünsün -->
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Text" Value="{Binding FullName, Mode=OneWay}" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding FullName, Mode=OneWay}" Value="">
+                                                            <Setter Property="Text" Value="{Binding Username, Mode=OneWay}" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                         <StackPanel Orientation="Horizontal" TextBlock.FontSize="12" TextBlock.Foreground="{StaticResource TextSecondaryBrush}">
                                             <TextBlock Text="{Binding Username, Mode=OneWay}" Margin="0,0,12,0" />
                                             <TextBlock Text="{Binding Extra1, Mode=OneWay}" Margin="0,0,12,0" />

@@ -59,7 +59,7 @@
     <sys:String x:Key="DeleteTitle" xml:space="preserve">Удаление клиента</sys:String>
     <sys:String x:Key="ErrDelete" xml:space="preserve">Не удалось удалить: </sys:String>
     <sys:String x:Key="Deleted" xml:space="preserve">Удалено.</sys:String>
-    <sys:String x:Key="Copied" xml:space="preserve">Пароль скопирован.</sys:String>
+    <sys:String x:Key="Copied" xml:space="preserve">Пароль скопирован. Буфер обмена очистится через 30 секунд.</sys:String>
     <sys:String x:Key="ErrClipboard" xml:space="preserve">Буфер обмена занят, попробуйте ещё раз.</sys:String>
     <sys:String x:Key="ErrTitle" xml:space="preserve">EasyPass — ошибка</sys:String>
     <sys:String x:Key="SettingsWindowTitle" xml:space="preserve">Настройки — EasyPass</sys:String>
@@ -86,4 +86,7 @@
     <sys:String x:Key="LanguageTitle" xml:space="preserve">Язык / Dil</sys:String>
     <sys:String x:Key="Site" xml:space="preserve">Сайт</sys:String>
     <sys:String x:Key="ErrNeedSite" xml:space="preserve">Укажите сайт</sys:String>
+    <sys:String x:Key="ErrBadSite" xml:space="preserve">Укажите полный адрес сайта, например portal.example.com</sys:String>
+    <sys:String x:Key="ErrUnreadable" xml:space="preserve">файл хранилища сейчас не читается (возможно, облако ещё синхронизирует его). Попробуйте через несколько секунд; данные формы не потеряны.</sys:String>
+    <sys:String x:Key="ErrVaultMissing" xml:space="preserve">Файл хранилища не найден: {0}&#10;Рядом есть его резервная копия (.bak или .tmp): сохранение было прервано или облако ещё синхронизирует папку. Подождите и перезапустите EasyPass. Если файл так и не появится, скопируйте {0}.bak под именем хранилища и откройте его через «Открыть существующее». Не создавайте новое хранилище в этой папке.</sys:String>
 </ResourceDictionary>

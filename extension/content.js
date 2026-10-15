@@ -9,6 +9,7 @@
       hint: '↑ ↓ выбор · Enter заполнить · Esc закрыть',
       locked: 'Хранилище заблокировано — откройте EasyPass и введите мастер-пароль',
       noHost: 'Нет связи — запустите install.ps1', error: 'Ошибка: ',
+      insecure: 'Небезопасная страница (http) — EasyPass здесь не заполняет',
       changed: 'Пароль изменён. Обновить в EasyPass?', update: 'Обновить', no: 'Нет',
       added: 'Этого входа нет в EasyPass. Сохранить?', first: 'Имя', last: 'Фамилия', save: 'Сохранить',
     },
@@ -17,13 +18,14 @@
       hint: '↑ ↓ seç · Enter doldur · Esc kapat',
       locked: "Kilitli — EasyPass'i açıp ana şifreyi girin",
       noHost: 'Bağlantı yok — kurulum betiğini çalıştırın', error: 'Hata: ',
+      insecure: 'Güvensiz sayfa (http) — EasyPass burada doldurmaz',
       changed: "Şifre değişti. EasyPass'te güncellensin mi?", update: 'Güncelle', no: 'Hayır',
       added: "Bu giriş EasyPass'te yok. Kaydedilsin mi?", first: 'Ad', last: 'Soyad', save: 'Kaydet',
     },
   };
   let T = null; // asked once per page, only when the UI is first needed (so idle pages never start the host)
   const texts = async () => (T ??= TEXT[await send({ cmd: 'lang' })] || TEXT.ru);
-  const message = (error) => (error === 'locked' ? T.locked : error === 'no_host' ? T.noHost : T.error + error);
+  const message = (error) => ({ locked: T.locked, no_host: T.noHost, insecure: T.insecure })[error] ?? T.error + error;
 
   // Username field = last visible text/email/tel input before the first visible password input (same form).
   function pairFor(el) {
@@ -48,7 +50,7 @@
     const t = T;
     host = document.createElement('easypass-ui');
     host.style.cssText = 'all:initial;position:absolute;top:0;left:0;z-index:2147483647';
-    const root = host.attachShadow({ mode: 'closed' }); // page scripts can't read customer names
+    const root = host.attachShadow({ mode: 'closed' }); // page scripts can't read the panel's DOM (customer names)
     root.innerHTML = `<style>
       :host{all:initial}
       *{box-sizing:border-box;margin:0;font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
@@ -88,7 +90,8 @@
     <div class="box toast" role="dialog" aria-label="EasyPass" aria-live="polite" hidden></div>`;
     [panel, input, list, status, toast] = ['.panel', 'input', '#list', '.status', '.toast'].map((s) => root.querySelector(s));
     root.querySelector('.site').textContent = location.hostname; // shown only; background sends the real host
-    // Keep our keystrokes away from page shortcuts.
+    // Keep our keystrokes away from page shortcuts. Page capture listeners on window/document still see the keys
+    // (and so the search text) before this; accepted for v1, a browser-side popup would hide them (v2).
     for (const type of ['keydown', 'keyup', 'keypress', 'input']) root.addEventListener(type, (e) => e.stopPropagation());
     input.addEventListener('input', () => search(input.value));
     input.addEventListener('keydown', (e) => {
@@ -191,9 +194,9 @@
     toast.onclick = (e) => { if (e.target.dataset.a) answer(e.target.dataset.a); };
     async function answer(a) {
       const v = (name) => toast.querySelector(`[name=${name}]`).value.trim();
-      const r = await send(a === 'no' ? { cmd: 'dismiss' }
-        : a === 'update' ? { cmd: 'update', entryId: p.entryId, password: p.password }
-          : { cmd: 'add', firstName: v('first'), lastName: v('last'), username: p.username, password: p.password });
+      // the background answers with the login it captured; only the names typed here travel with the request
+      const r = await send(a === 'no' ? { cmd: 'dismiss' } : a === 'update' ? { cmd: 'update' }
+        : { cmd: 'add', firstName: v('first'), lastName: v('last') });
       if (r.ok) toast.hidden = true;
       else info.textContent = message(r.error);
     }
@@ -210,14 +213,17 @@
     send({ cmd: 'submitted', username, password, change: pws.length > 1 }).then(prompt);
   }
 
+  // Opens the panel if t is a login field. true = opened.
+  function offer(t) {
+    if (t === suppress || !(t instanceof HTMLInputElement)) return false;
+    const p = pairFor(t);
+    if (!p || (t !== p.user && t !== p.pass)) return false;
+    open(t, p);
+    return true;
+  }
+
   document.addEventListener('focusin', (e) => {
-    const t = e.target;
-    if (t === host) return;
-    if (t !== suppress && t instanceof HTMLInputElement) {
-      const p = pairFor(t);
-      if (p && (t === p.user || t === p.pass)) return open(t, p);
-    }
-    close(false);
+    if (e.target !== host && !offer(e.target)) close(false);
   }, true);
   document.addEventListener('focusout', (e) => {
     if (e.target === suppress) suppress = null;
@@ -225,14 +231,17 @@
   document.addEventListener('mousedown', (e) => {
     if (e.target !== host && e.target !== field) close(false);
   }, true);
-  document.addEventListener('submit', (e) => captured(e.target), true);
+  // isTrusted: a page script must not make us ask the host about logins it invents
+  document.addEventListener('submit', (e) => e.isTrusted && captured(e.target), true);
   document.addEventListener('click', (e) => {
-    const b = e.target.closest?.('button, input[type=submit], input[type=image]');
+    const b = e.isTrusted && e.target.closest?.('button, input[type=submit], input[type=image]');
     if (b?.form && (b.type === 'submit' || b.type === 'image')) captured(b.form);
   }, true);
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && e.target.type === 'password') captured(e.target.form || document);
+    if (e.isTrusted && e.key === 'Enter' && e.target.type === 'password') captured(e.target.form || document);
   }, true);
 
+  // autofocus: the field got focus before this script loaded, so no focusin will come (skip if already typed in)
+  if (!document.activeElement?.value) offer(document.activeElement);
   send({ cmd: 'pending' }).then(prompt);
 })();

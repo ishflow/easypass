@@ -30,6 +30,7 @@ public partial class SettingsWindow : Window
         ChromeStatus.SetResourceReference(TextBlock.TextProperty, key != null ? "ChromeOk" : "ChromeMissing");
         ChromeStatus.Foreground = (Brush)FindResource(key != null ? "AccentBrush" : "DangerBrush");
         MarkLanguage(AppPaths.Lang);
+        Closing += (_, e) => e.Cancel = !IsEnabled; // şifre değiştirme sürerken X ile kapanmasın (kasa aynı anda iki thread'de olurdu)
     }
 
     void Language_Click(object sender, RoutedEventArgs e)
@@ -38,6 +39,7 @@ public partial class SettingsWindow : Window
         AppPaths.Lang = lang;
         Loc.Apply(lang);
         MarkLanguage(lang);
+        PasswordMessage.Text = ""; // koddan yazılmış ileti eski dilde kalmasın
     }
 
     void MarkLanguage(string lang)
