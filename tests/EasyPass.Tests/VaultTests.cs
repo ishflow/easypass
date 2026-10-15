@@ -160,15 +160,17 @@ public class VaultTests : IDisposable
     }
 
     [Fact]
-    public async Task Save_waits_for_a_reader_briefly_holding_the_file()
+    public void Save_waits_for_a_reader_briefly_holding_the_file()
     {
         if (!OperatingSystem.IsWindows()) return; // Unix rename ignores open handles; Windows refuses to replace an open file
         var path = _tmp.File();
         var v = Vault.Create(path, "pw");
         var reader = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
-        var release = Task.Run(async () => { await Task.Delay(150); reader.Dispose(); });
-        v.Update(l => l.Add(new Entry { Username = "u" }));
-        await release;
+        // own thread, not the pool: on a busy CI runner a pool-scheduled release came later than the 5 × 100 ms retries
+        var release = new Thread(() => { Thread.Sleep(150); reader.Dispose(); });
+        release.Start();
+        try { v.Update(l => l.Add(new Entry { Username = "u" })); }
+        finally { release.Join(); }
         Assert.Equal("u", Assert.Single(Vault.Open(path, v.Key).Entries).Username);
     }
 
