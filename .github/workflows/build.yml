@@ -13,11 +13,48 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-      # slnx dört projeyi (WPF dahil) derler, sonra testleri çalıştırır
-      - run: dotnet test EasyPass.slnx -c Release
+      # slnx dört projeyi (WPF dahil) derler, sonra testleri çalıştırır. HostProcessTests gerçek EasyPass.Host.exe'yi
+      # DPAPI anahtar önbelleğiyle uçtan uca dener ve kasayı + önbelleği EASYPASS_SMOKE_HOME'da bırakır (aşağıdaki duman testi için).
+      - run: dotnet test EasyPass.slnx -c Release --logger "console;verbosity=normal"
+        env:
+          EASYPASS_SMOKE_HOME: ${{ runner.temp }}\smoke-home
       - run: |
           dotnet publish src/EasyPass.App/EasyPass.App.csproj -c Release -r win-x64 --self-contained false -o publish
           dotnet publish src/EasyPass.Host/EasyPass.Host.csproj -c Release -r win-x64 --self-contained false -o publish
+      # Duman testi: WPF hiç elle çalıştırılmadı. XAML/başlangıç hatası ya süreci kapatır ya da hata kutusu açar;
+      # ikisini de 8 sn sonra süreç + UI Automation ile görünen alana bakarak yakalar.
+      - name: Smoke test - EasyPass.exe starts (setup screen, then main screen with a ready vault)
+        shell: powershell
+        env:
+          SMOKE_HOME: ${{ runner.temp }}\smoke-home
+          EMPTY_HOME: ${{ runner.temp }}\empty-home
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
+          $A = [Windows.Automation.AutomationElement]
+          function Test-Start($dir, $field) {
+            $env:EASYPASS_HOME = $dir
+            $p = Start-Process -FilePath publish\EasyPass.exe -PassThru
+            try {
+              Start-Sleep -Seconds 8
+              if ($p.HasExited) { throw "EasyPass exited during start-up (exit code $($p.ExitCode))" }
+              $win = $A::RootElement.FindFirst('Children', (New-Object Windows.Automation.PropertyCondition($A::ProcessIdProperty, $p.Id)))
+              if (-not $win) { throw "EasyPass is running but has no window" }
+              $names = $win.FindAll('Children', [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name }
+              if (-not $win.FindFirst('Descendants', (New-Object Windows.Automation.PropertyCondition($A::AutomationIdProperty, $field)))) {
+                throw "window '$($win.Current.Name)' does not show $field (top-level children: $($names -join ', '))"
+              }
+              Write-Host "SMOKE OK: EasyPass.exe still running after 8 s, window '$($win.Current.Name)' shows $field (EASYPASS_HOME=$dir)"
+            } finally {
+              if (-not $p.HasExited) {
+                $p.CloseMainWindow() | Out-Null
+                if (-not $p.WaitForExit(10000)) { Stop-Process -Id $p.Id -Force }
+              }
+            }
+          }
+          New-Item -ItemType Directory -Force $env:EMPTY_HOME | Out-Null
+          Test-Start $env:EMPTY_HOME 'NewPathBox'   # no settings → setup screen
+          Test-Start $env:SMOKE_HOME 'SearchBox'    # vault + DPAPI key cache → main screen
       - uses: actions/upload-artifact@v4
         with:
           name: EasyPass

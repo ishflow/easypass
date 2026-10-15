@@ -43,8 +43,11 @@ public static class Sites
 
 public static class AppPaths
 {
-    public static string Dir { get; internal set; } = // tests point it at a temp folder
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EasyPass");
+    // Tests point it at a temp folder; EASYPASS_HOME overrides it for whole processes (CI smoke runs, development),
+    // since the Windows AppData lookup ignores the APPDATA variable.
+    public static string Dir { get; internal set; } =
+        Environment.GetEnvironmentVariable("EASYPASS_HOME") is { Length: > 0 } home ? home
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EasyPass");
 
     static string SettingsFile => Path.Combine(Dir, "settings.json");
 

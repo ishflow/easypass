@@ -72,12 +72,18 @@ Program dosyalarını, kısayolu ve Chrome kaydını siler. Kasa dosyanız (`vau
 | Windows SmartScreen uyarısı | İndirilen zip'e sağ tık → Özellikler → **Engellemeyi kaldır**, sonra açın. |
 | Kasa açılmıyor / dosya bozuk | Aynı klasördeki `vault.ezp.bak` bir önceki sürümdür: kopyasını alıp `vault.ezp` adıyla açmayı deneyin. |
 | Panel bazı sitelerde çıkmıyor | Çerçeve (iframe) içindeki giriş formları bu sürümde desteklenmiyor. |
+| Panel "Güvensiz sayfa (http)" diyor | Eklenti şifreyi yalnız `https://` sayfalara yazar (`localhost` hariç); adresi `https://` ile açın. |
+| Açılışta "Kasa dosyası bulunamadı … yedeği var" | Kayıt yarıda kalmış ya da bulut klasörü eşitlenmemiş. Bekleyip yeniden açın; dosya gelmezse `vault.ezp.bak` kopyasını `vault.ezp` adıyla açın. |
 
 ## Geliştirme
 
 - .NET 10 SDK: `dotnet test EasyPass.slnx` (Windows). Mac/Linux'ta WPF projesi
   `-p:EnableWindowsTargeting=true` ile derlenir ama çalışmaz; testler için
   `dotnet test tests/EasyPass.Tests` kullanın.
-- Her push'ta GitHub Actions (`.github/workflows/build.yml`, windows-latest) derler, test eder ve
+- `EASYPASS_HOME` ortam değişkeni ayar klasörünü (`settings.json`, `key.bin`) `%APPDATA%\EasyPass` yerine
+  verilen klasöre çevirir (geliştirme ve CI duman testleri için; Windows `APPDATA` değişkenini dikkate almaz).
+- Eklenti testi (Mac, Playwright): `cd extension/test && npm install && npm test` (ru + tr; `openssl` gerekir).
+- Her push'ta GitHub Actions (`.github/workflows/build.yml`, windows-latest) derler, test eder
+  (gerçek `EasyPass.Host.exe` uçtan uca dahil), `EasyPass.exe`'yi iki kez başlatıp açılış ekranlarını dener ve
   `publish\` + `extension\` + `scripts\` içeren `EasyPass` zip'ini çıktı olarak yükler.
 - Tasarım: `docs/superpowers/specs/2026-10-16-easypass-design.md`.
