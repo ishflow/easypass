@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Test giriş sayfası</title>
+<style>
+  /* Hostile page styles: the extension UI must not inherit any of this. */
+  * { font-family: "Comic Sans MS", cursive !important; color: crimson !important; }
+  div, p, span, input, button { border: 2px dashed orange !important; background: yellow !important; }
+  body { margin: 40px; }
+  form { margin-bottom: 32px; }
+  label { display: block; margin: 8px 0; }
+</style>
+</head>
+<body>
+<h1>Müşteri portalı</h1>
+<form id="login" method="post" action="/">
+  <label>Kullanıcı adı <input id="user" name="user" autocomplete="off"></label>
+  <label>Şifre <input id="pass" name="pass" type="password"></label>
+  <button id="go">Giriş</button>
+</form>
+<form id="change" method="post" action="/">
+  <label>Mevcut şifre <input id="cur" type="password"></label>
+  <label>Yeni şifre <input id="new1" type="password"></label>
+  <label>Yeni şifre (tekrar) <input id="new2" type="password"></label>
+  <button id="save">Şifreyi değiştir</button>
+</form>
+<script>
+  // Counts input/change events like a React/Vue controlled input would need.
+  for (const t of ['input', 'change']) document.addEventListener(t, (e) => { e.target.dataset[t] = (+e.target.dataset[t] || 0) + 1; });
+</script>
+</body>
+</html>

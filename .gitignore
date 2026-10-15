@@ -1,0 +1,12 @@
+bin/
+obj/
+publish/
+TestResults/
+.vs/
+*.user
+*.pem
+node_modules/
+test-results/
+playwright-report/
+extension/test/profile*/
+extension/test/.profile*/

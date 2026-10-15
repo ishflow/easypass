@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/EasyPass.Core/EasyPass.Core.csproj" />
+  <Project Path="src/EasyPass.Host/EasyPass.Host.csproj" />
+  <Project Path="src/EasyPass.App/EasyPass.App.csproj" />
+  <Project Path="tests/EasyPass.Tests/EasyPass.Tests.csproj" />
+</Solution>

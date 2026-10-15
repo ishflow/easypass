@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "EasyPass",
+  "version": "1.0.0",
+  "description": "Müşteri girişlerini EasyPass kasasından hızlıca doldurur.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAwo5aTx/Sjra9xCROHG9eIM2vyA9QeReEBHgzhvhRQ4lDJNQVaM1VHsZX3M7fQcCg4OkAruJYym5U+6FE3aMlTT6y4dsHJtnh5e5YkHVN1HAGQ/E3OMokR3ds1wCJJ7qW5OYg+aaS5SAA5w5UxbAnamDo9e2zCtKK0WubT+Z4MpuEKeM/i8lpnKZUWpyxONulSKOCBl/Lh33nDQskS6C20V4fkVbVfsJxsiUxo4rU/75igiEAi6W2MRG8uNVvGSUsv3v4a78JBrltPO4e0J1ny3ZgQyt05W86qFbp8AY1NHA2WXIG2qmdOYd7Ltf9wbQ+74rRoi3emUuqAqTT228OvQIDAQAB",
+  "permissions": ["nativeMessaging", "storage"],
+  "background": { "service_worker": "background.js" },
+  "content_scripts": [
+    { "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_idle" }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+  },
+  "icons": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }
+}

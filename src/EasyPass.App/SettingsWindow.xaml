@@ -1,0 +1,71 @@
+<Window x:Class="EasyPass.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource SettingsWindowTitle}" Width="560" Height="720" MinHeight="400"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Style="{StaticResource AppWindow}">
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="24,12">
+            <Button Content="{DynamicResource Close}" HorizontalAlignment="Right" MinWidth="100" IsCancel="True" />
+        </Border>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="24">
+                <TextBlock Text="{DynamicResource Settings}" Style="{StaticResource Title}" />
+
+                <Border Style="{StaticResource Card}" Margin="0,8,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource LanguageTitle}" Style="{StaticResource Heading}" />
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="RussianButton" Content="Русский" MinWidth="110" Click="Language_Click" />
+                            <Button x:Name="TurkishButton" Content="Türkçe" MinWidth="110" Margin="8,0,0,0" Click="Language_Click" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource VaultFile}" Style="{StaticResource Heading}" />
+                        <TextBox x:Name="VaultPathBox" IsReadOnly="True" />
+                        <Button Content="{DynamicResource OpenOther}" HorizontalAlignment="Left" Margin="0,12,0,0" Click="OpenOther_Click" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource ChangeMasterTitle}" Style="{StaticResource Heading}" />
+                        <TextBlock Text="{DynamicResource CurrentMaster}" Style="{StaticResource Label}" Margin="0,0,0,4" />
+                        <PasswordBox x:Name="OldPassword" />
+                        <TextBlock Text="{DynamicResource NewMaster}" Style="{StaticResource Label}" />
+                        <PasswordBox x:Name="NewPassword1" />
+                        <TextBlock Text="{DynamicResource NewMasterRepeat}" Style="{StaticResource Label}" />
+                        <PasswordBox x:Name="NewPassword2" />
+                        <TextBlock x:Name="PasswordMessage" Style="{StaticResource Error}" />
+                        <Button Content="{DynamicResource ChangeMaster}" Style="{StaticResource AccentButton}" HorizontalAlignment="Left" Margin="0,12,0,0" Click="ChangePassword_Click" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource Lock}" Style="{StaticResource Heading}" />
+                        <TextBlock Style="{StaticResource Secondary}"
+                                   Text="{DynamicResource LockHint}" />
+                        <Button Content="{DynamicResource Lock}" Style="{StaticResource DangerButton}" HorizontalAlignment="Left" Margin="0,12,0,0" Click="Lock_Click" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource Card}" Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="{DynamicResource ChromeTitle}" Style="{StaticResource Heading}" />
+                        <TextBlock x:Name="ChromeStatus" TextWrapping="Wrap" />
+                        <TextBlock Text="{DynamicResource ExtFolder}" Style="{StaticResource Label}" />
+                        <DockPanel>
+                            <Button Content="{DynamicResource OpenFolder}" DockPanel.Dock="Right" Margin="8,0,0,0" Click="OpenExtensionFolder_Click" />
+                            <TextBox x:Name="ExtensionPathBox" IsReadOnly="True" />
+                        </DockPanel>
+                        <TextBlock Style="{StaticResource Secondary}" FontSize="12" Margin="0,8,0,0"
+                                   Text="{DynamicResource ExtHint}" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>
