@@ -184,17 +184,19 @@ public class VaultTests : IDisposable
     }
 
     [Fact]
-    public async Task Half_written_file_is_read_again_before_failing()
+    public void Half_written_file_is_read_again_before_failing()
     {
         var path = _tmp.File();
         var a = Vault.Create(path, "pw");
         Vault.Open(path, a.Key).Update(l => l.Add(new Entry { Username = "b" }));
         var good = File.ReadAllBytes(path);
         File.WriteAllBytes(path, good[..^5]); // another process is still writing
-        var finish = Task.Run(async () => { await Task.Delay(50); File.WriteAllBytes(path, good); });
+        // own thread, not the pool: on a busy CI runner a pool-scheduled write came after the 200 ms re-read
+        var finish = new Thread(() => { Thread.Sleep(50); File.WriteAllBytes(path, good); });
+        finish.Start();
 
-        Assert.True(a.ReloadIfChanged());
-        await finish;
+        try { Assert.True(a.ReloadIfChanged()); }
+        finally { finish.Join(); }
         Assert.Equal("b", Assert.Single(a.Entries).Username);
     }
 
