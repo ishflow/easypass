@@ -135,6 +135,102 @@ public class VaultTests : IDisposable
         Assert.Equal("A B", Vault.Open(path, v.Key).Entries[0].FullName);
         Assert.Equal("x.com", Vault.Open(path, v.Key).Entries[0].Site);
     }
+
+    [Theory]
+    [InlineData(".bak")]
+    [InlineData(".tmp")]
+    public void Create_refuses_to_overwrite_leftover_backup(string suffix)
+    {
+        // vault.ezp missing next to .bak/.tmp = an interrupted save; a new vault there would overwrite the only copy
+        var path = _tmp.File();
+        File.WriteAllText(path + suffix, "old vault");
+        Assert.Throws<IOException>(() => Vault.Create(path, "pw"));
+        Assert.Equal("old vault", File.ReadAllText(path + suffix));
+    }
+
+    [Fact]
+    public void Failed_update_leaves_memory_as_on_disk()
+    {
+        var path = _tmp.File();
+        var v = Vault.Create(path, "pw");
+        v.Update(l => l.Add(new Entry { Username = "u", Password = "old" }));
+        Directory.CreateDirectory(path + ".tmp"); // the temp file can no longer be written
+        Assert.ThrowsAny<Exception>(() => v.Update(l => l[0].Password = "new"));
+        Assert.Equal("old", Assert.Single(v.Entries).Password);
+    }
+
+    [Fact]
+    public async Task Save_waits_for_a_reader_briefly_holding_the_file()
+    {
+        if (!OperatingSystem.IsWindows()) return; // Unix rename ignores open handles; Windows refuses to replace an open file
+        var path = _tmp.File();
+        var v = Vault.Create(path, "pw");
+        var reader = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var release = Task.Run(async () => { await Task.Delay(150); reader.Dispose(); });
+        v.Update(l => l.Add(new Entry { Username = "u" }));
+        await release;
+        Assert.Equal("u", Assert.Single(Vault.Open(path, v.Key).Entries).Username);
+    }
+
+    [Fact]
+    public void Password_change_elsewhere_throws_VaultPasswordChangedException()
+    {
+        var path = _tmp.File();
+        var a = Vault.Create(path, "eski");
+        Vault.Open(path, a.Key).ChangePassword("yeni");
+        Assert.Throws<VaultPasswordChangedException>(() => a.ReloadIfChanged());
+    }
+
+    [Fact]
+    public async Task Half_written_file_is_read_again_before_failing()
+    {
+        var path = _tmp.File();
+        var a = Vault.Create(path, "pw");
+        Vault.Open(path, a.Key).Update(l => l.Add(new Entry { Username = "b" }));
+        var good = File.ReadAllBytes(path);
+        File.WriteAllBytes(path, good[..^5]); // another process is still writing
+        var finish = Task.Run(async () => { await Task.Delay(50); File.WriteAllBytes(path, good); });
+
+        Assert.True(a.ReloadIfChanged());
+        await finish;
+        Assert.Equal("b", Assert.Single(a.Entries).Username);
+    }
+
+    [Fact]
+    public void Corrupt_file_is_not_a_password_change_and_keeps_entries()
+    {
+        var path = _tmp.File();
+        var a = Vault.Create(path, "pw");
+        a.Update(l => l.Add(new Entry { Username = "a" }));
+        Vault.Open(path, a.Key).Update(l => l.Add(new Entry { Username = "b" }));
+        var good = File.ReadAllBytes(path);
+        var bad = (byte[])good.Clone();
+        bad[^1] ^= 1;
+        File.WriteAllBytes(path, bad);
+
+        var e = Assert.ThrowsAny<CryptographicException>(() => a.ReloadIfChanged());
+        Assert.IsNotType<VaultPasswordChangedException>(e);
+        Assert.Equal("a", Assert.Single(a.Entries).Username);
+        File.WriteAllBytes(path, good);
+        Assert.True(a.ReloadIfChanged()); // the failed read did not mark the file as seen
+        Assert.Equal(["a", "b"], a.Entries.Select(x => x.Username));
+    }
+
+    [Fact]
+    public void ReloadIfChanged_sees_same_length_write_within_one_timestamp_tick()
+    {
+        // FAT/exFAT and some network drives store mtime in 2 s steps
+        var path = _tmp.File();
+        var a = Vault.Create(path, "pw");
+        a.Update(l => l.Add(new Entry { Username = "u", Password = "p1" }));
+        var t = File.GetLastWriteTimeUtc(path);
+        var b = Vault.Open(path, a.Key);
+        b.Update(l => l[0].Password = "p2");
+        File.SetLastWriteTimeUtc(path, t);
+
+        Assert.True(a.ReloadIfChanged());
+        Assert.Equal("p2", Assert.Single(a.Entries).Password);
+    }
 }
 
 public class SitesTests

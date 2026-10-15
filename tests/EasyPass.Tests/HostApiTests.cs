@@ -129,6 +129,17 @@ public class HostApiTests : IDisposable
     }
 
     [Fact]
+    public void Failed_update_is_not_remembered_in_memory()
+    {
+        Directory.CreateDirectory(_v.Path + ".tmp"); // save fails
+        var r = Call($$"""{"id":5,"cmd":"update","site":"x.com","entryId":"{{_ahmetId}}","password":"p9"}""");
+        Assert.False((bool)r["ok"]!);
+        // the extension must still be asked to save p9, and the host must hand out what is on disk
+        Assert.Equal("changed", (string?)Call("""{"id":6,"cmd":"check","site":"x.com","username":"ahmet","password":"p9"}""")["result"]);
+        Assert.Equal("p1", (string?)Call($$"""{"id":7,"cmd":"get","site":"x.com","entryId":"{{_ahmetId}}"}""")["password"]);
+    }
+
+    [Fact]
     public void Add_creates_entry_on_disk_with_normalized_site()
     {
         var r = Call("""{"id":8,"cmd":"add","site":"WWW.Portal.X.com","firstName":"Ayşe","lastName":"Su","username":"ayse","password":"s"}""");

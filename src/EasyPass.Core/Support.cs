@@ -43,7 +43,7 @@ public static class Sites
 
 public static class AppPaths
 {
-    public static string Dir { get; } =
+    public static string Dir { get; internal set; } = // tests point it at a temp folder
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "EasyPass");
 
     static string SettingsFile => Path.Combine(Dir, "settings.json");
@@ -72,7 +72,9 @@ public static class AppPaths
         var o = Read();
         o[key] = value;
         Directory.CreateDirectory(Dir);
-        File.WriteAllText(SettingsFile, o.ToJsonString());
+        // a torn write would read back as {} and drop vaultPath, sending the app to the setup screen
+        File.WriteAllText(SettingsFile + ".tmp", o.ToJsonString());
+        File.Move(SettingsFile + ".tmp", SettingsFile, overwrite: true);
     }
 }
 

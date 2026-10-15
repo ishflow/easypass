@@ -17,7 +17,11 @@ public sealed class Entry
     public string Password { get; set; } = "";
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     [JsonIgnore] public string FullName => $"{FirstName} {LastName}".Trim();
+    internal Entry Clone() => (Entry)MemberwiseClone();
 }
+
+// Salt differs from the open vault: the master password was changed elsewhere, the key cache is stale.
+public sealed class VaultPasswordChangedException() : CryptographicException("Kasanın ana şifresi değişmiş; yeniden açın.");
 
 // File: "EZP1" | iterations int32 LE | salt 16 | nonce 12 | tag 16 | AES-256-GCM(JSON {"entries":[...]}), AAD = first 24 bytes.
 public sealed class Vault
@@ -29,7 +33,7 @@ public sealed class Vault
 
     List<Entry> _entries = [];
     int _iterations;
-    (DateTime, long) _stamp;
+    byte[] _stamp = []; // header + nonce of the loaded file; every save draws a new random nonce
 
     public string Path { get; }
     public IReadOnlyList<Entry> Entries => _entries;
@@ -46,26 +50,25 @@ public sealed class Vault
 
     public static Vault Create(string path, string password)
     {
-        if (File.Exists(path)) throw new IOException($"Dosya zaten var: {path}");
+        // a leftover .bak/.tmp without the vault is an interrupted save: a new vault here would overwrite the only copy
+        foreach (var p in new[] { path, path + ".bak", path + ".tmp" })
+            if (File.Exists(p)) throw new IOException($"Dosya zaten var: {p}");
         var salt = RandomNumberGenerator.GetBytes(16);
         var v = new Vault(path, Iterations, salt, Derive(password, salt, Iterations));
         Locked(() => v.Save([]));
         return v;
     }
 
-    public static Vault Open(string path, string password)
-    {
-        var (iterations, salt) = ReadHeader(File.ReadAllBytes(path));
-        var v = new Vault(path, iterations, salt, Derive(password, salt, iterations));
-        v.Load();
-        return v;
-    }
+    public static Vault Open(string path, string password) => Open(path, (salt, iterations) => Derive(password, salt, iterations));
 
-    public static Vault Open(string path, byte[] key)
+    public static Vault Open(string path, byte[] key) => Open(path, (_, _) => key);
+
+    static Vault Open(string path, Func<byte[], int, byte[]> key)
     {
-        var (iterations, salt) = ReadHeader(File.ReadAllBytes(path));
-        var v = new Vault(path, iterations, salt, key);
-        v.Load();
+        var data = File.ReadAllBytes(path);
+        var (iterations, salt) = ReadHeader(data);
+        var v = new Vault(path, iterations, salt, key(salt, iterations));
+        v.Load(data);
         return v;
     }
 
@@ -78,29 +81,40 @@ public sealed class Vault
 
     public bool ReloadIfChanged()
     {
-        var fi = new FileInfo(Path);
-        if (!fi.Exists || (fi.LastWriteTimeUtc, fi.Length) == _stamp) return false;
-        Load();
+        if (!File.Exists(Path) || ReadStamp().SequenceEqual(_stamp)) return false;
+        try { Load(File.ReadAllBytes(Path)); }
+        catch (Exception e) when (e is IOException or InvalidDataException or CryptographicException and not VaultPasswordChangedException)
+        {
+            // readers take no mutex: another process (copy fallback, cloud client) may be mid-write, so look once more
+            Thread.Sleep(200);
+            Load(File.ReadAllBytes(Path));
+        }
         return true;
     }
 
     public void Update(Action<List<Entry>> change) => Locked(() =>
     {
         ReloadIfChanged();
-        var list = new List<Entry>(_entries);
+        // copies, so a change that fails to save leaves the in-memory entries exactly as on disk
+        var list = _entries.Select(e => e.Clone()).ToList();
         change(list);
         Save(list);
     });
 
-    public void ChangePassword(string newPassword) => Locked(() =>
+    public void ChangePassword(string newPassword)
     {
-        ReloadIfChanged();
-        var old = (Salt, Key, _iterations);
+        // PBKDF2 outside the mutex: it takes about a second and would stall the host's writes
         var salt = RandomNumberGenerator.GetBytes(16);
-        (Salt, Key, _iterations) = (salt, Derive(newPassword, salt, Iterations), Iterations);
-        try { Save(_entries); }
-        catch { (Salt, Key, _iterations) = old; throw; }
-    });
+        var key = Derive(newPassword, salt, Iterations);
+        Locked(() =>
+        {
+            ReloadIfChanged();
+            var old = (Salt, Key, _iterations);
+            (Salt, Key, _iterations) = (salt, key, Iterations);
+            try { Save(_entries); }
+            catch { (Salt, Key, _iterations) = old; throw; }
+        });
+    }
 
     public IReadOnlyList<Entry> Search(string query, int limit = 20, string? site = null)
     {
@@ -109,7 +123,8 @@ public sealed class Vault
         if (words.Length == 0) return pool.OrderByDescending(e => e.UpdatedAt).Take(limit).ToList();
         var first = words[0];
         return pool
-            .Select(e => (e, text: TextFold.Fold($"{e.FirstName} {e.LastName} {e.Username} {e.Extra1} {e.Extra2} {e.Site}")))
+            // site text only in the app's search: on a page every candidate shares it (spec §5)
+            .Select(e => (e, text: TextFold.Fold($"{e.FirstName} {e.LastName} {e.Username} {e.Extra1} {e.Extra2} {(site is null ? e.Site : "")}")))
             .Where(x => words.All(w => x.text.Contains(w, StringComparison.Ordinal)))
             .OrderBy(x => TextFold.Fold(x.e.FirstName).StartsWith(first, StringComparison.Ordinal)
                        || TextFold.Fold(x.e.LastName).StartsWith(first, StringComparison.Ordinal) ? 0 : 1)
@@ -132,22 +147,25 @@ public sealed class Vault
         return (iterations, data[8..HeaderLen]);
     }
 
-    void Load()
+    byte[] ReadStamp()
     {
-        var fi = new FileInfo(Path);
-        var stamp = (fi.LastWriteTimeUtc, fi.Length);
-        var data = File.ReadAllBytes(Path);
+        var head = new byte[HeaderLen + NonceLen];
+        using var f = File.OpenRead(Path);
+        return head[..f.ReadAtLeast(head, head.Length, throwOnEndOfStream: false)];
+    }
+
+    void Load(byte[] data)
+    {
         var (_, salt) = ReadHeader(data);
         if (data.Length < HeaderLen + NonceLen + TagLen) throw new InvalidDataException("Kasa dosyası eksik.");
-        if (!salt.AsSpan().SequenceEqual(Salt))
-            throw new CryptographicException("Kasanın ana şifresi değişmiş; yeniden açın.");
+        if (!salt.AsSpan().SequenceEqual(Salt)) throw new VaultPasswordChangedException();
         var nonce = data.AsSpan(HeaderLen, NonceLen);
         var tag = data.AsSpan(HeaderLen + NonceLen, TagLen);
         var cipher = data.AsSpan(HeaderLen + NonceLen + TagLen);
         var plain = new byte[cipher.Length];
         using (var aes = new AesGcm(Key, TagLen)) aes.Decrypt(nonce, cipher, tag, plain, data.AsSpan(0, HeaderLen));
         _entries = JsonSerializer.Deserialize<Doc>(plain, Json)?.Entries ?? [];
-        _stamp = stamp;
+        _stamp = data[..(HeaderLen + NonceLen)];
     }
 
     void Save(List<Entry> entries)
@@ -168,21 +186,27 @@ public sealed class Vault
             f.Write(data);
             f.Flush(true);
         }
-        if (!File.Exists(Path)) File.Move(tmp, Path);
-        else
+        // Windows refuses to replace a file that a reader (host, cloud client, antivirus) holds open: retry briefly
+        for (var attempt = 1; ; attempt++)
         {
-            try { File.Replace(tmp, Path, Path + ".bak"); }
-            catch (Exception e) when (e is IOException or PlatformNotSupportedException or UnauthorizedAccessException)
-            {
-                // some cloud drives reject Replace; copy keeps both .bak and the new file intact
-                File.Copy(Path, Path + ".bak", true);
-                File.Copy(tmp, Path, true);
-                File.Delete(tmp);
-            }
+            try { Replace(tmp); break; }
+            catch (Exception e) when (attempt < 5 && e is IOException or UnauthorizedAccessException) { Thread.Sleep(100); }
         }
         _entries = entries;
-        var fi = new FileInfo(Path);
-        _stamp = (fi.LastWriteTimeUtc, fi.Length);
+        _stamp = data[..(HeaderLen + NonceLen)];
+    }
+
+    void Replace(string tmp)
+    {
+        if (!File.Exists(Path)) { File.Move(tmp, Path); return; }
+        try { File.Replace(tmp, Path, Path + ".bak"); }
+        catch (Exception e) when (e is IOException or PlatformNotSupportedException or UnauthorizedAccessException)
+        {
+            // Some cloud drives reject Replace, and a half-done Replace may already have moved the vault to .bak.
+            // Move (MoveFileEx REPLACE_EXISTING / rename) swaps the file in atomically; tmp survives any failure.
+            if (File.Exists(Path)) File.Copy(Path, Path + ".bak", true);
+            File.Move(tmp, Path, overwrite: true);
+        }
     }
 
     static void Locked(Action action)

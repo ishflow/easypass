@@ -59,6 +59,9 @@ if (-not (Test-Path (Join-Path $publish 'EasyPass.Host.exe'))) {
 New-Item -ItemType Directory -Path $dest -Force | Out-Null
 Copy-Item (Join-Path $publish '*') $dest -Recurse -Force
 Copy-Item (Join-Path $root 'extension') $dest -Recurse -Force
+Remove-Item (Join-Path $dest 'extension\test') -Recurse -Force -ErrorAction SilentlyContinue  # test kiti (node_modules) Chrome'a gitmesin
+# İndirilen zip'ten gelen "internetten indirildi" işareti EasyPass.exe'de SmartScreen uyarısı çıkarır
+Get-ChildItem $dest -Recurse -File | Unblock-File
 
 # 4. Native messaging host manifesti (BOM'suz UTF-8) + kayıt defteri
 $json = @"
