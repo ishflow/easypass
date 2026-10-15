@@ -40,9 +40,12 @@ Betik şunları yapar:
 
 1. Başlat menüsünden **EasyPass**'i açın.
 2. **Yeni kasa oluştur**: konum olarak Google Drive ya da Yandex Disk klasörünü seçin, ana şifreyi iki kez girin.
-3. **Yeni müşteri** ile kayıt ekleyin (Ad, Soyad, Ek bilgi 1–2, Kullanıcı adı, Şifre).
+3. **Yeni müşteri** ile kayıt ekleyin (Site, Ad, Soyad, Ek bilgi 1–2, Kullanıcı adı, Şifre).
+   **Site zorunludur** (örn. `portal.x.com`; adres yapıştırırsanız yalnız alan adı kalır). Eklenti bir sitede
+   yalnız o sitenin kayıtlarını gösterir; aynı müşteri iki sitedeyse iki ayrı kayıt açın.
 4. Sitede giriş alanına tıklayın, ismi yazın, kişiyi seçin. Eklentiyle yaptığınız yeni girişleri de
-   eklenti "Kaydedilsin mi?" diye sorarak kasaya ekler.
+   eklenti "Kaydedilsin mi?" diye sorarak kasaya ekler; uygulama listesi en geç 2 sn içinde yenilenir.
+5. Arayüz dili varsayılan **Rusça**; Ayarlar → **Язык / Dil** ile Türkçeye geçilir (eklenti de aynı dili kullanır).
 
 > Ana şifreyi unutursanız kasa açılamaz; kurtarma yolu yoktur. Ana şifreyi güvenli bir yere yazın.
 
