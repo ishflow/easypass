@@ -82,11 +82,14 @@ Ana şifre taşınabilir; DPAPI yalnız yerel kolaylık önbelleği.
 ## 4. Eşzamanlılık ve güvenli yazma
 
 - Tüm yazmalar `Vault.Update(Action<List<Entry>>)` üzerinden: adlandırılmış `Mutex("EasyPass.Vault")`
-  al → dosya değiştiyse yeniden oku → değişikliği uygula → kaydet.
-- Kaydet: `vault.ezp.tmp` yaz → `File.Replace(tmp, path, path + ".bak")`; bulut sürücüsü Replace'i
-  desteklemezse `File.Copy(path, .bak, true)` + `File.Copy(tmp, path, true)` + tmp sil.
-- Okuyucular (host her istekte, uygulama pencere etkinleşince) `ReloadIfChanged()` çağırır:
-  `LastWriteTimeUtc` + `Length` değiştiyse yeniden çöz.
+  al → dosya değiştiyse yeniden oku → değişikliği kayıt KOPYALARINA uygula → kaydet; kayıt başarısızsa
+  bellek diskle aynı kalır.
+- Kaydet: `vault.ezp.tmp` yaz → `File.Replace(tmp, path, path + ".bak")`; Replace hata verirse
+  `File.Copy(path, .bak, true)` (path varsa) + `File.Move(tmp, path, overwrite)` (atomik). Paylaşım ihlalinde
+  5 × 100 ms yeniden deneme. `.bak`/`.tmp` olan konumda yeni kasa oluşturulmaz (yedeği ezmemek için).
+- Okuyucular (host her istekte, uygulama 2 sn'de bir) `ReloadIfChanged()` çağırır: damga = dosyanın ilk 36
+  baytı (başlık + her kayıtta yeni rastgele nonce). Yarım okunan dosya 200 ms sonra bir kez yeniden okunur;
+  bozuk dosya "ana şifre değişti" sayılmaz. Salt değiştiyse `VaultPasswordChangedException`.
 
 ## 5. Native Messaging protokolü
 
