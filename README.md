@@ -1,118 +1,155 @@
 # EasyPass
 
-Müşteri şifrelerini Chrome Password Manager yerine hafif bir Windows uygulamasında tutar.
-Chrome eklentisi giriş alanının yanında bir arama kutusu açar: "Ahmet" yazın, kişiyi seçin;
-kullanıcı adı ve şifre forma milisaniyeler içinde yazılır. Sitede şifre değişince eklenti
-"EasyPass'te güncellensin mi?" diye sorar.
+A lightweight Windows vault for the logins you type for other people — clients, customers, family — with a
+Chrome extension that fills them in. Instead of hundreds of entries slowing down Chrome's password manager, the
+logins live in one small file; on a login page the extension opens a list next to the username field: type part of
+a name, pick the person, and the username and password are filled in milliseconds.
 
-- Tüm şifreler tek dosyada: `vault.ezp` (AES-256-GCM, ana şifreyle şifreli).
-- Dosyayı Google Drive ya da Yandex Disk klasörüne koyabilirsiniz; format sonrası yalnız ana şifreyle açılır.
-- Uygulama kapalıyken de eklenti çalışır (Chrome yardımcı programı kendisi başlatır).
-- Her kayıtta bir önceki sürüm `vault.ezp.bak` olarak kalır.
+![The EasyPass panel next to a login form](docs/images/panel.png)
 
-## Kurulum dosyası (önerilen)
+## Features
 
-GitHub Actions çıktısındaki `EasyPass-Setup` zip'inden `EasyPass-Setup-<sürüm>.exe`'yi açın, "İleri" ile ilerleyin.
-Yönetici yetkisi gerekmez; güncellemek için yeni sürümü aynı şekilde kurun. Kurulum:
-- .NET 10 Desktop Runtime yoksa sorup Microsoft'tan indirir ve kurar.
-- Uygulamayı ve eklentiyi `%LOCALAPPDATA%\EasyPass\` klasörüne kurar, Chrome bağlantısını kaydeder, Başlat menüsüne
-  kısayol ekler; Windows "Uygulamalar" listesinden kaldırılabilir (kasa dosyası ve ayarlar silinmez).
-- Sonunda Chrome'un eklentiler sayfasını ve eklenti klasörünü açar: **Geliştirici modu**nu açıp `extension`
-  klasörünü sayfaya sürükleyin (bir kez).
+- **Fill from a list next to the login form.** On a login page the panel opens by itself to the right of the
+  username field, showing up to 5 people; typing in the username field narrows the list. Pick with the mouse, or
+  with ↓ and Enter.
+- **Only that site's logins.** A page only ever sees the entries saved for its own site (or its parent domain).
+  The same person on two sites is two entries, each with its own password.
+- **Your own typing comes first.** The caret stays in the page's field. Someone who isn't in EasyPass yet is just
+  typed by hand; Enter without a selection submits the form as usual.
+- **Save and update prompts.** After signing in with a login EasyPass doesn't know, the extension asks
+  "Save it?". When a password is changed on a site, it asks to update the saved one.
+- **The whole sign-up form is kept.** Signing up on a site, the save prompt takes the first and last name from the
+  form and lists everything else that was typed — e-mail, phone, address, ID number… — under the site's own labels.
+  Passwords and ID, passport, card and bank numbers stay masked until you press their eye. Saving stores all of it
+  in the vault; the app and the toolbar popup show it with the person.
+- **Show-password eye** in password fields — unless the site already has its own.
+- **Search everything from the toolbar.** The EasyPass button in Chrome's toolbar searches every site's entries by
+  name, username or site; a click shows the details, with the password revealed and copied only on request.
+- **One file, no master password.** All logins are in a single `vault.ezp` that you can keep in a Google Drive or
+  Yandex Disk folder. There is no master password to forget: after reinstalling Windows, install EasyPass and open
+  the file. Every save keeps the previous version as `vault.ezp.bak`.
+- **Works with the app closed.** Chrome starts EasyPass's small helper program by itself.
+- Interface in **Russian** (default) and **Turkish**; Settings → **Язык / Dil**. The extension follows the app.
 
-Chrome'un "eklenti eklendi, etkinleştirilsin mi?" sorusu: Windows'ta Chrome bunu yalnız Chrome Web Store'daki
-eklentiler için sorar. Eklenti Web Store'a (liste dışı da olur) yüklenince kurulumu kimliğiyle derleyin:
-`iscc /DWebStoreId=<kimlik> installer\EasyPass.iss`; kurulum eklentiyi kaydeder, Chrome bir sonraki açılışta sorar.
+## Screenshots
 
-Kurulum dosyasını yerelde derlemek: deponun kökünde `publish\` hazırken (CI çıktısındaki `EasyPass` zip'i ya da
-`dotnet publish`) `iscc installer\EasyPass.iss` → `dist\EasyPass-Setup-<sürüm>.exe`.
-
-## Kurulum betiği (geliştirici)
-
-Yönetici yetkisi gerekmez. Kurulum betiği tekrar çalıştırılabilir; güncellemek için de aynı komutu çalıştırın.
-
-1. Depoyu klonlayın ya da GitHub Actions çıktısını (`EasyPass` zip) indirip açın.
-2. EasyPass açıksa kapatın. PowerShell'de klasörün içinde:
-
-   ```powershell
-   powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1
-   ```
-
-Betik şunları yapar:
-- .NET 10 Desktop Runtime yoksa `winget` ile kurar.
-- .NET 10 SDK varsa projeyi derler; yoksa zip'teki hazır `publish\` klasörünü kullanır.
-- Dosyaları `%LOCALAPPDATA%\EasyPass\` klasörüne kopyalar (eklenti dahil).
-- Chrome bağlantısını kaydeder (`HKCU\Software\Google\Chrome\NativeMessagingHosts\com.easypass.host`).
-- Başlat menüsüne "EasyPass" kısayolu ekler.
-
-## Chrome eklentisini yükleme (bir kez)
-
-1. Chrome'da `chrome://extensions` sayfasını açın.
-2. Sağ üstte **Geliştirici modu**nu açın.
-3. **Paketlenmemiş öğe yükle** düğmesine basın ve `%LOCALAPPDATA%\EasyPass\extension` klasörünü seçin
-   (betik tam yolu sonunda yazar).
-4. Eklenti simgesine tıklayın: "Bağlı" görünmeli.
-
-## İlk kullanım
-
-1. Başlat menüsünden **EasyPass**'i açın.
-2. **Yeni kasa oluştur**: konum olarak Google Drive ya da Yandex Disk klasörünü seçin, ana şifreyi iki kez girin.
-3. **Yeni müşteri** ile kayıt ekleyin (Site, Ad, Soyad, Ek bilgi 1–2, Kullanıcı adı, Şifre).
-   **Site zorunludur** (örn. `portal.x.com`; adres yapıştırırsanız yalnız alan adı kalır). Eklenti bir sitede
-   yalnız o sitenin kayıtlarını gösterir; aynı müşteri iki sitedeyse iki ayrı kayıt açın.
-4. Giriş sayfası açılınca panel alanın sağında kendiliğinden açılır (en çok 5 kişi; yazdıkça arar). İsmi yazın,
-   kişiyi seçin. Panel kapandıysa kullanıcı adı alanındaki yeşil anahtar simgesi açar/kapatır. Şifre alanındaki göz
-   şifreyi gösterir/gizler (sitenin kendi "şifreyi göster" düğmesi varsa EasyPass gözü çıkmaz). Eklentiyle yaptığınız yeni girişleri de
-   eklenti "Kaydedilsin mi?" diye sorarak kasaya ekler; uygulama listesi en geç 2 sn içinde yenilenir.
-5. Arayüz dili varsayılan **Rusça**; Ayarlar → **Язык / Dil** ile Türkçeye geçilir (eklenti de aynı dili kullanır).
-
-> Ana şifreyi unutursanız kasa açılamaz; kurtarma yolu yoktur. Ana şifreyi güvenli bir yere yazın.
-
-## Format sonrası ya da yeni bilgisayarda
-
-1. Google Drive / Yandex Disk uygulamasını kurun, kasa klasörünün eşitlendiğini görün.
-2. Yukarıdaki **Kurulum** ve **Chrome eklentisini yükleme** adımlarını yapın.
-3. EasyPass'i açın → **Var olan kasayı aç** → `vault.ezp` dosyasını seçin → ana şifreyi girin.
-
-## Kaldırma
-
-```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install.ps1 -Uninstall
-```
-
-Program dosyalarını, kısayolu ve Chrome kaydını siler. Kasa dosyanız (`vault.ezp`) ve
-`%APPDATA%\EasyPass` ayarları silinmez. Eklentiyi `chrome://extensions` sayfasından kaldırın.
-
-## Sorun giderme
-
-| Belirti | Çözüm |
+| Typing a login that isn't saved yet | Show-password eye |
 |---|---|
-| Eklenti "Bağlantı yok" diyor | `install.ps1`'i yeniden çalıştırın, Chrome'u tamamen kapatıp açın. |
-| Eklenti "Kilitli" diyor | EasyPass'i açın ve ana şifreyi girin. "Kilitle" düğmesine basılınca da kilitlenir. |
-| "Betik çalıştırma devre dışı" hatası | Komutu yukarıdaki gibi `-ExecutionPolicy Bypass` ile çalıştırın. |
-| "EasyPass açık" hatası | Uygulamayı kapatıp betiği tekrar çalıştırın. |
-| Windows SmartScreen uyarısı | İndirilen zip'e sağ tık → Özellikler → **Engellemeyi kaldır**, sonra açın. |
-| Kasa açılmıyor / dosya bozuk | Aynı klasördeki `vault.ezp.bak` bir önceki sürümdür: kopyasını alıp `vault.ezp` adıyla açmayı deneyin. |
-| Panel bazı sitelerde çıkmıyor | Çerçeve (iframe) içindeki giriş formları bu sürümde desteklenmiyor. |
-| Panel "Güvensiz sayfa (http)" diyor | Eklenti şifreyi yalnız `https://` sayfalara yazar (`localhost` ve `*.localhost` hariç); adresi `https://` ile açın. |
-| Açılışta "Kasa dosyası bulunamadı … yedeği var" | Kayıt yarıda kalmış ya da bulut klasörü eşitlenmemiş. Bekleyip yeniden açın; dosya gelmezse `vault.ezp.bak` kopyasını `vault.ezp` adıyla açın. |
+| ![Typing by hand: the list says no match](docs/images/typing-by-hand.png) | ![The password shown by the eye](docs/images/eye.png) |
 
-## Geliştirme
+| After a sign-up: the form's details, ready to save | After a password change: update it? |
+|---|---|
+| ![Save prompt with the sign-up form's fields, secrets masked](docs/images/save-prompt.png) | ![Update prompt](docs/images/update-prompt.png) |
 
-- .NET 10 SDK: `dotnet test EasyPass.slnx` (Windows). Mac/Linux'ta WPF projesi
-  `-p:EnableWindowsTargeting=true` ile derlenir ama çalışmaz; testler için
-  `dotnet test tests/EasyPass.Tests` kullanın.
-- `EASYPASS_HOME` ortam değişkeni ayar klasörünü (`settings.json`, `key.bin`) `%APPDATA%\EasyPass` yerine
-  verilen klasöre çevirir (geliştirme ve CI duman testleri için; Windows `APPDATA` değişkenini dikkate almaz).
-- Eklenti testi (Mac, Playwright): `cd extension/test && npm install && npm test` (ru + tr; `openssl` gerekir).
-- Uçtan uca test (Windows, EasyPass kurulu): `cd extension/test && npm install && node e2e-windows.mjs` — kurulu
-  `EasyPass.Host.exe`, ayrı bir test kasası (`%LOCALAPPDATA%\EasyPass-e2e`, ana şifre `test1234`) ve beş yerel test
-  sitesiyle görünür bir Chrome for Testing penceresinde giriş, üye ol → kaydet, şifre değiştir → güncelle, göz ve
-  site ayrımını dener. Kendi Chrome'unuz ve kasanız değişmez. `--open`: bittiğinde pencere açık kalır.
-- Test sitelerini kendi Chrome'unuzda denemek: `node extension/test/sites.mjs 8080 --vault <yeni-dosya.ezp>` →
-  `http://hizlikargo.localhost:8080` gibi beş site; `--vault` sitelerin müşterileriyle bir kasa yazar (ana şifre
-  `test1234`), EasyPass'te "Var olan kasayı aç" ile açın.
-- Her push'ta GitHub Actions (`.github/workflows/build.yml`, windows-latest) derler, test eder
-  (gerçek `EasyPass.Host.exe` uçtan uca dahil), `EasyPass.exe`'yi iki kez başlatıp açılış ekranlarını dener ve
-  `publish\` + `extension\` + `scripts\` içeren `EasyPass` zip'ini çıktı olarak yükler.
-- Tasarım: `docs/superpowers/specs/2026-10-16-easypass-design.md`.
+| Toolbar search across all sites | Details, password on request |
+|---|---|
+| ![Toolbar popup listing every site's entries](docs/images/popup-list.png) | ![Entry details in the toolbar popup](docs/images/popup-detail.png) |
+
+The EasyPass app, for adding and editing entries by hand:
+
+![The EasyPass app window](docs/images/app.png)
+
+## Install
+
+1. Download `EasyPass-Setup-<version>.exe` from the [latest release](https://github.com/ishflow/easypass/releases/latest)
+   and run it. No administrator rights are needed; to update, install the new version over the old one.
+   - If .NET 10 Desktop Runtime is missing, the setup offers to download and install it from Microsoft.
+   - It installs the app and the extension to `%LOCALAPPDATA%\EasyPass\`, registers the helper program with Chrome,
+     adds a Start menu shortcut and can be removed from Windows **Apps**.
+   - The setup isn't code-signed, so Windows may show "Windows protected your PC": **More info → Run anyway**.
+2. Add the Chrome extension (once). At the end, the setup opens Chrome's extensions page and the extension folder:
+   turn on **Developer mode** (top right) and drag the `extension` folder onto the page. (Or **Load unpacked** →
+   `%LOCALAPPDATA%\EasyPass\extension`.)
+3. Pin EasyPass in Chrome's toolbar (puzzle icon → pin) and click it: it should show *Bağlı* (Russian: *Подключено*) — connected.
+
+After updating EasyPass, press the reload button (⟳) of EasyPass on `chrome://extensions`, or restart Chrome:
+Chrome doesn't pick up new files of an unpacked extension by itself.
+
+> **Why not "Add extension?" from the setup?** On Windows, Chrome only offers to enable extensions that another
+> program installs if they come from the Chrome Web Store. Once the extension is published there (unlisted is
+> enough), build the setup with its ID — `iscc /DWebStoreId=<id> installer\EasyPass.iss` — and Chrome asks
+> "New extension added — enable?" on its next start.
+
+## Using it
+
+The interface is in Turkish and Russian; names of buttons and messages are given in both.
+
+1. Open **EasyPass** from the Start menu and **create a vault** (*Kasayı oluştur* / *Создать*): choose a folder, ideally in Google Drive or
+   Yandex Disk. No password is asked.
+2. Add people with **New client** (*Yeni müşteri* / *Новый клиент*): site, first and last name, two optional notes, username and password.
+   **The site is required** (e.g. `portal.example.com`; paste a full address and only the host is kept).
+3. Open a site's login page. The panel opens next to the username field; type part of a name, then click the
+   person or press ↓ and Enter. If the panel was closed, click the username field or the green key icon.
+4. Signing up or signing in with a new login brings up the save prompt — with the names and the form's other
+   details already filled in — and changing a password on the site brings up the update prompt. The app's list
+   refreshes within 2 seconds.
+5. Use the toolbar button to look up anyone on any site.
+
+### After reinstalling Windows or on a new computer
+
+1. Install Google Drive / Yandex Disk and wait for the vault folder to sync.
+2. Install EasyPass and the extension as above.
+3. EasyPass → **Open existing vault** (*Var olan kasayı aç* / *Открыть существующее*) → select `vault.ezp` → **Open**
+   (*Aç* / *Открыть*). No password needed.
+
+> A vault from EasyPass 1.1 or earlier had a master password. EasyPass asks for it once, removes it and never asks
+> again; if the vault was already open on this computer, it is removed without asking.
+
+## Security notes
+
+- **No master password** is a deliberate trade-off: nothing can be lost to a forgotten password, but anyone who
+  gets the vault file can read it. Keep it in a folder only you can access, and don't share that cloud folder.
+- Web pages only get their own site's entries; listing every site is allowed only from the extension's own toolbar
+  popup. Passwords are only filled into `https://` pages (plain http only on `localhost` and `*.localhost`).
+- Sign-up details are stored with the person; values that look sensitive by their label (ID, passport, card, bank,
+  PIN, password) are masked on screen until asked, and left out of search.
+- A password copied from the toolbar popup stays on the clipboard; the app clears its copies after 30 seconds.
+
+## Uninstall
+
+Remove **EasyPass** from Windows **Apps**, then the extension from `chrome://extensions`. Your vault file and the
+settings in `%APPDATA%\EasyPass` are kept.
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| The extension says *Bağlantı yok* / *Нет связи* (no connection) | Run the setup again, then close Chrome completely and reopen it. |
+| The extension says *Kilitli* / *Хранилище заблокировано* (locked) | The vault is an old one with a master password: open EasyPass and enter it once (it is then removed). |
+| The panel doesn't appear on some sites | Login forms inside frames (iframes) aren't supported yet. |
+| The panel says *Güvensiz sayfa (http)* / *Небезопасная страница (http)* | Passwords are only filled into `https://` pages; open the address with `https://`. |
+| The vault doesn't open / the file is damaged | `vault.ezp.bak` next to it is the previous version: copy it, name the copy `vault.ezp` and open it. |
+| *Kasa dosyası bulunamadı … / Файл хранилища не найден …* (vault file not found, a backup exists) on start | A save was interrupted or the cloud folder hasn't synced yet. Wait and reopen; if the file doesn't come back, open a copy of `vault.ezp.bak` named `vault.ezp`. |
+
+## Development
+
+Three .NET 10 projects and a Manifest V3 extension:
+
+- `src/EasyPass.Core` — vault file (AES-256-GCM, atomic writes, `.bak`), search, site matching, the native messaging
+  API shared by the app and the helper.
+- `src/EasyPass.Host` — the console helper Chrome starts (native messaging over stdin/stdout).
+- `src/EasyPass.App` — the WPF app.
+- `extension/` — content script (panel, key and eye icons, save/update prompts), background service worker,
+  toolbar popup.
+- `installer/EasyPass.iss` — Inno Setup script; `scripts/install.ps1` — an install script for development.
+
+Build and test:
+
+- `dotnet test EasyPass.slnx` (Windows). On macOS/Linux the WPF project builds with
+  `-p:EnableWindowsTargeting=true` but can't run; use `dotnet test tests/EasyPass.Tests` there.
+- `EASYPASS_HOME` points the settings folder (`settings.json`, `key.bin`) somewhere other than `%APPDATA%\EasyPass`
+  (development and CI smoke runs).
+- Extension tests (macOS, Playwright, fake helper, Russian + Turkish): `cd extension/test && npm install && npm test`
+  (needs `openssl`).
+- End-to-end on Windows with EasyPass installed: `cd extension/test && npm install && node e2e-windows.mjs` —
+  the installed helper, a separate test vault (`%LOCALAPPDATA%\EasyPass-e2e`) and five local test sites in a
+  Chrome for Testing window: login, sign-up → save, password change → update, eye, toolbar popup and site
+  isolation. Your own Chrome and vault are untouched. `--headless` runs without a window; `--open` leaves the
+  window open afterwards. `EASYPASS_DIR` points at another build instead of the installed one.
+- Test sites in your own Chrome: `node extension/test/sites.mjs 8080 --vault <new-file.ezp>` serves five portals at
+  `http://hizlikargo.localhost:8080` and so on; `--vault` writes a vault with their users to open in EasyPass.
+- Setup locally: with `publish\` ready at the repository root (`dotnet publish` of the app and the helper),
+  `iscc installer\EasyPass.iss` → `dist\EasyPass-Setup-<version>.exe`.
+- Every push runs GitHub Actions on `windows-latest`: build, tests (including the real helper end to end), a
+  start-up smoke test of `EasyPass.exe`, and the setup; artifacts `EasyPass-Setup` and `EasyPass`.
+- Design notes (Turkish): `docs/superpowers/specs/2026-10-16-easypass-design.md`.
