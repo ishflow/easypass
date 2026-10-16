@@ -12,6 +12,7 @@
       insecure: 'Небезопасная страница (http) — EasyPass здесь не заполняет',
       changed: 'Пароль изменён. Обновить в EasyPass?', update: 'Обновить', no: 'Нет',
       added: 'Этого входа нет в EasyPass. Сохранить?', first: 'Имя', last: 'Фамилия', save: 'Сохранить',
+      showPw: 'Показать пароль',
     },
     tr: {
       search: 'Müşteri ara…', searchLabel: 'Müşteri ara', list: 'Müşteriler', none: 'Sonuç yok',
@@ -21,16 +22,22 @@
       insecure: 'Güvensiz sayfa (http) — EasyPass burada doldurmaz',
       changed: "Şifre değişti. EasyPass'te güncellensin mi?", update: 'Güncelle', no: 'Hayır',
       added: "Bu giriş EasyPass'te yok. Kaydedilsin mi?", first: 'Ad', last: 'Soyad', save: 'Kaydet',
+      showPw: 'Şifreyi göster',
     },
   };
-  let T = null; // asked once per page, only when the UI is first needed (so idle pages never start the host)
-  const texts = async () => (T ??= TEXT[await send({ cmd: 'lang' })] || TEXT.ru);
+  // Asked once per page, only when a page has password fields (so idle pages never start the host).
+  let T = null, asked = null;
+  const texts = () => (asked ??= send({ cmd: 'lang' }).then((lang) => (T = TEXT[lang] || TEXT.ru)));
   const message = (error) => ({ locked: T.locked, no_host: T.noHost, insecure: T.insecure })[error] ?? T.error + error;
+
+  // Password inputs our eye switched to type=text are still password fields for everything here.
+  const revealed = new WeakSet();
+  const isPassword = (el) => el.type === 'password' || revealed.has(el);
 
   // Username field = last visible text/email/tel input before the first visible password input (same form).
   function pairFor(el) {
     const inputs = [...(el.form || document).querySelectorAll('input')].filter(visible);
-    const i = inputs.findIndex((x) => x.type === 'password');
+    const i = inputs.findIndex(isPassword);
     if (i < 0) return null;
     return { user: inputs.slice(0, i).findLast((x) => USER_TYPES.has(x.type)), pass: inputs[i] };
   }
@@ -42,15 +49,26 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  let host, panel, input, list, status, toast;
-  let field = null, pair = null, items = [], active = -1, query = 0, suppress = null;
+  const ICON = 20; // px, the round buttons inside the field's right edge
+  const GAP = 4; // px between two of our buttons, or ours and the site's own control
+  const MIN_FIELD = 80; // px, narrower fields get no icon (it would cover the text)
+  const MAX_ITEMS = 5; // the panel lists at most this many; typing narrows the search down to the rest
+  const svg = (paths) => `<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="#fff" stroke-width="2.6"
+    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths}</svg>`;
+  const KEY = svg('<circle cx="8" cy="16" r="4"/><path d="M11 13l8-8m-3 3l2.5 2.5M14 10l2 2"/>');
+  const EYE = svg('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>');
+  const EYE_OFF = svg('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M3 3l18 18"/>');
 
-  function ui() {
+  let host, root, panel, input, list, status, toast;
+  let field = null, pair = null, items = [], active = -1, query = 0;
+  const icons = new Map(); // field → { key, eye }: the buttons drawn in it (key opens the panel, eye shows the password)
+
+  // Shadow root with the styles. Icons need it from page load; the panel and toast are added on first use.
+  function shell() {
     if (host) return;
-    const t = T;
     host = document.createElement('easypass-ui');
     host.style.cssText = 'all:initial;position:absolute;top:0;left:0;z-index:2147483647';
-    const root = host.attachShadow({ mode: 'closed' }); // page scripts can't read the panel's DOM (customer names)
+    root = host.attachShadow({ mode: 'closed' }); // page scripts can't read the panel's DOM (customer names)
     root.innerHTML = `<style>
       :host{all:initial}
       *{box-sizing:border-box;margin:0;font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
@@ -78,7 +96,22 @@
       .btn{height:36px;padding:0 14px;border:1px solid #E3E1DC;border-radius:8px;background:#fff;color:#1C1F23;font-size:14px;font-weight:600;cursor:pointer}
       .primary{background:#0E7C6B;border-color:#0E7C6B;color:#fff}
       :focus-visible{outline:2px solid #0E7C6B;outline-offset:2px}
-    </style>
+      .icon{position:absolute;display:grid;place-items:center;width:${ICON}px;height:${ICON}px;padding:0;border:0;border-radius:50%;
+        background:#0E7C6B;box-shadow:0 1px 3px rgba(28,31,35,.3);cursor:pointer}
+      .icon:hover,.icon[aria-expanded=true],.icon[aria-pressed=true]{background:#0A5F52}
+    </style>`;
+    // Keep our keystrokes away from page shortcuts. Page capture listeners on window/document still see the keys
+    // (and so the search text) before this; accepted for v1, a browser-side popup would hide them (v2).
+    for (const type of ['keydown', 'keyup', 'keypress', 'input']) root.addEventListener(type, (e) => e.stopPropagation());
+    document.documentElement.append(host);
+  }
+
+  function ui() {
+    shell();
+    if (panel) return;
+    const t = T;
+    const tpl = document.createElement('template'); // a ShadowRoot has no insertAdjacentHTML; innerHTML += would drop the icons
+    tpl.innerHTML = `
     <div class="box panel" role="dialog" aria-label="EasyPass" hidden>
       <p class="site"></p>
       <input type="search" role="combobox" aria-label="${t.searchLabel}" aria-expanded="true" aria-controls="list"
@@ -88,11 +121,9 @@
       <p class="hint" id="hint">${t.hint}</p>
     </div>
     <div class="box toast" role="dialog" aria-label="EasyPass" aria-live="polite" hidden></div>`;
+    root.append(tpl.content);
     [panel, input, list, status, toast] = ['.panel', 'input', '#list', '.status', '.toast'].map((s) => root.querySelector(s));
     root.querySelector('.site').textContent = location.hostname; // shown only; background sends the real host
-    // Keep our keystrokes away from page shortcuts. Page capture listeners on window/document still see the keys
-    // (and so the search text) before this; accepted for v1, a browser-side popup would hide them (v2).
-    for (const type of ['keydown', 'keyup', 'keypress', 'input']) root.addEventListener(type, (e) => e.stopPropagation());
     input.addEventListener('input', () => search(input.value));
     input.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -105,18 +136,26 @@
       } else return;
       e.preventDefault();
     });
-    document.documentElement.append(host);
+  }
+
+  const expand = (on) => icons.get(field)?.key?.setAttribute('aria-expanded', on);
+
+  // Right of the field when it fits, else below it. Re-run when the page moves the field.
+  function placePanel() {
+    const r = field.getBoundingClientRect();
+    const right = r.right + 8 + 320 <= document.documentElement.clientWidth;
+    panel.style.left = (right ? r.right + 8 : r.left) + scrollX + 'px';
+    panel.style.top = (right ? r.top : r.bottom + 4) + scrollY + 'px';
   }
 
   async function open(f, p) {
     await texts();
     ui();
+    expand(false); // the panel may have been open for another field
     field = f;
     pair = p;
-    const r = f.getBoundingClientRect();
-    const right = r.right + 8 + 320 <= document.documentElement.clientWidth;
-    panel.style.left = (right ? r.right + 8 : r.left) + scrollX + 'px';
-    panel.style.top = (right ? r.top : r.bottom + 4) + scrollY + 'px';
+    expand(true);
+    placePanel();
     panel.hidden = false;
     input.value = '';
     input.focus();
@@ -126,18 +165,23 @@
   function close(back) {
     if (!panel || panel.hidden) return;
     panel.hidden = true;
+    expand(false);
     query++; // drop late search replies
-    if (back) {
-      suppress = field; // don't reopen until the field is focused again
-      field.focus();
-    }
+    if (back) field.focus();
+  }
+
+  // Icon click: opens the panel for its field, or closes it if it is already open there.
+  function toggle(f) {
+    if (panel && !panel.hidden && field === f) return close(true);
+    const p = pairFor(f);
+    if (p) open(f, p);
   }
 
   async function search(text) {
     const mine = ++query;
     const r = await send({ cmd: 'search', q: text });
     if (mine !== query) return;
-    items = r.ok ? r.items : [];
+    items = r.ok ? r.items.slice(0, MAX_ITEMS) : [];
     active = items.length ? 0 : -1;
     status.textContent = r.ok ? (items.length ? '' : T.none) : message(r.error);
     list.replaceChildren(...items.map((it, i) => {
@@ -204,6 +248,8 @@
 
   let sent = '';
   function captured(scope) {
+    // back to dots before the form goes out, so the browser never keeps the password as a plain text entry
+    for (const el of scope.querySelectorAll('input')) if (revealed.has(el) && el.type !== 'password') reveal(el, false);
     const pws = [...scope.querySelectorAll('input[type=password]')].filter((x) => x.value && visible(x));
     if (!pws.length) return;
     const username = pairFor(pws[0])?.user?.value.trim() || '';
@@ -213,23 +259,163 @@
     send({ cmd: 'submitted', username, password, change: pws.length > 1 }).then(prompt);
   }
 
-  // Opens the panel if t is a login field. true = opened.
-  function offer(t) {
-    if (t === suppress || !(t instanceof HTMLInputElement)) return false;
-    const p = pairFor(t);
-    if (!p || (t !== p.user && t !== p.pass)) return false;
-    open(t, p);
-    return true;
+  // The site's own show-password control near the field: an eye in/next to it, or a "show password" checkbox or
+  // button just below. Then we draw no eye (two eyes on one field would confuse). Matches common names in the UI languages.
+  const TOGGLE = /show|hide|reveal|eye|göster|gizle|показ|скры|глаз|(pass|pw|şifre|парол)\S{0,12}(toggle|visib)|(toggle|visib)\S{0,12}(pass|pw|şifre|парол)/i;
+  function ownToggle(f) {
+    const r = f.getBoundingClientRect();
+    const scope = f.form || f.parentElement?.parentElement?.parentElement || document.body;
+    for (const el of scope.querySelectorAll('button, [role=button], [role=switch], [role=checkbox], input[type=checkbox], a, label, svg, i, span')) {
+      const b = el.getBoundingClientRect();
+      if (!b.width || b.bottom < r.top - 8 || b.top > r.bottom + 64 || b.right < r.left - 8 || b.left > r.right + 64) continue;
+      const text = el.textContent.length <= 40 ? el.textContent : '';
+      const names = ['aria-label', 'title', 'id', 'class', 'data-testid'].map((a) => el.getAttribute(a) || '').join(' ');
+      if (TOGGLE.test(names + ' ' + text) && visible(el)) return el;
+    }
+    return null;
   }
 
-  document.addEventListener('focusin', (e) => {
-    if (e.target !== host && !offer(e.target)) close(false);
-  }, true);
-  document.addEventListener('focusout', (e) => {
-    if (e.target === suppress) suppress = null;
-  }, true);
+  // What each field gets: the key on the username field (on the password field when the form has none),
+  // and the eye on every password field the site gives no show-password control of its own.
+  function wanted() {
+    const want = new Map();
+    const add = (f, w) => want.set(f, { ...want.get(f), ...w });
+    for (const el of document.querySelectorAll('input')) {
+      if (!isPassword(el) || !visible(el)) continue;
+      const p = pairFor(el);
+      if (p?.pass === el) add(p.user || el, { key: true });
+      const own = ownToggle(el);
+      add(el, own ? { own } : { eye: true });
+    }
+    return want;
+  }
+
+  function button(f, kind) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'icon';
+    if (kind === 'key') {
+      b.setAttribute('aria-label', 'EasyPass');
+      b.setAttribute('aria-expanded', 'false');
+      b.innerHTML = KEY;
+      b.addEventListener('click', () => toggle(f));
+    } else {
+      b.setAttribute('aria-label', T.showPw);
+      b.setAttribute('aria-pressed', 'false');
+      b.innerHTML = EYE;
+      b.addEventListener('mousedown', (e) => e.preventDefault()); // keep the caret in the field while peeking
+      b.addEventListener('click', () => reveal(f, f.type === 'password'));
+    }
+    root.append(b);
+    return b;
+  }
+
+  function reveal(f, show) {
+    revealed.add(f);
+    f.type = show ? 'text' : 'password';
+    const b = icons.get(f)?.eye;
+    if (!b) return;
+    b.innerHTML = show ? EYE_OFF : EYE;
+    b.setAttribute('aria-pressed', show);
+  }
+
+  // Inside the field's right edge, vertically centred: the eye rightmost, the key left of it.
+  // A site control sitting in that corner (its own eye) pushes ours left so nothing is covered.
+  function place(f, have, own) {
+    const r = f.getBoundingClientRect();
+    const hidden = r.width < MIN_FIELD || r.height < ICON || !visible(f);
+    let right = r.right - Math.min((r.height - ICON) / 2, 10);
+    const o = own?.getBoundingClientRect();
+    if (o && o.left < r.right && o.right > r.right - 64 && o.top < r.bottom && o.bottom > r.top) right = Math.min(right, o.left - GAP);
+    for (const b of [have.eye, have.key]) {
+      if (!b) continue;
+      b.hidden = hidden;
+      b.style.left = right - ICON + scrollX + 'px';
+      b.style.top = r.top + (r.height - ICON) / 2 + scrollY + 'px';
+      right -= ICON + GAP;
+    }
+  }
+
+  function placeIcons() {
+    const want = wanted();
+    for (const [f, have] of icons) {
+      for (const kind of ['key', 'eye']) {
+        if (!have[kind] || want.get(f)?.[kind]) continue;
+        if (kind === 'key' && f === field) close(false);
+        have[kind].remove();
+        delete have[kind];
+      }
+      if (!have.key && !have.eye) icons.delete(f);
+    }
+    if (!want.size) return;
+    if (!T) return void texts().then(schedule); // the eye's label is in the app's language
+    shell();
+    for (const [f, w] of want) {
+      const have = icons.get(f) || {};
+      for (const kind of ['key', 'eye']) if (w[kind] && !have[kind]) have[kind] = button(f, kind);
+      icons.set(f, have);
+      place(f, have, w.own);
+    }
+    if (panel && !panel.hidden) placePanel();
+    autoOpen();
+  }
+
+  // A login form has exactly one password field. Sign-up and change-password forms have more: nothing to fill there.
+  const loginForm = (p) => [...(p.pass.form || document).querySelectorAll('input')].filter((x) => isPassword(x) && visible(x)).length === 1;
+
+  // A login form (nothing typed yet) opens the panel by itself, once per form.
+  const autoOpened = new WeakSet(); // password fields whose form already had its turn
+  function autoOpen() {
+    if (panel && !panel.hidden) return;
+    for (const [f, have] of icons) {
+      const p = have.key && pairFor(f);
+      if (!p || autoOpened.has(p.pass)) continue;
+      autoOpened.add(p.pass);
+      if (loginForm(p) && !p.pass.value && !p.user?.value) return void open(f, p);
+    }
+  }
+
+  // A mouse click in a login form's username field (re)opens the panel there; Esc closes it to type by hand.
+  function clickOpens(t) {
+    const p = t instanceof HTMLInputElement && icons.get(t)?.key && pairFor(t);
+    return p && p.user === t && loginForm(p) ? p : null;
+  }
+
+  // At most one re-placement per frame, however many scroll/mutation events arrive.
+  let queued = false;
+  function schedule() {
+    if (queued) return;
+    queued = true;
+    requestAnimationFrame(() => {
+      queued = false;
+      placeIcons();
+    });
+  }
+
+  // SPAs add login fields late and move them around (steps, animations, show-password toggles).
+  // Our own shadow DOM is not observed, so placing icons doesn't retrigger this.
+  new MutationObserver(schedule).observe(document.documentElement, {
+    childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'hidden', 'type'],
+  });
+  for (const type of ['scroll', 'resize', 'transitionend', 'animationend']) {
+    addEventListener(type, schedule, { capture: true, passive: true });
+  }
+
+  // Pressing the username field must not close the panel on the way (mousedown, then its focus) only to reopen it on click.
+  let pressed = null;
   document.addEventListener('mousedown', (e) => {
-    if (e.target !== host && e.target !== field) close(false);
+    pressed = clickOpens(e.target) ? e.target : null;
+    if (e.target !== host && !pressed) close(false);
+  }, true);
+  document.addEventListener('focusin', (e) => {
+    if (e.target !== host && e.target !== pressed) close(false);
+  }, true);
+  document.addEventListener('click', (e) => {
+    const p = e.isTrusted && e.target === pressed && clickOpens(e.target);
+    pressed = null;
+    if (!p) return;
+    if (panel && !panel.hidden && field === e.target) input.focus();
+    else open(e.target, p);
   }, true);
   // isTrusted: a page script must not make us ask the host about logins it invents
   document.addEventListener('submit', (e) => e.isTrusted && captured(e.target), true);
@@ -238,10 +424,9 @@
     if (b?.form && (b.type === 'submit' || b.type === 'image')) captured(b.form);
   }, true);
   document.addEventListener('keydown', (e) => {
-    if (e.isTrusted && e.key === 'Enter' && e.target.type === 'password') captured(e.target.form || document);
+    if (e.isTrusted && e.key === 'Enter' && e.target instanceof HTMLInputElement && isPassword(e.target)) captured(e.target.form || document);
   }, true);
 
-  // autofocus: the field got focus before this script loaded, so no focusin will come (skip if already typed in)
-  if (!document.activeElement?.value) offer(document.activeElement);
+  schedule();
   send({ cmd: 'pending' }).then(prompt);
 })();

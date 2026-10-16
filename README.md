@@ -43,7 +43,9 @@ Betik şunları yapar:
 3. **Yeni müşteri** ile kayıt ekleyin (Site, Ad, Soyad, Ek bilgi 1–2, Kullanıcı adı, Şifre).
    **Site zorunludur** (örn. `portal.x.com`; adres yapıştırırsanız yalnız alan adı kalır). Eklenti bir sitede
    yalnız o sitenin kayıtlarını gösterir; aynı müşteri iki sitedeyse iki ayrı kayıt açın.
-4. Sitede giriş alanına tıklayın, ismi yazın, kişiyi seçin. Eklentiyle yaptığınız yeni girişleri de
+4. Giriş sayfası açılınca panel alanın sağında kendiliğinden açılır (en çok 5 kişi; yazdıkça arar). İsmi yazın,
+   kişiyi seçin. Panel kapandıysa kullanıcı adı alanındaki yeşil anahtar simgesi açar/kapatır. Şifre alanındaki göz
+   şifreyi gösterir/gizler (sitenin kendi "şifreyi göster" düğmesi varsa EasyPass gözü çıkmaz). Eklentiyle yaptığınız yeni girişleri de
    eklenti "Kaydedilsin mi?" diye sorarak kasaya ekler; uygulama listesi en geç 2 sn içinde yenilenir.
 5. Arayüz dili varsayılan **Rusça**; Ayarlar → **Язык / Dil** ile Türkçeye geçilir (eklenti de aynı dili kullanır).
 
