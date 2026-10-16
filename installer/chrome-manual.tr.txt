@@ -1,0 +1,12 @@
+﻿EasyPass kuruldu. Son adım: Chrome eklentisini ekleyin (yalnız bir kez).
+
+"İleri"ye basın; son ekrandaki kutu işaretliyse Chrome'un eklentiler sayfası ve eklenti klasörü kendiliğinden açılır.
+
+1. Chrome'un eklentiler sayfasında sağ üstteki "Geliştirici modu"nu açın.
+2. Açılan klasörde seçili duran "extension" klasörünü Chrome sayfasının üzerine sürükleyip bırakın.
+   (Ya da "Paketlenmemiş öğe yükle" düğmesine basıp bu klasörü seçin.)
+3. Listede "EasyPass" görünür. Bitti: bir sitenin giriş sayfasını açınca panel kendiliğinden açılır.
+
+Eklenti klasörü: %LOCALAPPDATA%\EasyPass\extension
+
+İlk açılışta EasyPass'te yeni kasa oluşturun ya da var olan kasanızı (vault.ezp) açın.

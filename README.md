@@ -10,7 +10,24 @@ kullanıcı adı ve şifre forma milisaniyeler içinde yazılır. Sitede şifre 
 - Uygulama kapalıyken de eklenti çalışır (Chrome yardımcı programı kendisi başlatır).
 - Her kayıtta bir önceki sürüm `vault.ezp.bak` olarak kalır.
 
-## Kurulum (iş bilgisayarı)
+## Kurulum dosyası (önerilen)
+
+GitHub Actions çıktısındaki `EasyPass-Setup` zip'inden `EasyPass-Setup-<sürüm>.exe`'yi açın, "İleri" ile ilerleyin.
+Yönetici yetkisi gerekmez; güncellemek için yeni sürümü aynı şekilde kurun. Kurulum:
+- .NET 10 Desktop Runtime yoksa sorup Microsoft'tan indirir ve kurar.
+- Uygulamayı ve eklentiyi `%LOCALAPPDATA%\EasyPass\` klasörüne kurar, Chrome bağlantısını kaydeder, Başlat menüsüne
+  kısayol ekler; Windows "Uygulamalar" listesinden kaldırılabilir (kasa dosyası ve ayarlar silinmez).
+- Sonunda Chrome'un eklentiler sayfasını ve eklenti klasörünü açar: **Geliştirici modu**nu açıp `extension`
+  klasörünü sayfaya sürükleyin (bir kez).
+
+Chrome'un "eklenti eklendi, etkinleştirilsin mi?" sorusu: Windows'ta Chrome bunu yalnız Chrome Web Store'daki
+eklentiler için sorar. Eklenti Web Store'a (liste dışı da olur) yüklenince kurulumu kimliğiyle derleyin:
+`iscc /DWebStoreId=<kimlik> installer\EasyPass.iss`; kurulum eklentiyi kaydeder, Chrome bir sonraki açılışta sorar.
+
+Kurulum dosyasını yerelde derlemek: deponun kökünde `publish\` hazırken (CI çıktısındaki `EasyPass` zip'i ya da
+`dotnet publish`) `iscc installer\EasyPass.iss` → `dist\EasyPass-Setup-<sürüm>.exe`.
+
+## Kurulum betiği (geliştirici)
 
 Yönetici yetkisi gerekmez. Kurulum betiği tekrar çalıştırılabilir; güncellemek için de aynı komutu çalıştırın.
 

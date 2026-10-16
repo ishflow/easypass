@@ -1,0 +1,8 @@
+﻿EasyPass kuruldu. Son adım: Chrome'u kapatıp yeniden açın.
+
+Chrome sağ üstte "Yeni bir uzantı eklendi (EasyPass)" diye sorar. "Uzantıyı etkinleştir"e basın. Bitti:
+bir sitenin giriş sayfasını açınca panel kendiliğinden açılır.
+
+Soru görünmezse Chrome menüsü → Uzantılar → Uzantıları yönet sayfasında EasyPass'i açın.
+
+İlk açılışta EasyPass'te yeni kasa oluşturun ya da var olan kasanızı (vault.ezp) açın.

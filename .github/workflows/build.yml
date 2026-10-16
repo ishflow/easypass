@@ -55,6 +55,18 @@ jobs:
           New-Item -ItemType Directory -Force $env:EMPTY_HOME | Out-Null
           Test-Start $env:EMPTY_HOME 'NewPathBox'   # no settings → setup screen
           Test-Start $env:SMOKE_HOME 'SearchBox'    # vault + DPAPI key cache → main screen
+      # Kurulum dosyası (Inno Setup): publish\ + extension\ → dist\EasyPass-Setup-<sürüm>.exe
+      - name: Installer
+        shell: powershell
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y | Out-Null }
+          & $iscc /Q installer\EasyPass.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed ($LASTEXITCODE)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: EasyPass-Setup
+          path: dist/EasyPass-Setup-*.exe
       - uses: actions/upload-artifact@v4
         with:
           name: EasyPass
