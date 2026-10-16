@@ -88,6 +88,13 @@ Program dosyalarını, kısayolu ve Chrome kaydını siler. Kasa dosyanız (`vau
 - `EASYPASS_HOME` ortam değişkeni ayar klasörünü (`settings.json`, `key.bin`) `%APPDATA%\EasyPass` yerine
   verilen klasöre çevirir (geliştirme ve CI duman testleri için; Windows `APPDATA` değişkenini dikkate almaz).
 - Eklenti testi (Mac, Playwright): `cd extension/test && npm install && npm test` (ru + tr; `openssl` gerekir).
+- Uçtan uca test (Windows, EasyPass kurulu): `cd extension/test && npm install && node e2e-windows.mjs` — kurulu
+  `EasyPass.Host.exe`, ayrı bir test kasası (`%LOCALAPPDATA%\EasyPass-e2e`, ana şifre `test1234`) ve beş yerel test
+  sitesiyle görünür bir Chrome for Testing penceresinde giriş, üye ol → kaydet, şifre değiştir → güncelle, göz ve
+  site ayrımını dener. Kendi Chrome'unuz ve kasanız değişmez. `--open`: bittiğinde pencere açık kalır.
+- Test sitelerini kendi Chrome'unuzda denemek: `node extension/test/sites.mjs 8080 --vault <yeni-dosya.ezp>` →
+  `http://hizlikargo.localhost:8080` gibi beş site; `--vault` sitelerin müşterileriyle bir kasa yazar (ana şifre
+  `test1234`), EasyPass'te "Var olan kasayı aç" ile açın.
 - Her push'ta GitHub Actions (`.github/workflows/build.yml`, windows-latest) derler, test eder
   (gerçek `EasyPass.Host.exe` uçtan uca dahil), `EasyPass.exe`'yi iki kez başlatıp açılış ekranlarını dener ve
   `publish\` + `extension\` + `scripts\` içeren `EasyPass` zip'ini çıktı olarak yükler.
