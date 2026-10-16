@@ -52,7 +52,8 @@ public partial class MainWindow : Window
         if (path == null || !File.Exists(path)) { ShowSetup(cancelable: false); return; }
         try
         {
-            var key = KeyCache.Load(Vault.ReadSalt(path));
+            // şifresiz kasa (format sonrası da) doğrudan açılır; eski şifreli kasa için bu bilgisayardaki anahtar önbelleği
+            var key = KeyCache.Load(Vault.ReadSalt(path)) ?? Vault.PasswordlessKey(path);
             if (key != null) { Open(Vault.Open(path, key), resetForm: true); return; }
         }
         catch (Exception) { } // önbellek eski ya da dosya okunamadı: ana şifre sorulur, hata orada görünür
@@ -68,7 +69,7 @@ public partial class MainWindow : Window
     void ShowSetup(bool cancelable)
     {
         SetupError.Text = "";
-        NewPassword1.Clear(); NewPassword2.Clear(); OpenPassword.Clear();
+        OpenPassword.Clear();
         SetupCancel.Visibility = cancelable ? Visibility.Visible : Visibility.Collapsed;
         ShowPanel(SetupPanel);
     }
@@ -86,11 +87,34 @@ public partial class MainWindow : Window
     {
         vault = v;
         AppPaths.VaultPath = v.Path;
+        // kasalar artık ana şifresiz (unutulunca hepsi kaybolmasın): eski şifreli kasanın şifresi kaldırılır,
+        // önceki şifreli hâli .bak olarak kalır
+        var hadPassword = v.HasPassword;
+        string? removeError = null;
+        if (hadPassword)
+        {
+            try { v.ChangePassword(""); }
+            catch (Exception ex) { removeError = ex.Message; } // kasa açık kalır, sonraki açılışta yeniden denenir
+        }
         KeyCache.Save(v.Salt, v.Key);
         ShowPanel(MainPanel);
         if (resetForm) { lastSite = ""; SearchBox.Text = ""; Edit(null); }
         RefreshList();
+        if (removeError != null) SetStatus(L("ErrRemovePassword") + removeError, error: true);
+        else if (hadPassword) SetStatus(L("PasswordRemoved"));
         SearchBox.Focus();
+    }
+
+    // Başka bilgisayar kasayı yeniden şifreledi (ör. ana şifresini kaldırdı): şifresizse sessizce yeniden açılır.
+    bool ReopenPasswordless(bool keepForm)
+    {
+        try
+        {
+            if (vault == null || Vault.PasswordlessKey(vault.Path) is not { } key) return false;
+            Open(Vault.Open(vault.Path, key), resetForm: !keepForm);
+            return true;
+        }
+        catch (Exception) { return false; }
     }
 
     void Lock(string error = "")
@@ -142,27 +166,28 @@ public partial class MainWindow : Window
     async void CreateVault_Click(object sender, RoutedEventArgs e)
     {
         var path = NewPathBox.Text;
-        var password = NewPassword1.Password;
         SetupError.Text =
             path == "" ? L("ErrPickLocation") :
-            File.Exists(path) || File.Exists(path + ".bak") || File.Exists(path + ".tmp") ? L("ErrFileExists") :
-            password.Length < 8 ? L("ErrShortPassword") :
-            password != NewPassword2.Password ? L("ErrMismatch") : "";
+            File.Exists(path) || File.Exists(path + ".bak") || File.Exists(path + ".tmp") ? L("ErrFileExists") : "";
         if (SetupError.Text != "") return;
 
         Vault? created = null;
-        if (await Run(() => created = Vault.Create(path, password), SetupError)) Open(created!, resetForm: true);
+        if (await Run(() => created = Vault.Create(path), SetupError)) Open(created!, resetForm: true);
     }
 
     async void OpenVault_Click(object sender, RoutedEventArgs e)
     {
         var path = OpenPathBox.Text;
         var password = OpenPassword.Password;
-        SetupError.Text = path == "" ? L("ErrPickFile") : password == "" ? L("ErrEnterMaster") : "";
-        if (SetupError.Text != "") return;
+        if (path == "") { SetupError.Text = L("ErrPickFile"); return; }
+        byte[]? key;
+        try { key = Vault.PasswordlessKey(path); }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException) { SetupError.Text = L("ErrNotVault"); return; }
+        // şifre yalnız eski, şifreli kasada gerekir (bir kez; açılınca kaldırılır)
+        if (key == null && password == "") { SetupError.Text = L("ErrNeedOldMaster"); return; }
 
         Vault? opened = null;
-        if (await Run(() => opened = Vault.Open(path, password), SetupError)) Open(opened!, resetForm: true);
+        if (await Run(() => opened = key != null ? Vault.Open(path, key) : Vault.Open(path, password), SetupError)) Open(opened!, resetForm: true);
     }
 
     void SetupCancel_Click(object sender, RoutedEventArgs e) => ShowPanel(MainPanel);
@@ -201,6 +226,7 @@ public partial class MainWindow : Window
         }
         catch (VaultPasswordChangedException)
         {
+            if (ReopenPasswordless(keepForm: dirty)) return;
             // ana şifre başka bilgisayarda değişti; formda yazılmamış veri varsa kilitleyip silme
             if (dirty) SetStatus(L("ErrKeyChangedDirty"), error: true);
             else Lock(L("ErrKeyChanged"));
@@ -280,7 +306,39 @@ public partial class MainWindow : Window
         Extra2Box.Text = entry?.Extra2 ?? "";
         UsernameBox.Text = entry?.Username ?? "";
         PasswordBox.Password = PasswordText.Text = entry?.Password ?? "";
+        ShowSiteFields(entry?.Fields ?? []);
     }
+
+    // Sitenin kayıt formundan gelen bilgiler, salt okunur: gizli olanlar "Göster"e basılana kadar nokta
+    void ShowSiteFields(List<EntryField> fields)
+    {
+        SiteFieldsList.Children.Clear();
+        SiteFieldsPanel.Visibility = fields.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        foreach (var f in fields)
+        {
+            SiteFieldsList.Children.Add(new TextBlock { Text = f.Label == "" ? "—" : f.Label, Style = (Style)FindResource("Label") });
+            var value = new TextBox { IsReadOnly = true, Text = f.Secret ? Mask(f.Value) : f.Value };
+            var row = new DockPanel();
+            if (f.Secret)
+            {
+                var show = new Button { Margin = new Thickness(8, 0, 0, 0) };
+                show.SetResourceReference(ContentProperty, "Show");
+                var shown = false;
+                show.Click += (_, _) =>
+                {
+                    shown = !shown;
+                    value.Text = shown ? f.Value : Mask(f.Value);
+                    show.SetResourceReference(ContentProperty, shown ? "Hide" : "Show");
+                };
+                DockPanel.SetDock(show, Dock.Right);
+                row.Children.Add(show);
+            }
+            row.Children.Add(value);
+            SiteFieldsList.Children.Add(row);
+        }
+    }
+
+    static string Mask(string value) => new('•', Math.Min(value.Length, 12));
 
     string FormPassword => passwordShown ? PasswordText.Text : PasswordBox.Password;
 
@@ -347,11 +405,13 @@ public partial class MainWindow : Window
                     Extra2 = Pick(form.extra2, e => e.Extra2, extra2),
                     Username = Pick(form.username, e => e.Username, username),
                     Password = Pick(form.password, e => e.Password, password),
+                    Fields = now?.Fields ?? was?.Fields ?? [], // sitedeki bilgiler formda düzenlenmez: olduğu gibi kalır
                 };
                 if (index < 0) list.Add(entry); // yeni ya da bu arada başka yerde silinmiş
                 else list[index] = entry;
             });
         }
+        catch (VaultPasswordChangedException) when (ReopenPasswordless(keepForm: true)) { return Save(); } // şifresi başka yerde kaldırıldı
         catch (VaultPasswordChangedException) { SetStatus(L("ErrKeyChangedDirty"), error: true); return false; }
         catch (Exception ex) when (ex is CryptographicException or InvalidDataException) { SetStatus(L("ErrSave") + L("ErrUnreadable"), error: true); return false; }
         catch (Exception ex) { SetStatus(L("ErrSave") + ex.Message, error: true); return false; }
@@ -431,9 +491,6 @@ public partial class MainWindow : Window
             case SettingsChoice.OpenOther when ConfirmLeave():
                 OpenPathBox.Text = ""; NewPathBox.Text = "";
                 ShowSetup(cancelable: true);
-                break;
-            case SettingsChoice.Lock when ConfirmLeave():
-                Lock();
                 break;
         }
     }

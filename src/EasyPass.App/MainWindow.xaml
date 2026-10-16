@@ -27,12 +27,8 @@
                                 <Button Content="{DynamicResource Pick}" DockPanel.Dock="Right" Margin="8,0,0,0" Click="PickNewPath_Click" />
                                 <TextBox x:Name="NewPathBox" IsReadOnly="True" />
                             </DockPanel>
-                            <TextBlock Text="{DynamicResource NewMasterLabel}" Style="{StaticResource Label}" />
-                            <PasswordBox x:Name="NewPassword1" />
-                            <TextBlock Text="{DynamicResource MasterRepeat}" Style="{StaticResource Label}" />
-                            <PasswordBox x:Name="NewPassword2" />
                             <TextBlock Style="{StaticResource Secondary}" FontSize="12" Margin="0,12,0,0"
-                                       Text="{DynamicResource MasterWarning}" />
+                                       Text="{DynamicResource NoPasswordNote}" />
                             <Button Content="{DynamicResource CreateVault}" Style="{StaticResource AccentButton}" Margin="0,16,0,0" Click="CreateVault_Click" />
                         </StackPanel>
                     </Border>
@@ -45,7 +41,7 @@
                                 <Button Content="{DynamicResource Pick}" DockPanel.Dock="Right" Margin="8,0,0,0" Click="PickOpenPath_Click" />
                                 <TextBox x:Name="OpenPathBox" IsReadOnly="True" />
                             </DockPanel>
-                            <TextBlock Text="{DynamicResource MasterPassword}" Style="{StaticResource Label}" />
+                            <TextBlock Text="{DynamicResource OldMasterOptional}" Style="{StaticResource Label}" />
                             <PasswordBox x:Name="OpenPassword" />
                             <Button Content="{DynamicResource Open}" Style="{StaticResource AccentButton}" Margin="0,16,0,0" Click="OpenVault_Click" />
                         </StackPanel>
@@ -63,6 +59,7 @@
                 <StackPanel>
                     <TextBlock Text="{DynamicResource LockTitle}" Style="{StaticResource Title}" />
                     <TextBlock x:Name="LockPath" Style="{StaticResource Secondary}" FontSize="12" />
+                    <TextBlock Text="{DynamicResource LockOnceHint}" Style="{StaticResource Secondary}" Margin="0,12,0,0" />
                     <TextBlock Text="{DynamicResource MasterPassword}" Style="{StaticResource Label}" Margin="0,20,0,4" />
                     <PasswordBox x:Name="LockPassword" KeyDown="LockPassword_KeyDown" />
                     <TextBlock x:Name="LockError" Style="{StaticResource Error}" />
@@ -171,6 +168,11 @@
                                 <TextBox x:Name="PasswordText" Visibility="Collapsed" />
                             </Grid>
                         </DockPanel>
+                        <!-- Sign-up form details from the site (extension "save" prompt), read-only -->
+                        <StackPanel x:Name="SiteFieldsPanel" Visibility="Collapsed" Margin="0,24,0,0">
+                            <TextBlock Text="{DynamicResource SiteFields}" Style="{StaticResource Heading}" />
+                            <StackPanel x:Name="SiteFieldsList" />
+                        </StackPanel>
                         <TextBlock x:Name="StatusText" Style="{StaticResource Secondary}" Margin="0,16,0,0" />
                         <DockPanel Margin="0,16,0,0">
                             <Button Content="{DynamicResource Save}" Style="{StaticResource AccentButton}" MinWidth="120" Click="Save_Click" />

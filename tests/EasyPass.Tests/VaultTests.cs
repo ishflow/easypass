@@ -126,6 +126,70 @@ public class VaultTests : IDisposable
     }
 
     [Fact]
+    public void Vault_without_password_opens_from_the_file_alone()
+    {
+        var path = _tmp.File();
+        var v = Vault.Create(path);
+        v.Update(l => l.Add(new Entry { Username = "u", Password = "p" }));
+
+        Assert.False(v.HasPassword);
+        Assert.Equal(1, BitConverter.ToInt32(File.ReadAllBytes(path), 4)); // no secret to stretch
+        var key = Vault.PasswordlessKey(path);
+        Assert.Equal(v.Key, key);
+        Assert.Equal("p", Assert.Single(Vault.Open(path, key!).Entries).Password);
+        Assert.Equal("p", Assert.Single(Vault.Open(path, "").Entries).Password);
+    }
+
+    [Fact]
+    public void Vault_with_password_has_no_passwordless_key()
+    {
+        var path = _tmp.File();
+        Assert.True(Vault.Create(path, "pw").HasPassword);
+        Assert.Null(Vault.PasswordlessKey(path));
+    }
+
+    [Fact]
+    public void Removing_the_password_keeps_entries_and_the_old_password_stops_working()
+    {
+        var path = _tmp.File();
+        var v = Vault.Create(path, "eski");
+        v.Update(l => l.Add(new Entry { Username = "u" }));
+
+        v.ChangePassword("");
+
+        Assert.False(v.HasPassword);
+        Assert.Equal("u", Assert.Single(Vault.Open(path, Vault.PasswordlessKey(path)!).Entries).Username);
+        Assert.ThrowsAny<CryptographicException>(() => Vault.Open(path, "eski"));
+        Assert.True(Vault.Open(path + ".bak", "eski").HasPassword); // the version before stays as .bak, still with its password
+    }
+
+    [Fact]
+    public void Sign_up_fields_round_trip_and_only_open_ones_are_searchable()
+    {
+        var path = _tmp.File();
+        var v = Vault.Create(path);
+        v.Update(l => l.Add(new Entry
+        {
+            Site = "x.com", FirstName = "Nur", Username = "nur",
+            Fields = [new() { Label = "Telefon", Value = "0532 111 22 33" }, new() { Label = "TC kimlik no", Value = "12345678901", Secret = true }],
+        }));
+
+        var e = Assert.Single(Vault.Open(path, v.Key).Entries);
+        Assert.Equal([("Telefon", "0532 111 22 33", false), ("TC kimlik no", "12345678901", true)], e.Fields.Select(f => (f.Label, f.Value, f.Secret)));
+        Assert.Single(v.Search("0532"));
+        Assert.Empty(v.Search("12345678901")); // secret values are not searchable
+    }
+
+    [Fact]
+    public void Entry_from_an_older_file_has_no_fields()
+    {
+        var path = _tmp.File();
+        var v = Vault.Create(path);
+        v.Update(l => l.Add(new Entry { Username = "u" }));
+        Assert.Empty(Assert.Single(Vault.Open(path, v.Key).Entries).Fields);
+    }
+
+    [Fact]
     public void FullName_is_not_serialized_and_trims()
     {
         Assert.Equal("Ahmet", new Entry { FirstName = "Ahmet" }.FullName);

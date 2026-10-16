@@ -81,4 +81,46 @@ public class HostProcessTests
             Assert.True(exited, "host exits when stdin closes");
         }
     }
+
+    // After a format: the vault came back from the cloud folder, the app never ran here, so there is no key cache.
+    // A vault without a master password must still open for the extension (on every OS: no DPAPI involved).
+    [Fact]
+    public void Real_host_opens_a_vault_without_password_and_without_key_cache()
+    {
+        var home = Directory.CreateTempSubdirectory("easypass-home-").FullName;
+        var vault = Vault.Create(Path.Combine(home, "vault.ezp"));
+        vault.Update(l => l.Add(new Entry { Site = "portal.x.com", FirstName = "Ahmet", Username = "ahmet", Password = "x-pass" }));
+        var dir = AppPaths.Dir;
+        AppPaths.Dir = home; // safe: every test that touches settings is in the "settings" collection
+        try { AppPaths.VaultPath = vault.Path; }
+        finally { AppPaths.Dir = dir; }
+        Assert.False(File.Exists(Path.Combine(home, "key.bin")));
+
+        var start = new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "EasyPass.Host.exe" : "EasyPass.Host"))
+        {
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            UseShellExecute = false,
+        };
+        start.Environment["EASYPASS_HOME"] = home;
+        using var host = Process.Start(start)!;
+        try
+        {
+            JsonObject Ask(int id, JsonObject request)
+            {
+                request["id"] = id;
+                NativeFrame.Write(host.StandardInput.BaseStream, request);
+                return JsonNode.Parse(NativeFrame.Read(host.StandardOutput.BaseStream)!)!.AsObject();
+            }
+            Assert.Equal("""{"id":1,"ok":true,"locked":false,"count":1,"lang":"ru"}""", Ask(1, new() { ["cmd"] = "status" }).ToJsonString());
+            var id = (string)Assert.Single(Ask(2, new() { ["cmd"] = "search", ["site"] = "portal.x.com", ["q"] = "ahm" })["items"]!.AsArray())!["id"]!;
+            Assert.Equal("x-pass", (string)Ask(3, new() { ["cmd"] = "get", ["site"] = "portal.x.com", ["entryId"] = id })["password"]!);
+        }
+        finally
+        {
+            host.StandardInput.Close();
+            if (!host.WaitForExit(5000)) host.Kill();
+            Directory.Delete(home, true);
+        }
+    }
 }

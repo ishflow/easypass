@@ -3,15 +3,19 @@ using System.Text.Json.Nodes;
 namespace EasyPass.Core;
 
 // Native Messaging protocol, spec §5. Host Program only does the framing.
+// "all" and "entry" reach every site's entries: only the extension's own toolbar popup sends them
+// (background.js refuses them from web pages, which only ever see their own site's entries).
 public static class HostApi
 {
+    const int AllLimit = 200; // the popup scrolls through these; typing narrows the search to the rest
+
     public static JsonObject Handle(JsonObject request, Func<Vault?> getVault)
     {
         var res = new JsonObject { ["id"] = request["id"]?.DeepClone() };
         try
         {
             var cmd = Str(request, "cmd");
-            if (cmd is not ("status" or "search" or "get" or "check" or "update" or "add")) return Fail(res, "bad_request");
+            if (cmd is not ("status" or "search" or "get" or "check" or "update" or "add" or "all" or "entry")) return Fail(res, "bad_request");
             if (getVault() is not { } v)
             {
                 Fail(res, "locked");
@@ -34,6 +38,25 @@ public static class HostApi
                     : Ok(res, new() { ["username"] = e.Username, ["password"] = e.Password }),
                 "check" => Check(res, request, v),
                 "update" => Update(res, request, v),
+                "all" => Ok(res, new()
+                {
+                    ["items"] = new JsonArray([.. v.Search(Str(request, "q") ?? "", AllLimit).Select(e => (JsonNode)new JsonObject
+                    {
+                        ["id"] = e.Id, ["site"] = e.Site, ["firstName"] = e.FirstName, ["lastName"] = e.LastName,
+                        ["extra1"] = e.Extra1, ["extra2"] = e.Extra2, ["username"] = e.Username,
+                    })]),
+                }),
+                "entry" => Str(request, "entryId") is not { } entryId ? Fail(res, "bad_request")
+                    : v.Entries.FirstOrDefault(e => e.Id == entryId) is not { } en ? Fail(res, "not_found")
+                    : Ok(res, new()
+                    {
+                        ["site"] = en.Site, ["firstName"] = en.FirstName, ["lastName"] = en.LastName, ["extra1"] = en.Extra1,
+                        ["extra2"] = en.Extra2, ["username"] = en.Username, ["password"] = en.Password,
+                        ["fields"] = new JsonArray([.. en.Fields.Select(f => (JsonNode)new JsonObject
+                        {
+                            ["label"] = f.Label, ["value"] = f.Value, ["secret"] = f.Secret,
+                        })]),
+                    }),
                 _ => Add(res, request, v),
             };
         }
@@ -80,10 +103,27 @@ public static class HostApi
     {
         if (Site(req) is not { } site || Str(req, "username") is not { } user || Str(req, "password") is not { } pass)
             return Fail(res, "bad_request");
-        var e = new Entry { Site = Sites.Normalize(site), FirstName = Str(req, "firstName") ?? "", LastName = Str(req, "lastName") ?? "", Username = user, Password = pass };
+        var e = new Entry
+        {
+            Site = Sites.Normalize(site), FirstName = Str(req, "firstName") ?? "", LastName = Str(req, "lastName") ?? "",
+            Username = user, Password = pass, Fields = Fields(req),
+        };
         v.Update(list => list.Add(e));
         return Ok(res, new() { ["entryId"] = e.Id });
     }
+
+    const int MaxFields = 30, MaxLabel = 100, MaxValue = 1000;
+
+    // The sign-up form's other fields; anything malformed is dropped, sizes are capped (they come from a web page's DOM).
+    static List<EntryField> Fields(JsonObject req) => req["fields"] is not JsonArray items ? [] : [..
+        items.OfType<JsonObject>()
+            .Select(f => (label: Str(f, "label")?.Trim() ?? "", value: Str(f, "value")?.Trim() ?? "",
+                secret: f["secret"] is JsonValue s && s.TryGetValue(out bool b) && b))
+            .Where(f => f.value != "")
+            .Take(MaxFields)
+            .Select(f => new EntryField { Label = Cap(f.label, MaxLabel), Value = Cap(f.value, MaxValue), Secret = f.secret })];
+
+    static string Cap(string s, int max) => s.Length <= max ? s : s[..max];
 
     // another site's entry is reported as not_found: its password must never leave the vault for this page
     static Entry? Find(Vault v, string id, string site) => v.Entries.FirstOrDefault(e => e.Id == id && Sites.Matches(e.Site, site));

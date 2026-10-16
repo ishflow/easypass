@@ -81,6 +81,20 @@ public class ExtensionContractTests : IDisposable
     }
 
     [Fact]
+    public void Popup_lists_every_site_and_opens_one_entry()
+    {
+        // popup.js → { cmd: 'all', q } and { cmd: 'entry', entryId }; background adds the extension's own host as site
+        var items = Ask(new { cmd = "all", q = "", site = "ext-id" })["items"]!.AsArray();
+        Assert.Equal(7, items.Count);
+        foreach (var i in items)
+            Assert.Equal(["extra1", "extra2", "firstName", "id", "lastName", "site", "username"], Keys(i!.AsObject())); // no password
+        Assert.Equal(2, Ask(new { cmd = "all", q = "portal-y", site = "ext-id" })["items"]!.AsArray().Count);
+        var e = Ask(new { cmd = "entry", entryId = _ahmetX, site = "ext-id" });
+        Assert.Equal(["extra1", "extra2", "fields", "firstName", "id", "lastName", "ok", "password", "site", "username"], Keys(e));
+        Assert.Equal((X, "ahmet.yilmaz", "eski123", "Kadıköy şube"), ((string?)e["site"], (string?)e["username"], (string?)e["password"], (string?)e["extra1"]));
+    }
+
+    [Fact]
     public void Search_does_not_match_the_page_host_itself()
     {
         // spec §5: only "ad soyad kullanıcıadı ek1 ek2"; every entry on the page shares the site text
@@ -109,8 +123,16 @@ public class ExtensionContractTests : IDisposable
         var fresh = Ask(new { cmd = "check", site = X, username = "zeynep", password = "z1" });
         Assert.Equal(["id", "ok", "result"], Keys(fresh));
         Assert.Equal("new", (string?)fresh["result"]);
-        var added = Ask(new { cmd = "add", firstName = "Zeynep", lastName = "", username = "zeynep", password = "z1", site = X });
+        // background: the captured form minus the login itself, as { label, value, secret }
+        var added = Ask(new
+        {
+            cmd = "add", firstName = "Zeynep", lastName = "", username = "zeynep", password = "z1", site = X,
+            fields = new object[] { new { label = "Ad Soyad", value = "Zeynep Arslan", secret = false }, new { label = "TC kimlik no", value = "123", secret = true } },
+        });
         var id = (string?)added["entryId"];
+        var saved = Ask(new { cmd = "entry", entryId = id, site = "ext-id" })["fields"]!.AsArray(); // popup.js reads label, value, secret
+        Assert.Equal([("Ad Soyad", "Zeynep Arslan", false), ("TC kimlik no", "123", true)],
+            saved.Select(f => ((string?)f!["label"], (string?)f["value"], (bool)f["secret"]!)));
         Assert.False(string.IsNullOrEmpty(id));
         Assert.Equal(id, (string?)Assert.Single(Ask(new { cmd = "search", q = "zeyn", site = X })["items"]!.AsArray())!["id"]);
         Assert.Equal(("same", "Zeynep"), ((string?)Ask(new { cmd = "check", site = X, username = "zeynep", password = "z1" })["result"],

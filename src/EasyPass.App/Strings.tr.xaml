@@ -2,20 +2,17 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <sys:String x:Key="SetupWelcome" xml:space="preserve">EasyPass'e hoş geldiniz</sys:String>
-    <sys:String x:Key="SetupIntro" xml:space="preserve">Şifreler tek bir şifreli kasa dosyasında durur. İpucu: kasayı Google Drive ya da Yandex Disk klasörüne koyun; bilgisayar formatlansa da yalnız ana şifreyle geri açılır.</sys:String>
+    <sys:String x:Key="SetupIntro" xml:space="preserve">Şifreler tek bir kasa dosyasında durur. İpucu: kasayı Google Drive ya da Yandex Disk klasörüne koyun; bilgisayar formatlansa da EasyPass'i kurup bu dosyayı açmanız yeter.</sys:String>
     <sys:String x:Key="SetupNewTitle" xml:space="preserve">Yeni kasa oluştur</sys:String>
     <sys:String x:Key="SetupLocation" xml:space="preserve">Konum</sys:String>
     <sys:String x:Key="Pick" xml:space="preserve">Seç…</sys:String>
-    <sys:String x:Key="NewMasterLabel" xml:space="preserve">Ana şifre (en az 8 karakter)</sys:String>
-    <sys:String x:Key="MasterRepeat" xml:space="preserve">Ana şifre (tekrar)</sys:String>
-    <sys:String x:Key="MasterWarning" xml:space="preserve">Ana şifreyi unutursanız kasa hiçbir şekilde açılamaz.</sys:String>
     <sys:String x:Key="CreateVault" xml:space="preserve">Kasayı oluştur</sys:String>
     <sys:String x:Key="SetupOpenTitle" xml:space="preserve">Var olan kasayı aç</sys:String>
     <sys:String x:Key="VaultFile" xml:space="preserve">Kasa dosyası</sys:String>
     <sys:String x:Key="MasterPassword" xml:space="preserve">Ana şifre</sys:String>
     <sys:String x:Key="Open" xml:space="preserve">Aç</sys:String>
     <sys:String x:Key="Cancel" xml:space="preserve">Vazgeç</sys:String>
-    <sys:String x:Key="LockTitle" xml:space="preserve">Kasa kilitli</sys:String>
+    <sys:String x:Key="LockTitle" xml:space="preserve">Bu kasanın ana şifresi var</sys:String>
     <sys:String x:Key="Settings" xml:space="preserve">Ayarlar</sys:String>
     <sys:String x:Key="NewEntry" xml:space="preserve">Yeni müşteri</sys:String>
     <sys:String x:Key="SearchHint" xml:space="preserve">Ara: ad, soyad, kullanıcı adı…</sys:String>
@@ -38,8 +35,6 @@
     <sys:String x:Key="ErrFailed" xml:space="preserve">İşlem başarısız: </sys:String>
     <sys:String x:Key="ErrPickLocation" xml:space="preserve">Kasa için bir konum seçin.</sys:String>
     <sys:String x:Key="ErrFileExists" xml:space="preserve">Bu konumda zaten bir dosya var. "Var olan kasayı aç" ile açın ya da başka bir ad seçin.</sys:String>
-    <sys:String x:Key="ErrShortPassword" xml:space="preserve">Ana şifre en az 8 karakter olmalı.</sys:String>
-    <sys:String x:Key="ErrMismatch" xml:space="preserve">İki şifre aynı değil.</sys:String>
     <sys:String x:Key="ErrPickFile" xml:space="preserve">Kasa dosyasını seçin.</sys:String>
     <sys:String x:Key="ErrEnterMaster" xml:space="preserve">Ana şifreyi girin.</sys:String>
     <sys:String x:Key="DlgNewTitle" xml:space="preserve">Kasa dosyasının konumu</sys:String>
@@ -47,7 +42,7 @@
     <sys:String x:Key="DlgFilter" xml:space="preserve">EasyPass kasası (*.ezp)|*.ezp</sys:String>
     <sys:String x:Key="DlgFilterAll" xml:space="preserve">EasyPass kasası (*.ezp)|*.ezp|Tüm dosyalar (*.*)|*.*</sys:String>
     <sys:String x:Key="ErrKeyChanged" xml:space="preserve">Ana şifre başka bir bilgisayarda değişmiş. Yeni ana şifreyi girin.</sys:String>
-    <sys:String x:Key="ErrKeyChangedDirty" xml:space="preserve">Kasanın ana şifresi başka bir bilgisayarda değişmiş. Formdaki bilgileri not edin, sonra Ayarlar → Kilitle ile yeni şifreyle açın.</sys:String>
+    <sys:String x:Key="ErrKeyChangedDirty" xml:space="preserve">Kasanın ana şifresi başka bir bilgisayarda değişmiş. Formdaki bilgileri not edin, sonra EasyPass'i kapatıp yeniden açın.</sys:String>
     <sys:String x:Key="ErrReload" xml:space="preserve">Kasa yeniden okunamadı: </sys:String>
     <sys:String x:Key="AskSaveChanges" xml:space="preserve">Kaydedilmemiş değişiklikler var. Kaydedilsin mi?</sys:String>
     <sys:String x:Key="ErrNeedName" xml:space="preserve">Ad ya da soyad girin.</sys:String>
@@ -65,13 +60,6 @@
     <sys:String x:Key="SettingsWindowTitle" xml:space="preserve">Ayarlar — EasyPass</sys:String>
     <sys:String x:Key="Close" xml:space="preserve">Kapat</sys:String>
     <sys:String x:Key="OpenOther" xml:space="preserve">Başka kasa aç…</sys:String>
-    <sys:String x:Key="ChangeMasterTitle" xml:space="preserve">Ana şifreyi değiştir</sys:String>
-    <sys:String x:Key="CurrentMaster" xml:space="preserve">Şu anki ana şifre</sys:String>
-    <sys:String x:Key="NewMaster" xml:space="preserve">Yeni ana şifre (en az 8 karakter)</sys:String>
-    <sys:String x:Key="NewMasterRepeat" xml:space="preserve">Yeni ana şifre (tekrar)</sys:String>
-    <sys:String x:Key="ChangeMaster" xml:space="preserve">Şifreyi değiştir</sys:String>
-    <sys:String x:Key="Lock" xml:space="preserve">Kilitle</sys:String>
-    <sys:String x:Key="LockHint" xml:space="preserve">Bu bilgisayardaki anahtar önbelleği silinir. Ana şifre yeniden girilene kadar uygulama ve Chrome eklentisi kasayı açamaz.</sys:String>
     <sys:String x:Key="ChromeTitle" xml:space="preserve">Chrome bağlantısı</sys:String>
     <sys:String x:Key="ChromeOk" xml:space="preserve">Kurulu: Chrome eklentisi EasyPass'e bağlanabilir.</sys:String>
     <sys:String x:Key="ChromeMissing" xml:space="preserve">Kurulu değil: kurulum betiğini (install.ps1) çalıştırın.</sys:String>
@@ -79,14 +67,17 @@
     <sys:String x:Key="OpenFolder" xml:space="preserve">Klasörü aç</sys:String>
     <sys:String x:Key="ExtHint" xml:space="preserve">Chrome'da chrome://extensions → Geliştirici modu → "Paketlenmemiş öğe yükle" → bu klasörü seçin.</sys:String>
     <sys:String x:Key="ExtMissing" xml:space="preserve">Eklenti klasörü bulunamadı. Kurulum betiğini (install.ps1) çalıştırın.</sys:String>
-    <sys:String x:Key="ErrEnterCurrent" xml:space="preserve">Şu anki ana şifreyi girin.</sys:String>
-    <sys:String x:Key="MasterChanged" xml:space="preserve">Ana şifre değiştirildi. Diğer bilgisayarlarda kasayı yeni şifreyle bir kez açmanız gerekecek.</sys:String>
-    <sys:String x:Key="ErrCurrentWrong" xml:space="preserve">Şu anki ana şifre yanlış.</sys:String>
-    <sys:String x:Key="ErrChange" xml:space="preserve">Şifre değiştirilemedi: </sys:String>
     <sys:String x:Key="LanguageTitle" xml:space="preserve">Язык / Dil</sys:String>
     <sys:String x:Key="Site" xml:space="preserve">Site</sys:String>
     <sys:String x:Key="ErrNeedSite" xml:space="preserve">Site gerekli</sys:String>
     <sys:String x:Key="ErrBadSite" xml:space="preserve">Sitenin tam adresini yazın, örn. portal.example.com</sys:String>
     <sys:String x:Key="ErrUnreadable" xml:space="preserve">kasa dosyası şu an okunamıyor (bulut eşitlemesi sürüyor olabilir). Birkaç saniye sonra yeniden deneyin; formdaki bilgiler kaybolmadı.</sys:String>
     <sys:String x:Key="ErrVaultMissing" xml:space="preserve">Kasa dosyası bulunamadı: {0}&#10;Yanında yedeği var (.bak ya da .tmp): kayıt yarıda kalmış ya da bulut klasörü henüz eşitlenmemiş. Bekleyip EasyPass'i yeniden açın. Dosya yine gelmezse {0}.bak dosyasını kasa adıyla kopyalayıp "Var olan kasayı aç" ile açın. Bu klasörde yeni kasa oluşturmayın.</sys:String>
+    <sys:String x:Key="NoPasswordNote" xml:space="preserve">Kasa ana şifresiz: unutulacak şifre yok, ama kasa dosyasına erişen herkes içini okuyabilir. Dosyayı yalnız sizin eriştiğiniz bir klasörde tutun.</sys:String>
+    <sys:String x:Key="OldMasterOptional" xml:space="preserve">Ana şifre (yalnız eski, şifreli kasalarda)</sys:String>
+    <sys:String x:Key="ErrNeedOldMaster" xml:space="preserve">Bu kasanın ana şifresi var: bir kez girin, kasa açılınca şifre kaldırılır.</sys:String>
+    <sys:String x:Key="LockOnceHint" xml:space="preserve">Ana şifreyi bir kez girin; kasa açılınca şifre kaldırılır ve bir daha sorulmaz.</sys:String>
+    <sys:String x:Key="PasswordRemoved" xml:space="preserve">Kasanın ana şifresi kaldırıldı; artık şifre sorulmayacak.</sys:String>
+    <sys:String x:Key="ErrRemovePassword" xml:space="preserve">Ana şifre kaldırılamadı (bir sonraki açılışta yeniden denenecek): </sys:String>
+    <sys:String x:Key="SiteFields" xml:space="preserve">Sitede girilen bilgiler</sys:String>
 </ResourceDictionary>

@@ -15,18 +15,30 @@ public sealed class Entry
     public string Extra2 { get; set; } = "";
     public string Username { get; set; } = "";
     public string Password { get; set; } = "";
+    /// <summary>What else was typed into the site's sign-up form, under the site's own labels (never the login itself).</summary>
+    public List<EntryField> Fields { get; set; } = [];
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     [JsonIgnore] public string FullName => $"{FirstName} {LastName}".Trim();
-    internal Entry Clone() => (Entry)MemberwiseClone();
+    internal Entry Clone() => (Entry)MemberwiseClone(); // Fields is shared: it is replaced, never changed in place
+}
+
+/// <summary>One sign-up form field. Secret ones (ID numbers, card data…) are shown only on request.</summary>
+public sealed class EntryField
+{
+    public string Label { get; set; } = "";
+    public string Value { get; set; } = "";
+    public bool Secret { get; set; }
 }
 
 // Salt differs from the open vault: the master password was changed elsewhere, the key cache is stale.
 public sealed class VaultPasswordChangedException() : CryptographicException("Kasanın ana şifresi değişmiş; yeniden açın.");
 
 // File: "EZP1" | iterations int32 LE | salt 16 | nonce 12 | tag 16 | AES-256-GCM(JSON {"entries":[...]}), AAD = first 24 bytes.
+// A vault without a master password has the same format: key from the empty password with a single PBKDF2 round
+// (there is no secret to stretch), so anyone with the file can open it — the price of never losing it to a forgotten password.
 public sealed class Vault
 {
-    const int Iterations = 600_000, HeaderLen = 24, NonceLen = 12, TagLen = 16;
+    const int Iterations = 600_000, PasswordlessIterations = 1, HeaderLen = 24, NonceLen = 12, TagLen = 16;
     static readonly byte[] Magic = "EZP1"u8.ToArray();
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     sealed record Doc(List<Entry> Entries);
@@ -39,6 +51,7 @@ public sealed class Vault
     public IReadOnlyList<Entry> Entries => _entries;
     public byte[] Salt { get; private set; }
     public byte[] Key { get; private set; }
+    public bool HasPassword => _iterations != PasswordlessIterations;
 
     Vault(string path, int iterations, byte[] salt, byte[] key)
     {
@@ -48,13 +61,17 @@ public sealed class Vault
         Key = key;
     }
 
-    public static Vault Create(string path, string password)
+    static int IterationsFor(string password) => password == "" ? PasswordlessIterations : Iterations;
+
+    /// <summary>Empty password (the default) = a vault without a master password.</summary>
+    public static Vault Create(string path, string password = "")
     {
         // a leftover .bak/.tmp without the vault is an interrupted save: a new vault here would overwrite the only copy
         foreach (var p in new[] { path, path + ".bak", path + ".tmp" })
             if (File.Exists(p)) throw new IOException($"Dosya zaten var: {p}");
         var salt = RandomNumberGenerator.GetBytes(16);
-        var v = new Vault(path, Iterations, salt, Derive(password, salt, Iterations));
+        var iterations = IterationsFor(password);
+        var v = new Vault(path, iterations, salt, Derive(password, salt, iterations));
         Locked(() => v.Save([]));
         return v;
     }
@@ -72,11 +89,20 @@ public sealed class Vault
         return v;
     }
 
-    public static byte[] ReadSalt(string path)
+    public static byte[] ReadSalt(string path) => ReadHeader(path).Salt;
+
+    /// <summary>The key of a vault without a master password; null when the file has one.</summary>
+    public static byte[]? PasswordlessKey(string path)
+    {
+        var (iterations, salt) = ReadHeader(path);
+        return iterations == PasswordlessIterations ? Derive("", salt, iterations) : null;
+    }
+
+    static (int Iterations, byte[] Salt) ReadHeader(string path)
     {
         var head = new byte[HeaderLen];
         using (var f = File.OpenRead(path)) f.ReadExactly(head);
-        return ReadHeader(head).Salt;
+        return ReadHeader(head);
     }
 
     public bool ReloadIfChanged()
@@ -101,16 +127,18 @@ public sealed class Vault
         Save(list);
     });
 
+    /// <summary>Empty new password = remove the master password.</summary>
     public void ChangePassword(string newPassword)
     {
         // PBKDF2 outside the mutex: it takes about a second and would stall the host's writes
         var salt = RandomNumberGenerator.GetBytes(16);
-        var key = Derive(newPassword, salt, Iterations);
+        var iterations = IterationsFor(newPassword);
+        var key = Derive(newPassword, salt, iterations);
         Locked(() =>
         {
             ReloadIfChanged();
             var old = (Salt, Key, _iterations);
-            (Salt, Key, _iterations) = (salt, key, Iterations);
+            (Salt, Key, _iterations) = (salt, key, iterations);
             try { Save(_entries); }
             catch { (Salt, Key, _iterations) = old; throw; }
         });
@@ -124,7 +152,7 @@ public sealed class Vault
         var first = words[0];
         return pool
             // site text only in the app's search: on a page every candidate shares it (spec §5)
-            .Select(e => (e, text: TextFold.Fold($"{e.FirstName} {e.LastName} {e.Username} {e.Extra1} {e.Extra2} {(site is null ? e.Site : "")}")))
+            .Select(e => (e, text: TextFold.Fold($"{e.FirstName} {e.LastName} {e.Username} {e.Extra1} {e.Extra2} {OpenFields(e)} {(site is null ? e.Site : "")}")))
             .Where(x => words.All(w => x.text.Contains(w, StringComparison.Ordinal)))
             .OrderBy(x => TextFold.Fold(x.e.FirstName).StartsWith(first, StringComparison.Ordinal)
                        || TextFold.Fold(x.e.LastName).StartsWith(first, StringComparison.Ordinal) ? 0 : 1)
@@ -133,6 +161,9 @@ public sealed class Vault
             .Select(x => x.e)
             .ToList();
     }
+
+    // sign-up details are searchable too (phone, e-mail…), except the secret ones
+    static string OpenFields(Entry e) => string.Join(' ', e.Fields.Where(f => !f.Secret).Select(f => f.Value));
 
     static byte[] Derive(string password, byte[] salt, int iterations) =>
         Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, HashAlgorithmName.SHA256, 32);

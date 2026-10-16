@@ -2,6 +2,7 @@
 // in a visible Chrome for Testing window with this extension folder loaded. The user's own Chrome and vault are untouched.
 // Prerequisite: scripts/install.ps1 has run (host registered). Usage: cd extension/test && npm install && node e2e-windows.mjs
 // --open: after the run, leave the browser (one tab per site) and the test EasyPass app open for trying things by hand.
+// --headless: no visible window (e.g. while someone works on the machine; screenshots are taken all the same).
 import { chromium } from 'playwright-core';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
@@ -14,12 +15,13 @@ import { prepareHome } from './test-vault.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ext = path.resolve(here, '..');
 const ID = 'coikeomihlacdkjplpedddjmnkfobaon';
-const MASTER = 'test1234';
 const local = process.env.LOCALAPPDATA;
-const installed = path.join(local, 'EasyPass');
+// the installed EasyPass (scripts/install.ps1 or the setup); EASYPASS_DIR points at another build, e.g. a fresh publish
+const installed = process.env.EASYPASS_DIR || path.join(local, 'EasyPass');
 const home = path.join(local, 'EasyPass-e2e'); // EASYPASS_HOME of the test vault, the browser and the test app
 const out = path.join(here, 'test-results', 'e2e-windows');
 const keepOpen = process.argv.includes('--open');
+const headless = process.argv.includes('--headless') && !keepOpen;
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
 
@@ -36,13 +38,14 @@ for (const product of ['Chromium', 'Google\\Chrome for Testing']) {
 // New users signed up during the run, one per site; their password is changed later to `${password}-v2`.
 const NEWCOMERS = {
   'hizlikargo.test': { first: 'Kerem', last: 'Aksoy', username: 'kerem.aksoy', password: 'Yeni-Kargo-1' },
-  'efatura.test': { first: 'Leyla', last: 'Toprak', username: 'leyla@topraktarim.com', password: 'Yeni-Fatura-1' },
+  'efatura.test': { first: 'Leyla', last: 'Toprak', username: 'leyla@topraktarim.example', password: 'Yeni-Fatura-1' },
   'demobank.test': { first: 'Okan', last: 'Güler', username: '10058821', password: 'Yeni-Bank-1' },
   'guvensigorta.test': { first: 'Nur', last: 'Akın', username: '34567890123', password: 'Yeni-Sigorta-1' },
-  'defteronline.test': { first: 'Emre', last: 'Taş', username: 'emre@tasyapi.com', password: 'Yeni-Defter-1' },
+  'defteronline.test': { first: 'Emre', last: 'Taş', username: 'emre@tasyapi.example', password: 'Yeni-Defter-1' },
 };
 
-const vault = prepareHome(home, SITES, MASTER, 'tr');
+// no master password and no key cache: the host has to open the vault from the file alone
+const vault = prepareHome(home, SITES, '', 'tr');
 const sites = await startSites({ certDir: home });
 const hostEntries = (host) => vault.readEntries().filter((e) => e.site === host);
 
@@ -64,7 +67,7 @@ async function ax(page) {
   const prop = (n, name) => n.properties?.find((p) => p.name === name)?.value.value;
   return nodes.filter((n) => !n.ignored).map((n) => ({
     role: n.role?.value, name: n.name?.value || '', node: n.backendDOMNodeId,
-    focused: !!prop(n, 'focused'), expanded: !!prop(n, 'expanded'), pressed: prop(n, 'pressed') === 'true',
+    focused: !!prop(n, 'focused'), expanded: !!prop(n, 'expanded'), pressed: prop(n, 'pressed') === 'true', value: n.value?.value,
   }));
 }
 const options = async (page) => (await ax(page)).filter((n) => n.role === 'option');
@@ -92,21 +95,22 @@ async function iconsIn(page, selector, name = 'EasyPass') {
   return found;
 }
 const iconIn = async (page, selector, name) => (await iconsIn(page, selector, name))[0] ?? null;
-// The login page opens the panel by itself; open it at the key only if it isn't, then focus the search box.
+// Opens the panel the way a user does, with a click in the username field (it stays open if it already is),
+// and empties that field: the caret stays there, and what the test types next narrows the full list.
 async function openPanel(page, selector = '#user') {
-  const key = await waitFor(() => iconIn(page, selector), 'EasyPass icon in ' + selector);
-  if (!key.expanded) await page.mouse.click(key.x, key.y);
-  const opts = await waitFor(async () => { const o = await options(page); return o.length && o; }, 'panel options');
-  const box = (await ax(page)).find((n) => n.role === 'combobox');
-  if (!box.focused) await clickNode(page, box);
-  return opts;
+  await page.click(selector);
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Backspace');
+  return waitFor(async () => { const o = await options(page); return o.length && o; }, 'panel options');
 }
 const opened = (page) => waitFor(async () => (await ax(page)).some((n) => n.role === 'combobox'), 'panel opened by itself');
-// Search by name in the open panel and fill the single hit.
+const active = (page) => page.evaluate(() => document.activeElement.id || document.activeElement.localName);
+// Type a name in the username field, pick the single hit with ↓ and fill it with Enter.
 async function fillFromPanel(page, text, fullName) {
   await openPanel(page);
   await page.keyboard.type(text);
   await waitFor(async () => { const o = await options(page); return o.length === 1 && o[0].name.startsWith(fullName); }, `one hit "${fullName}"`);
+  await page.keyboard.press('ArrowDown'); // typing in the field selects nothing until ↓
   await page.keyboard.press('Enter');
 }
 
@@ -123,7 +127,7 @@ async function scenario(name, fn) {
 }
 
 const ctx = await chromium.launchPersistentContext(path.join(home, 'chrome-profile'), {
-  executablePath: exe, headless: false, slowMo: 60, viewport: { width: 1280, height: 800 },
+  executablePath: exe, headless, slowMo: headless ? 0 : 60, viewport: { width: 1280, height: 800 },
   env: { ...process.env, EASYPASS_HOME: home }, // the host Chrome starts inherits it → opens the test vault
   args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`, '--host-resolver-rules=MAP *.test 127.0.0.1',
     '--ignore-certificate-errors', '--no-first-run', '--no-default-browser-check'],
@@ -159,7 +163,8 @@ try {
       const opts = await waitFor(async () => { const o = await options(page); return o.length && o; }, 'panel options');
       assert.equal(opts.length, shown, opts.map((o) => o.name).join(' | '));
       for (const o of opts) assert.ok(site.users.some((u) => o.name.startsWith(name(u))), 'foreign entry ' + o.name);
-      assert.ok((await find(page, 'combobox', 'Müşteri ara'))?.focused, 'search box focused, ready to type');
+      await waitFor(async () => (await active(page)) === 'user', 'caret in the username field, ready to type');
+      assert.ok(!(await find(page, 'combobox', 'Müşteri ara'))?.focused, 'the panel does not take the caret');
       await shot(page, `${tag}-a-panel-kendiliginden`);
       for (const u of site.users.filter((u) => !opts.some((o) => o.name.startsWith(name(u))))) {
         await page.keyboard.type(u.first.toLocaleLowerCase('tr'));
@@ -174,8 +179,17 @@ try {
       await waitFor(async () => (await options(page)).length === 0, 'panel closed by a click elsewhere');
       await page.click('#user');
       await waitFor(async () => (await options(page)).length === shown, 'panel reopened by the username click');
-      assert.ok((await find(page, 'combobox', 'Müşteri ara'))?.focused, 'search box focused');
+      assert.equal(await active(page), 'user', 'caret stays in the username field');
       await shot(page, `${tag}-a1-tiklayinca-yeniden`);
+    });
+
+    await scenario(`${site.name}: kullanıcı adına elle yazılır (kasada olmayan biri) → liste "Sonuç yok", yazı alanda kalır`, async () => {
+      await page.keyboard.type('elle.yazilan');
+      await waitFor(async () => (await hasText(page, 'Sonuç yok')) && !(await options(page)).length, 'no match listed');
+      assert.equal(await page.inputValue('#user'), 'elle.yazilan', 'typed into the page field');
+      await shot(page, `${tag}-a3-elle-yazma`);
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.press('Backspace');
     });
 
     await scenario(`${site.name}: "${seed.first}" seç → doldur`, async () => {
@@ -208,26 +222,36 @@ try {
       assert.match(await page.textContent('#welcome'), new RegExp(name(seed)));
     });
 
-    await scenario(`${site.name}: ilk kez üye ol → "Kaydedilsin mi?" → kasaya eklendi`, async () => {
+    await scenario(`${site.name}: ilk kez üye ol → "Kaydedilsin mi?" ad/soyad dolu, formdaki her bilgi başlığıyla, gizliler kapalı → kasada`, async () => {
       await go('/logout');
       await page.click('#to-register');
       await page.fill('#fullname', name(neu));
+      for (const x of site.signup) {
+        if (x.type === 'select') await page.selectOption('#' + x.id, x.value);
+        else await page.fill('#' + x.id, x.value);
+      }
       await page.fill('#user', neu.username);
       await page.fill('#pass', neu.password);
       await page.fill('#pass2', neu.password);
       await page.click('#signup');
       await page.waitForSelector('#registered');
       await waitFor(() => hasText(page, 'Kaydedilsin mi?'), 'save prompt');
-      await clickNode(page, await find(page, 'textbox', 'Ad'));
-      await page.keyboard.type(neu.first);
-      await clickNode(page, await find(page, 'textbox', 'Soyad'));
-      await page.keyboard.type(neu.last);
+      assert.equal((await find(page, 'textbox', 'Ad'))?.value, neu.first, 'first name taken from "Ad Soyad"');
+      assert.equal((await find(page, 'textbox', 'Soyad'))?.value, neu.last, 'last name taken from "Ad Soyad"');
+      for (const x of site.signup) {
+        assert.ok(await hasText(page, x.label), 'label listed: ' + x.label);
+        assert.equal(await hasText(page, x.shown ?? x.value), !x.secret, (x.secret ? 'masked: ' : 'shown: ') + x.label);
+      }
+      assert.ok(!(await hasText(page, neu.password)), 'password masked');
       await shot(page, `${tag}-b-kaydet-sorusu`);
       await clickNode(page, await find(page, 'button', 'Kaydet'));
       await waitFor(async () => !(await hasText(page, 'Kaydedilsin mi?')), 'prompt closed');
       const e = hostEntries(site.host).find((x) => x.username === neu.username);
       assert.ok(e, 'entry in vault');
       assert.deepEqual([e.firstName, e.lastName, e.password], [neu.first, neu.last, neu.password]);
+      // everything else the form asked for, under its labels; the login itself only in its own fields
+      assert.deepEqual(e.fields.map((f) => [f.label, f.value, f.secret]),
+        [['Ad Soyad', name(neu), false], ...site.signup.map((x) => [x.label, x.shown ?? x.value, !!x.secret])]);
     });
 
     await scenario(`${site.name}: yeni üye listede → doldur → giriş başarılı`, async () => {
@@ -279,6 +303,28 @@ try {
     await waitFor(async () => (await hasText(page, 'Sonuç yok')) && !(await options(page)).length, 'Zeynep absent on HızlıKargo');
     await shot(page, '6-siteler-arasi');
     await page.keyboard.press('Escape');
+  });
+
+  await scenario('araç çubuğu penceresi: tüm siteler listede, 10 satır görünür, detayda şifre istenince açılır', async () => {
+    const p = await ctx.newPage();
+    await p.goto(`chrome-extension://${ID}/popup.html`);
+    const rows = () => p.locator('#list .opt').count();
+    await waitFor(async () => (await rows()) === total + SITES.length, 'every entry of every site');
+    const shownRows = await p.evaluate(() => {
+      const l = document.getElementById('list');
+      return { visible: Math.round(l.clientHeight / l.querySelector('.opt').offsetHeight), scrolls: l.scrollHeight > l.clientHeight };
+    });
+    assert.deepEqual(shownRows, { visible: 10, scrolls: true }, '10 rows, the rest scrolls');
+    await p.locator('body').screenshot({ path: path.join(out, '7a-pencere-liste.png') });
+    await p.keyboard.type('ahmet');
+    await waitFor(async () => (await rows()) === 2, 'Ahmet Yılmaz on HızlıKargo and e-Fatura');
+    await p.locator('#list .opt', { hasText: 'hizlikargo.test' }).click();
+    await p.waitForSelector('#detail:not([hidden])');
+    assert.ok(!(await p.textContent('#fields')).includes('Kargo-111'), 'password hidden until asked');
+    await p.getByRole('button', { name: 'Göster' }).click();
+    assert.ok((await p.textContent('#fields')).includes('Kargo-111'), 'password shown');
+    await p.locator('body').screenshot({ path: path.join(out, '7b-pencere-detay.png') });
+    await p.close();
   });
 
   await scenario(`kasa sonu: ${total + SITES.length} kayıt, her sitede tek yeni üye`, async () => {

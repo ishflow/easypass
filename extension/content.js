@@ -12,7 +12,7 @@
       insecure: 'Небезопасная страница (http) — EasyPass здесь не заполняет',
       changed: 'Пароль изменён. Обновить в EasyPass?', update: 'Обновить', no: 'Нет',
       added: 'Этого входа нет в EasyPass. Сохранить?', first: 'Имя', last: 'Фамилия', save: 'Сохранить',
-      showPw: 'Показать пароль',
+      showPw: 'Показать пароль', fromSite: 'Данные, введённые на сайте',
     },
     tr: {
       search: 'Müşteri ara…', searchLabel: 'Müşteri ara', list: 'Müşteriler', none: 'Sonuç yok',
@@ -22,7 +22,7 @@
       insecure: 'Güvensiz sayfa (http) — EasyPass burada doldurmaz',
       changed: "Şifre değişti. EasyPass'te güncellensin mi?", update: 'Güncelle', no: 'Hayır',
       added: "Bu giriş EasyPass'te yok. Kaydedilsin mi?", first: 'Ad', last: 'Soyad', save: 'Kaydet',
-      showPw: 'Şifreyi göster',
+      showPw: 'Şifreyi göster', fromSite: 'Sitede girilen bilgiler',
     },
   };
   // Asked once per page, only when a page has password fields (so idle pages never start the host).
@@ -74,7 +74,7 @@
       *{box-sizing:border-box;margin:0;font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
       [hidden]{display:none!important}
       .box{background:#fff;color:#1C1F23;border:1px solid #E3E1DC;border-radius:8px;box-shadow:0 8px 24px rgba(28,31,35,.14);font-size:14px}
-      .panel{position:absolute;width:320px;padding:8px}
+      .panel{position:absolute;z-index:1;width:320px;padding:8px} /* above the field icons */
       .site{padding:0 2px 6px;font-size:12px;font-weight:600;color:#0E7C6B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       input{width:100%;height:36px;padding:0 10px;border:1px solid #E3E1DC;border-radius:8px;background:#fff;color:#1C1F23;font-size:14px;outline:none}
       input:focus{border-color:#0E7C6B;box-shadow:0 0 0 2px #E3F1EE}
@@ -89,8 +89,16 @@
       .status{padding:6px 10px 2px;font-size:12px;color:#5B6168}
       .status:empty{display:none}
       .hint{padding:6px 10px 0;font-size:12px;color:#5B6168}
-      .toast{position:fixed;top:16px;right:16px;width:340px;padding:14px;display:grid;gap:10px}
+      .toast{position:fixed;z-index:1;top:16px;right:16px;width:360px;padding:14px;display:grid;gap:10px}
       .toast .t{font-weight:600}
+      .toast .s:empty{display:none}
+      .fields{display:grid;gap:4px;max-height:260px;overflow:auto;padding:8px 10px;border:1px solid #E3E1DC;border-radius:8px;background:#F6F5F2}
+      .fields:empty{display:none}
+      .f{display:grid;grid-template-columns:120px 1fr auto;gap:8px;align-items:center;min-height:22px;font-size:12px}
+      .fl{color:#5B6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fv{color:#1C1F23;overflow-wrap:anywhere}
+      .feye{display:grid;place-items:center;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:#0E7C6B;cursor:pointer}
+      .feye[aria-pressed=true]{background:#0A5F52}
       .row{display:flex;gap:8px}
       label{display:grid;gap:4px;font-size:12px;color:#5B6168;flex:1}
       .btn{height:36px;padding:0 14px;border:1px solid #E3E1DC;border-radius:8px;background:#fff;color:#1C1F23;font-size:14px;font-weight:600;cursor:pointer}
@@ -124,18 +132,23 @@
     root.append(tpl.content);
     [panel, input, list, status, toast] = ['.panel', 'input', '#list', '.status', '.toast'].map((s) => root.querySelector(s));
     root.querySelector('.site').textContent = location.hostname; // shown only; background sends the real host
-    input.addEventListener('input', () => search(input.value));
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        if (items.length) active = (active + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length;
-        mark();
-      } else if (e.key === 'Enter') {
-        if (items[active]) fill(items[active]);
-      } else if (e.key === 'Escape') {
-        close(true);
-      } else return;
-      e.preventDefault();
-    });
+    input.addEventListener('input', () => search(input.value, true));
+    input.addEventListener('keydown', (e) => { if (navigate(e.key)) e.preventDefault(); });
+  }
+
+  // ↑ ↓ move the highlight, Enter fills the highlighted entry, Esc closes the panel. true = the key was ours.
+  function navigate(key) {
+    if (key === 'ArrowDown' || key === 'ArrowUp') {
+      const step = key === 'ArrowDown' ? 1 : -1;
+      if (items.length) active = active < 0 ? (step > 0 ? 0 : items.length - 1) : (active + step + items.length) % items.length;
+      mark();
+    } else if (key === 'Enter') {
+      if (!items[active]) return false; // nothing highlighted: Enter is the page's (submit a login typed by hand)
+      fill(items[active]);
+    } else if (key === 'Escape') {
+      close(true);
+    } else return false;
+    return true;
   }
 
   const expand = (on) => icons.get(field)?.key?.setAttribute('aria-expanded', on);
@@ -157,9 +170,10 @@
     expand(true);
     placePanel();
     panel.hidden = false;
-    input.value = '';
-    input.focus();
-    search('');
+    // The panel never takes the caret: typing stays in the page field (a login that isn't in EasyPass is typed by hand)
+    // and, in the username field, narrows the list. What is typed in a password field never goes to a search.
+    input.value = f === p.user ? f.value : '';
+    search(input.value, false);
   }
 
   function close(back) {
@@ -174,15 +188,17 @@
   function toggle(f) {
     if (panel && !panel.hidden && field === f) return close(true);
     const p = pairFor(f);
-    if (p) open(f, p);
+    if (p) open(f, p).then(() => f.focus()); // the click moved the caret to the icon: back to the field
   }
 
-  async function search(text) {
+  // highlight: the first hit is pre-selected (typing in the panel's own search box). Typing in the page field
+  // selects nothing until ↓, so Enter there still submits a login typed by hand.
+  async function search(text, highlight) {
     const mine = ++query;
     const r = await send({ cmd: 'search', q: text });
     if (mine !== query) return;
     items = r.ok ? r.items.slice(0, MAX_ITEMS) : [];
-    active = items.length ? 0 : -1;
+    active = highlight && items.length ? 0 : -1;
     status.textContent = r.ok ? (items.length ? '' : T.none) : message(r.error);
     list.replaceChildren(...items.map((it, i) => {
       const b = document.createElement('button');
@@ -221,6 +237,36 @@
     close(true);
   }
 
+  // One line of the save prompt's field list; a secret value stays dots until its eye is pressed.
+  function fieldRow(f) {
+    const row = document.createElement('div');
+    row.className = 'f';
+    const label = document.createElement('span');
+    label.className = 'fl';
+    label.textContent = f.label || '—';
+    label.title = f.label;
+    const value = document.createElement('span');
+    value.className = 'fv';
+    row.append(label, value);
+    if (!f.secret) {
+      value.textContent = f.value;
+      return row;
+    }
+    const eye = document.createElement('button');
+    eye.type = 'button';
+    eye.className = 'feye';
+    eye.setAttribute('aria-label', `${T.showPw}: ${f.label}`);
+    const show = (on) => {
+      value.textContent = on ? f.value : '•'.repeat(Math.min(f.value.length, 12));
+      eye.innerHTML = on ? EYE_OFF : EYE;
+      eye.setAttribute('aria-pressed', on);
+    };
+    eye.addEventListener('click', () => show(eye.getAttribute('aria-pressed') !== 'true'));
+    show(false);
+    row.append(eye);
+    return row;
+  }
+
   async function prompt(p) {
     if (!p?.result) return;
     const t = await texts();
@@ -228,11 +274,18 @@
     toast.innerHTML = p.result === 'changed'
       ? `<p class="t">${t.changed}</p><p class="s"></p>
          <div class="row"><button class="btn primary" data-a="update">${t.update}</button><button class="btn" data-a="no">${t.no}</button></div>`
-      : `<p class="t">${t.added}</p><p class="s"></p>
+      : `<p class="t">${t.added}</p>
          <div class="row"><label>${t.first}<input name="first"></label><label>${t.last}<input name="last"></label></div>
+         <div class="fields" role="group" aria-label="${t.fromSite}"></div><p class="s"></p>
          <div class="row"><button class="btn primary" data-a="add">${t.save}</button><button class="btn" data-a="no">${t.no}</button></div>`;
     const info = toast.querySelector('.s');
-    info.textContent = p.name ? `${p.name} · ${p.username}` : p.username;
+    if (p.result === 'changed' || !p.fields?.length) info.textContent = p.name ? `${p.name} · ${p.username}` : p.username;
+    if (p.result !== 'changed') {
+      // names as typed on the site (still editable); every filled field under the site's own label
+      toast.querySelector('[name=first]').value = p.firstName || '';
+      toast.querySelector('[name=last]').value = p.lastName || '';
+      toast.querySelector('.fields').replaceChildren(...(p.fields || []).map(fieldRow));
+    }
     toast.hidden = false;
     toast.onkeydown = (e) => { if (e.key === 'Escape') answer('no'); }; // returning false would cancel typing
     toast.onclick = (e) => { if (e.target.dataset.a) answer(e.target.dataset.a); };
@@ -252,11 +305,74 @@
     for (const el of scope.querySelectorAll('input')) if (revealed.has(el) && el.type !== 'password') reveal(el, false);
     const pws = [...scope.querySelectorAll('input[type=password]')].filter((x) => x.value && visible(x));
     if (!pws.length) return;
-    const username = pairFor(pws[0])?.user?.value.trim() || '';
+    const user = pairFor(pws[0])?.user;
+    const username = user?.value.trim() || '';
     const password = pws.at(-1).value; // change-password form: last field is the new password
     if (sent === username + '\n' + password) return; // submit + click + Enter fire for one login
     sent = username + '\n' + password;
-    send({ cmd: 'submitted', username, password, change: pws.length > 1 }).then(prompt);
+    send({ cmd: 'submitted', username, password, change: pws.length > 1, ...formFields(scope, user, pws) }).then(prompt);
+  }
+
+  // --- What the form asked for: a sign-up form's fields under the site's own labels, for the save prompt and the vault ---
+  const SKIP_TYPES = new Set(['hidden', 'submit', 'button', 'reset', 'image', 'checkbox', 'radio', 'file', 'range', 'color']);
+  const MAX_FIELDS = 30;
+  // Shown masked until asked (by label, name or id): passwords, ID and passport numbers, bank and card data.
+  const SECRET = /pass|parol|şifre|sifre|пароль|kimlik|tckn|\btc\b|tc.?no|national|identity|ssn|passport|pasaport|паспорт|iban|card|kart|cvv|cvc|\bpin\b|security|güvenlik|guvenlik|снилс|инн/i;
+  // Where the person's name was typed: one "full name" field, or separate first / last name fields.
+  const FULL_LABEL = /\bad[a-z]*\s*(ve\s*)?soyad|isim\s*soyisim|full\s*name|^name$|^фио$|имя и фамилия/;
+  const FULL_KEY = /full.?name|ad.?soyad|isim.?soyisim|^fio$/;
+  const FIRST_LABEL = /^(ad|adi|adiniz|isim|isminiz|first name|given name|имя)$/;
+  const FIRST_KEY = /first.?name|given.?name|^ad$|^isim$/;
+  const LAST_LABEL = /^(soyad|soyadi|soyadiniz|soyisim|last name|surname|family name|фамилия)$/;
+  const LAST_KEY = /last.?name|family.?name|surname|soyad|soyisim/;
+  const fold = (s) => (s || '').toLocaleLowerCase('tr').replace(/ı/g, 'i').replace(/\s+/g, ' ').trim();
+
+  // The label's own words: without the field itself or a show-password button inside the <label>, and without " *:".
+  function labelOf(el) {
+    const own = (label) => {
+      const copy = label.cloneNode(true);
+      copy.querySelectorAll('input, select, textarea, button').forEach((x) => x.remove());
+      return copy.textContent.replace(/\s+/g, ' ').trim();
+    };
+    const byIds = (ids) => (ids || '').split(/\s+/).map((id) => document.getElementById(id)?.textContent.trim()).filter(Boolean).join(' ');
+    const label = [...(el.labels || [])].map(own).find(Boolean) || el.getAttribute('aria-label') || byIds(el.getAttribute('aria-labelledby'))
+      || el.placeholder || el.name || el.id || '';
+    return label.replace(/[\s*:]+$/, '').slice(0, 100);
+  }
+
+  function nameKind(el, label) {
+    const auto = (el.getAttribute('autocomplete') || '').toLowerCase();
+    const l = fold(label);
+    const keys = [el.name, el.id].map(fold);
+    if (auto === 'name' || FULL_LABEL.test(l) || keys.some((k) => FULL_KEY.test(k))) return 'full';
+    if (auto === 'given-name' || FIRST_LABEL.test(l) || keys.some((k) => FIRST_KEY.test(k))) return 'first';
+    if (auto === 'family-name' || LAST_LABEL.test(l) || keys.some((k) => LAST_KEY.test(k))) return 'last';
+    return null;
+  }
+
+  // role marks the login itself (username / password): the prompt lists it, the vault keeps it in its own fields.
+  function formFields(scope, user, pws) {
+    const fields = [];
+    const names = {};
+    for (const el of scope.querySelectorAll('input, select, textarea')) {
+      if (fields.length >= MAX_FIELDS) break;
+      if (!visible(el) || el.disabled || (el instanceof HTMLInputElement && SKIP_TYPES.has(el.type))) continue;
+      if (el instanceof HTMLSelectElement && !el.value) continue; // "Choose…" placeholder option
+      const value = (el instanceof HTMLSelectElement ? el.selectedOptions[0]?.textContent : el.value)?.trim().slice(0, 1000);
+      if (!value) continue;
+      const label = labelOf(el);
+      const role = el === user ? 'username' : pws.includes(el) ? 'password' : undefined;
+      const kind = !role && nameKind(el, label);
+      if (kind) names[kind] ??= value;
+      fields.push({ label, value, secret: role === 'password' || SECRET.test(`${label} ${el.name} ${el.id}`), ...(role && { role }) });
+    }
+    let { first = '', last = '' } = names;
+    if (!first && !last && names.full) { // "Ahmet Can Yılmaz" → first "Ahmet Can", last "Yılmaz"
+      const words = names.full.split(/\s+/);
+      last = words.length > 1 ? words.pop() : '';
+      first = words.join(' ');
+    }
+    return { fields, firstName: first, lastName: last };
   }
 
   // The site's own show-password control near the field: an eye in/next to it, or a "show password" checkbox or
@@ -371,11 +487,13 @@
       const p = have.key && pairFor(f);
       if (!p || autoOpened.has(p.pass)) continue;
       autoOpened.add(p.pass);
-      if (loginForm(p) && !p.pass.value && !p.user?.value) return void open(f, p);
+      if (!loginForm(p) || p.pass.value || p.user?.value) continue;
+      // nothing focused yet: put the caret in the field, so typing right away narrows the list (or types a new login)
+      return void open(f, p).then(() => { if (!document.activeElement || document.activeElement === document.body) f.focus(); });
     }
   }
 
-  // A mouse click in a login form's username field (re)opens the panel there; Esc closes it to type by hand.
+  // A mouse click in a login form's username field (re)opens the panel there, the caret staying in the field.
   function clickOpens(t) {
     const p = t instanceof HTMLInputElement && icons.get(t)?.key && pairFor(t);
     return p && p.user === t && loginForm(p) ? p : null;
@@ -408,14 +526,25 @@
     if (e.target !== host && !pressed) close(false);
   }, true);
   document.addEventListener('focusin', (e) => {
-    if (e.target !== host && e.target !== pressed) close(false);
+    if (e.target !== host && e.target !== pressed && e.target !== field) close(false);
   }, true);
   document.addEventListener('click', (e) => {
     const p = e.isTrusted && e.target === pressed && clickOpens(e.target);
     pressed = null;
-    if (!p) return;
-    if (panel && !panel.hidden && field === e.target) input.focus();
-    else open(e.target, p);
+    if (p && !(panel && !panel.hidden && field === e.target)) open(e.target, p); // already open there: just stays open
+  }, true);
+
+  // The open panel's username field drives it: typing narrows the list, ↑ ↓ Enter Esc work as in the panel's search box.
+  const panelUserField = (t) => panel && !panel.hidden && t === field && t === pair?.user;
+  document.addEventListener('input', (e) => {
+    if (!e.isTrusted || !panelUserField(e.target)) return; // isTrusted: not our own fill, not page scripts
+    input.value = field.value;
+    search(field.value, false);
+  }, true);
+  document.addEventListener('keydown', (e) => {
+    if (!e.isTrusted || !panelUserField(e.target) || !navigate(e.key)) return;
+    e.preventDefault();
+    e.stopPropagation(); // the page must not also act on a key that picked an entry or closed the panel
   }, true);
   // isTrusted: a page script must not make us ask the host about logins it invents
   document.addEventListener('submit', (e) => e.isTrusted && captured(e.target), true);

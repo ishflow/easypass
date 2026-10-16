@@ -4,16 +4,61 @@
 <meta charset="utf-8">
 <title>EasyPass</title>
 <style>
-  body { margin: 0; width: 280px; padding: 16px; background: #F6F5F2; color: #1C1F23;
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; width: 340px; background: #F6F5F2; color: #1C1F23;
     font: 14px "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; }
-  h1 { margin: 0 0 8px; font-size: 16px; font-weight: 600; color: #0E7C6B; }
+  header { padding: 12px 14px 8px; }
+  h1 { margin: 0; font-size: 16px; font-weight: 600; color: #0E7C6B; }
   p { margin: 0; color: #5B6168; }
-  p.ok { color: #1C1F23; }
+  #status { margin-top: 2px; font-size: 12px; }
+  #status.ok { color: #1C1F23; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid #0E7C6B; outline-offset: 2px; }
+  .search { padding: 0 14px 8px; }
+  input { width: 100%; height: 36px; padding: 0 10px; border: 1px solid #E3E1DC; border-radius: 8px; background: #fff;
+    color: #1C1F23; font: inherit; outline: none; }
+  input:focus { border-color: #0E7C6B; box-shadow: 0 0 0 2px #E3F1EE; }
+  /* 10 rows tall; the rest scrolls */
+  #list { max-height: 460px; overflow-y: auto; padding: 0 8px 8px; }
+  .opt { display: flex; flex-direction: column; justify-content: center; width: 100%; height: 46px; padding: 0 8px; border: 0;
+    border-radius: 8px; background: none; text-align: left; }
+  .opt:hover { background: #fff; }
+  .opt[aria-selected=true] { background: #E3F1EE; }
+  .n, .s { display: block; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .n { font-weight: 600; }
+  .s { font-size: 12px; color: #5B6168; }
+  #empty { padding: 0 14px 12px; font-size: 12px; }
+  #detail { padding: 0 14px 14px; }
+  #back { padding: 4px 0; border: 0; background: none; color: #0E7C6B; font-weight: 600; }
+  h2 { margin: 6px 0 10px; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+  .field { padding: 8px 10px; margin-bottom: 6px; border: 1px solid #E3E1DC; border-radius: 8px; background: #fff; }
+  .label { font-size: 12px; color: #5B6168; }
+  .row { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+  .value { flex: 1; min-width: 0; overflow-wrap: anywhere; font-family: inherit; }
+  .value.secret { letter-spacing: 1px; }
+  .btn { height: 26px; padding: 0 8px; border: 1px solid #E3E1DC; border-radius: 6px; background: #fff; font-size: 12px; font-weight: 600; }
+  .btn:hover { border-color: #0E7C6B; }
+  #note { min-height: 16px; margin-top: 4px; font-size: 12px; color: #0E7C6B; }
 </style>
 </head>
 <body>
-<h1>EasyPass</h1>
-<p id="status" role="status">…</p>
+<header>
+  <h1>EasyPass</h1>
+  <p id="status" role="status">…</p>
+</header>
+<main id="browse" hidden>
+  <div class="search"><input id="q" type="search" autocomplete="off" spellcheck="false" role="combobox"
+    aria-expanded="true" aria-controls="list" aria-autocomplete="list"></div>
+  <div id="list" role="listbox"></div>
+  <p id="empty" hidden></p>
+</main>
+<section id="detail" hidden>
+  <button id="back" type="button"></button>
+  <h2 id="name"></h2>
+  <div id="fields"></div>
+  <p id="note" role="status"></p>
+</section>
 <script src="popup.js"></script>
 </body>
 </html>

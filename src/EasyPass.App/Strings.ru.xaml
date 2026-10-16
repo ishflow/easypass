@@ -2,20 +2,17 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib">
     <sys:String x:Key="SetupWelcome" xml:space="preserve">Добро пожаловать в EasyPass</sys:String>
-    <sys:String x:Key="SetupIntro" xml:space="preserve">Пароли хранятся в одном зашифрованном файле-хранилище. Совет: положите его в папку Google Drive или Яндекс Диска — после переустановки Windows хранилище откроется по одному мастер-паролю.</sys:String>
+    <sys:String x:Key="SetupIntro" xml:space="preserve">Пароли хранятся в одном файле-хранилище. Совет: положите его в папку Google Drive или Яндекс Диска — после переустановки Windows достаточно установить EasyPass и открыть этот файл.</sys:String>
     <sys:String x:Key="SetupNewTitle" xml:space="preserve">Создать хранилище</sys:String>
     <sys:String x:Key="SetupLocation" xml:space="preserve">Расположение</sys:String>
     <sys:String x:Key="Pick" xml:space="preserve">Выбрать…</sys:String>
-    <sys:String x:Key="NewMasterLabel" xml:space="preserve">Мастер-пароль (не менее 8 символов)</sys:String>
-    <sys:String x:Key="MasterRepeat" xml:space="preserve">Мастер-пароль ещё раз</sys:String>
-    <sys:String x:Key="MasterWarning" xml:space="preserve">Если забыть мастер-пароль, открыть хранилище будет невозможно.</sys:String>
     <sys:String x:Key="CreateVault" xml:space="preserve">Создать</sys:String>
     <sys:String x:Key="SetupOpenTitle" xml:space="preserve">Открыть существующее</sys:String>
     <sys:String x:Key="VaultFile" xml:space="preserve">Файл хранилища</sys:String>
     <sys:String x:Key="MasterPassword" xml:space="preserve">Мастер-пароль</sys:String>
     <sys:String x:Key="Open" xml:space="preserve">Открыть</sys:String>
     <sys:String x:Key="Cancel" xml:space="preserve">Отмена</sys:String>
-    <sys:String x:Key="LockTitle" xml:space="preserve">Хранилище заблокировано</sys:String>
+    <sys:String x:Key="LockTitle" xml:space="preserve">У этого хранилища есть мастер-пароль</sys:String>
     <sys:String x:Key="Settings" xml:space="preserve">Настройки</sys:String>
     <sys:String x:Key="NewEntry" xml:space="preserve">Новый клиент</sys:String>
     <sys:String x:Key="SearchHint" xml:space="preserve">Поиск клиента: имя, фамилия, логин…</sys:String>
@@ -38,8 +35,6 @@
     <sys:String x:Key="ErrFailed" xml:space="preserve">Не удалось: </sys:String>
     <sys:String x:Key="ErrPickLocation" xml:space="preserve">Выберите, где создать хранилище.</sys:String>
     <sys:String x:Key="ErrFileExists" xml:space="preserve">Здесь уже есть такой файл. Откройте его через «Открыть существующее» или выберите другое имя.</sys:String>
-    <sys:String x:Key="ErrShortPassword" xml:space="preserve">Мастер-пароль должен быть не короче 8 символов.</sys:String>
-    <sys:String x:Key="ErrMismatch" xml:space="preserve">Пароли не совпадают.</sys:String>
     <sys:String x:Key="ErrPickFile" xml:space="preserve">Выберите файл хранилища.</sys:String>
     <sys:String x:Key="ErrEnterMaster" xml:space="preserve">Введите мастер-пароль.</sys:String>
     <sys:String x:Key="DlgNewTitle" xml:space="preserve">Где создать хранилище</sys:String>
@@ -47,7 +42,7 @@
     <sys:String x:Key="DlgFilter" xml:space="preserve">Хранилище EasyPass (*.ezp)|*.ezp</sys:String>
     <sys:String x:Key="DlgFilterAll" xml:space="preserve">Хранилище EasyPass (*.ezp)|*.ezp|Все файлы (*.*)|*.*</sys:String>
     <sys:String x:Key="ErrKeyChanged" xml:space="preserve">Мастер-пароль изменён на другом компьютере. Введите новый.</sys:String>
-    <sys:String x:Key="ErrKeyChangedDirty" xml:space="preserve">Мастер-пароль хранилища изменён на другом компьютере. Перепишите данные формы, затем Настройки → Заблокировать и откройте с новым паролем.</sys:String>
+    <sys:String x:Key="ErrKeyChangedDirty" xml:space="preserve">Мастер-пароль хранилища изменён на другом компьютере. Перепишите данные формы, затем закройте и снова откройте EasyPass.</sys:String>
     <sys:String x:Key="ErrReload" xml:space="preserve">Не удалось перечитать хранилище: </sys:String>
     <sys:String x:Key="AskSaveChanges" xml:space="preserve">Есть несохранённые изменения. Сохранить?</sys:String>
     <sys:String x:Key="ErrNeedName" xml:space="preserve">Введите имя или фамилию.</sys:String>
@@ -65,13 +60,6 @@
     <sys:String x:Key="SettingsWindowTitle" xml:space="preserve">Настройки — EasyPass</sys:String>
     <sys:String x:Key="Close" xml:space="preserve">Закрыть</sys:String>
     <sys:String x:Key="OpenOther" xml:space="preserve">Открыть другое хранилище…</sys:String>
-    <sys:String x:Key="ChangeMasterTitle" xml:space="preserve">Сменить мастер-пароль</sys:String>
-    <sys:String x:Key="CurrentMaster" xml:space="preserve">Текущий мастер-пароль</sys:String>
-    <sys:String x:Key="NewMaster" xml:space="preserve">Новый мастер-пароль (не менее 8 символов)</sys:String>
-    <sys:String x:Key="NewMasterRepeat" xml:space="preserve">Новый мастер-пароль ещё раз</sys:String>
-    <sys:String x:Key="ChangeMaster" xml:space="preserve">Сменить пароль</sys:String>
-    <sys:String x:Key="Lock" xml:space="preserve">Заблокировать</sys:String>
-    <sys:String x:Key="LockHint" xml:space="preserve">Ключ на этом компьютере будет удалён. Пока мастер-пароль не введён снова, ни приложение, ни расширение Chrome не откроют хранилище.</sys:String>
     <sys:String x:Key="ChromeTitle" xml:space="preserve">Связь с Chrome</sys:String>
     <sys:String x:Key="ChromeOk" xml:space="preserve">Установлено: расширение Chrome может подключаться к EasyPass.</sys:String>
     <sys:String x:Key="ChromeMissing" xml:space="preserve">Не установлено: запустите скрипт установки (install.ps1).</sys:String>
@@ -79,14 +67,17 @@
     <sys:String x:Key="OpenFolder" xml:space="preserve">Открыть папку</sys:String>
     <sys:String x:Key="ExtHint" xml:space="preserve">В Chrome: chrome://extensions → Режим разработчика → «Загрузить распакованное расширение» → выберите эту папку.</sys:String>
     <sys:String x:Key="ExtMissing" xml:space="preserve">Папка расширения не найдена. Запустите скрипт установки (install.ps1).</sys:String>
-    <sys:String x:Key="ErrEnterCurrent" xml:space="preserve">Введите текущий мастер-пароль.</sys:String>
-    <sys:String x:Key="MasterChanged" xml:space="preserve">Мастер-пароль изменён. На других компьютерах хранилище нужно будет один раз открыть с новым паролем.</sys:String>
-    <sys:String x:Key="ErrCurrentWrong" xml:space="preserve">Текущий мастер-пароль неверный.</sys:String>
-    <sys:String x:Key="ErrChange" xml:space="preserve">Не удалось сменить пароль: </sys:String>
     <sys:String x:Key="LanguageTitle" xml:space="preserve">Язык / Dil</sys:String>
     <sys:String x:Key="Site" xml:space="preserve">Сайт</sys:String>
     <sys:String x:Key="ErrNeedSite" xml:space="preserve">Укажите сайт</sys:String>
     <sys:String x:Key="ErrBadSite" xml:space="preserve">Укажите полный адрес сайта, например portal.example.com</sys:String>
     <sys:String x:Key="ErrUnreadable" xml:space="preserve">файл хранилища сейчас не читается (возможно, облако ещё синхронизирует его). Попробуйте через несколько секунд; данные формы не потеряны.</sys:String>
     <sys:String x:Key="ErrVaultMissing" xml:space="preserve">Файл хранилища не найден: {0}&#10;Рядом есть его резервная копия (.bak или .tmp): сохранение было прервано или облако ещё синхронизирует папку. Подождите и перезапустите EasyPass. Если файл так и не появится, скопируйте {0}.bak под именем хранилища и откройте его через «Открыть существующее». Не создавайте новое хранилище в этой папке.</sys:String>
+    <sys:String x:Key="NoPasswordNote" xml:space="preserve">Хранилище без мастер-пароля: забывать нечего, но любой, у кого есть файл хранилища, может его прочитать. Держите файл в папке, к которой есть доступ только у вас.</sys:String>
+    <sys:String x:Key="OldMasterOptional" xml:space="preserve">Мастер-пароль (только для старых хранилищ с паролем)</sys:String>
+    <sys:String x:Key="ErrNeedOldMaster" xml:space="preserve">У этого хранилища есть мастер-пароль: введите его один раз, после открытия пароль будет снят.</sys:String>
+    <sys:String x:Key="LockOnceHint" xml:space="preserve">Введите мастер-пароль один раз: после открытия пароль будет снят и больше не понадобится.</sys:String>
+    <sys:String x:Key="PasswordRemoved" xml:space="preserve">Мастер-пароль хранилища снят, больше он не понадобится.</sys:String>
+    <sys:String x:Key="ErrRemovePassword" xml:space="preserve">Не удалось снять мастер-пароль (попробуем при следующем открытии): </sys:String>
+    <sys:String x:Key="SiteFields" xml:space="preserve">Данные, введённые на сайте</sys:String>
 </ResourceDictionary>

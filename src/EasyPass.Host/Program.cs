@@ -58,7 +58,8 @@ public static class Program
         {
             var path = AppPaths.VaultPath;
             if (path is null || !File.Exists(path)) return _vault = null;
-            var key = KeyCache.Load(Vault.ReadSalt(path));
+            // a vault without a master password opens even if the app never ran on this computer (e.g. after a format)
+            var key = KeyCache.Load(Vault.ReadSalt(path)) ?? Vault.PasswordlessKey(path);
             if (key is null) return _vault = null;
             if (_vault is not null && _vault.Path == Path.GetFullPath(path) && _vault.Key.AsSpan().SequenceEqual(key))
                 _vault.ReloadIfChanged();

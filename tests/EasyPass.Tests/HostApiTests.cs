@@ -175,6 +175,46 @@ public class HostApiTests : IDisposable
     }
 
     [Fact]
+    public void All_lists_every_site_with_its_site_but_no_password()
+    {
+        var items = Call("""{"id":1,"cmd":"all","q":""}""")["items"]!.AsArray();
+        Assert.Equal(5, items.Count);
+        foreach (var i in items)
+            Assert.Equal(["extra1", "extra2", "firstName", "id", "lastName", "site", "username"], i!.AsObject().Select(p => p.Key).Order());
+        Assert.Equal(["x.com", "y.com"], Call("""{"id":2,"cmd":"all","q":"ahmet"}""")["items"]!.AsArray().Select(i => (string?)i!["site"]).Order());
+        Assert.Equal(2, Call("""{"id":3,"cmd":"all","q":"y.com"}""")["items"]!.AsArray().Count); // the site name is searchable
+    }
+
+    [Fact]
+    public void Add_keeps_sign_up_fields_cleaned_and_capped()
+    {
+        var label = new string('L', 150);
+        var added = Call($$"""
+            {"id":1,"cmd":"add","site":"x.com","username":"nur","password":"p","fields":[
+              {"label":" Telefon ","value":" 0532 ","secret":false},
+              {"label":"TC kimlik no","value":"12345678901","secret":true},
+              {"label":"{{label}}","value":"x","secret":"yes"},
+              {"label":"Boş","value":"  "},
+              "not an object",
+              {"label":"Sayı","value":5}
+            ]}
+            """);
+        var e = Call($$"""{"id":2,"cmd":"entry","entryId":"{{added["entryId"]}}"}""");
+        var fields = e["fields"]!.AsArray().Select(f => ((string?)f!["label"], (string?)f["value"], (bool)f["secret"]!)).ToList();
+        Assert.Equal([("Telefon", "0532", false), ("TC kimlik no", "12345678901", true), (label[..100], "x", false)], fields);
+        Assert.Empty(Call("""{"id":3,"cmd":"entry","entryId":"__x__"}""".Replace("__x__", _ahmetId))["fields"]!.AsArray());
+    }
+
+    [Fact]
+    public void Entry_returns_any_site_with_password()
+    {
+        var e = Call($$"""{"id":1,"cmd":"entry","entryId":"{{_ahmetYId}}"}""");
+        Assert.Equal(("y.com", "ahmet", "py"), ((string?)e["site"], (string?)e["username"], (string?)e["password"]));
+        Assert.Equal("not_found", (string?)Call("""{"id":2,"cmd":"entry","entryId":"nope"}""")["error"]);
+        Assert.Equal("bad_request", (string?)Call("""{"id":3,"cmd":"entry"}""")["error"]);
+    }
+
+    [Fact]
     public void Unknown_or_malformed_is_bad_request()
     {
         Assert.Equal("""{"id":9,"ok":false,"error":"bad_request"}""", Call("""{"id":9,"cmd":"zzz"}""").ToJsonString());

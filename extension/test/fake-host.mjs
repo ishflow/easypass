@@ -6,7 +6,7 @@ import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 const fold = (s) => s.toLocaleLowerCase('tr').replace(/[şçğıöü]/g, (c) => 'scgiou'['şçğıöü'.indexOf(c)]);
 let n = 0;
 const entry = (site, firstName, lastName, username, password, extra1 = '', extra2 = '') =>
-  ({ id: 'e' + ++n, site, firstName, lastName, extra1, extra2, username, password, updatedAt: n });
+  ({ id: 'e' + ++n, site, firstName, lastName, extra1, extra2, username, password, fields: [], updatedAt: n });
 const entries = [
   entry('portal-x.test', 'Ahmet', 'Yılmaz', 'ahmet.yilmaz', 'eski123', 'Kadıköy şube'),
   entry('portal-x.test', 'Ahmet', 'Kaya', 'akaya', 'kaya999'),
@@ -20,6 +20,17 @@ const entries = [
 ];
 const matches = (entrySite, site) => site === entrySite || site.endsWith('.' + entrySite); // spec §3a
 
+// Vault.Search: every word in name/username/extras (plus the site in the popup's all-sites search), first-word hits first.
+function searchIn(pool, q, withSite) {
+  const words = fold(q || '').split(/\s+/).filter(Boolean);
+  if (!words.length) return [...pool].sort((a, b) => b.updatedAt - a.updatedAt);
+  const open = (e) => (e.fields || []).filter((f) => !f.secret).map((f) => f.value).join(' '); // sign-up details, not secrets
+  const text = (e) => fold([e.firstName, e.lastName, e.username, e.extra1, e.extra2, open(e), withSite ? e.site : ''].join(' '));
+  const first = (e) => (fold(e.firstName).startsWith(words[0]) || fold(e.lastName).startsWith(words[0]) ? 0 : 1);
+  return pool.filter((e) => words.every((w) => text(e).includes(w)))
+    .sort((a, b) => first(a) - first(b) || fold(a.firstName + ' ' + a.lastName).localeCompare(fold(b.firstName + ' ' + b.lastName)));
+}
+
 function handle(r) {
   if (['search', 'check', 'add', 'get', 'update'].includes(r.cmd) && !r.site) return { ok: false, error: 'bad_request' };
   const all = (id) => entries.find((e) => e.id === id);
@@ -29,16 +40,15 @@ function handle(r) {
   if (ext && existsSync(ext)) for (const e of JSON.parse(readFileSync(ext, 'utf8'))) if (!all(e.id)) entries.push(e);
   switch (r.cmd) {
     case 'status': return { ok: true, locked: false, count: entries.length, lang: process.env.EP_LANG || 'ru' };
-    case 'search': {
-      const words = fold(r.q || '').split(/\s+/).filter(Boolean);
-      const hits = words.length
-        ? mine().filter((e) => words.every((w) => fold([e.firstName, e.lastName, e.username, e.extra1, e.extra2].join(' ')).includes(w)))
-          .sort((a, b) => {
-            const first = (e) => (fold(e.firstName).startsWith(words[0]) || fold(e.lastName).startsWith(words[0]) ? 0 : 1);
-            return first(a) - first(b) || fold(a.firstName + ' ' + a.lastName).localeCompare(fold(b.firstName + ' ' + b.lastName));
-          })
-        : mine().sort((a, b) => b.updatedAt - a.updatedAt);
-      return { ok: true, items: hits.slice(0, 20).map(({ password, updatedAt, site, ...e }) => e) };
+    case 'search':
+      return { ok: true, items: searchIn(mine(), r.q, false).slice(0, 20).map(({ password, updatedAt, site, fields, ...e }) => e) };
+    case 'all': // the toolbar popup: every site, with the site, still without passwords
+      return { ok: true, items: searchIn(entries, r.q, true).slice(0, 200).map(({ password, updatedAt, fields, ...e }) => e) };
+    case 'entry': {
+      const e = all(r.entryId);
+      if (!e) return { ok: false, error: 'not_found' };
+      const { id, updatedAt, ...rest } = e;
+      return { ok: true, ...rest };
     }
     case 'get': {
       const e = find(r.entryId);
@@ -60,7 +70,7 @@ function handle(r) {
       return { ok: true };
     }
     case 'add': {
-      const e = entry(r.site, r.firstName, r.lastName, r.username, r.password);
+      const e = { ...entry(r.site, r.firstName, r.lastName, r.username, r.password), fields: r.fields || [] };
       entries.push(e);
       return { ok: true, entryId: e.id };
     }

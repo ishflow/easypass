@@ -3,7 +3,7 @@
 // *.test → 127.0.0.1 via --host-resolver-rules) and hizlikargo.localhost (plain http, any Chrome) are the same site.
 // Standalone, for trying by hand in your own Chrome: node sites.mjs [port=8080] [--vault <new file.ezp>]
 //   serves http://<site>.localhost:<port> until stopped; --vault also writes a vault with each site's users
-//   (master password test1234) to open in EasyPass ("Var olan kasayı aç").
+//   (no master password) to open in EasyPass (Ayarlar → "Başka kasa aç…").
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -17,9 +17,14 @@ import { writeVault } from './test-vault.mjs';
 // Seeded users exist both on the site and in the test vault (see e2e-windows.mjs).
 // Ahmet Yılmaz is on two sites with different passwords: each site must fill its own.
 // HızlıKargo has 7 users (the panel lists 5 until you type); two sites bring their own show-password control (ownEye).
+// signup: what each sign-up form asks for besides name and login (with the value the e2e run types; secret = shown masked).
 export const SITES = [
   {
     host: 'hizlikargo.test', name: 'HızlıKargo', color: '#C2410C', userLabel: 'Kullanıcı adı', userType: 'text',
+    signup: [
+      { id: 'phone', label: 'Telefon', type: 'tel', value: '0532 111 22 33' },
+      { id: 'address', label: 'Adres', type: 'textarea', value: 'Moda Cad. 5, Kadıköy' },
+    ],
     users: [
       { first: 'Ahmet', last: 'Yılmaz', username: 'ahmet.yilmaz', password: 'Kargo-111' },
       { first: 'Elif', last: 'Şahin', username: 'elif.sahin', password: 'Kargo-222' },
@@ -32,13 +37,21 @@ export const SITES = [
   },
   {
     host: 'efatura.test', name: 'e-Fatura Portalı', color: '#1D4ED8', userLabel: 'E-posta', userType: 'email',
+    signup: [
+      { id: 'company', label: 'Şirket adı', value: 'Toprak Tarım Ltd.' },
+      { id: 'taxno', label: 'Vergi no', value: '1234567890' },
+    ],
     users: [
-      { first: 'Ahmet', last: 'Yılmaz', username: 'ahmet@yilmazltd.com', password: 'Fatura-111' },
-      { first: 'Zeynep', last: 'Kaya', username: 'zeynep@kayatekstil.com', password: 'Fatura-222' },
+      { first: 'Ahmet', last: 'Yılmaz', username: 'ahmet@yilmazltd.example', password: 'Fatura-111' },
+      { first: 'Zeynep', last: 'Kaya', username: 'zeynep@kayatekstil.example', password: 'Fatura-222' },
     ],
   },
   {
     host: 'demobank.test', name: 'DemoBank', color: '#047857', userLabel: 'Müşteri no', userType: 'text', spa: true,
+    signup: [
+      { id: 'tckn', label: 'TC kimlik no', value: '12345678901', secret: true },
+      { id: 'iban', label: 'IBAN', value: 'TR12 0006 4000 0011 2345 6789 01', secret: true },
+    ],
     users: [
       { first: 'Hasan', last: 'Öztürk', username: '10024587', password: 'Bank-111' },
       { first: 'Ayşe', last: 'Demir', username: '10031122', password: 'Bank-222' },
@@ -47,6 +60,10 @@ export const SITES = [
   },
   {
     host: 'guvensigorta.test', name: 'Güven Sigorta', color: '#7C3AED', userLabel: 'TC kimlik no', userType: 'text', ownEye: 'button',
+    signup: [
+      { id: 'birth', label: 'Doğum tarihi', type: 'date', value: '1990-05-01' },
+      { id: 'mobile', label: 'Cep telefonu', type: 'tel', value: '0555 444 33 22' },
+    ],
     users: [
       { first: 'Fatma', last: 'Aydın', username: '12345678901', password: 'Sigorta-111' },
       { first: 'Mehmet', last: 'Koç', username: '23456789012', password: 'Sigorta-222' },
@@ -54,10 +71,13 @@ export const SITES = [
   },
   {
     host: 'defteronline.test', name: 'Defter Online', color: '#0F766E', userLabel: 'E-posta', userType: 'email', ownEye: 'checkbox',
+    signup: [
+      { id: 'city', label: 'Şehir', type: 'select', options: [['ist', 'İstanbul'], ['ank', 'Ankara']], value: 'ist', shown: 'İstanbul' },
+    ],
     users: [
-      { first: 'Selin', last: 'Yıldız', username: 'selin@yildizmuhasebe.com', password: 'Defter-111' },
-      { first: 'Burak', last: 'Polat', username: 'burak@polatinsaat.com', password: 'Defter-222' },
-      { first: 'Deniz', last: 'Er', username: 'deniz@erlojistik.com', password: 'Defter-333' },
+      { first: 'Selin', last: 'Yıldız', username: 'selin@yildizmuhasebe.example', password: 'Defter-111' },
+      { first: 'Burak', last: 'Polat', username: 'burak@polatinsaat.example', password: 'Defter-222' },
+      { first: 'Deniz', last: 'Er', username: 'deniz@erlojistik.example', password: 'Defter-333' },
     ],
   },
 ];
@@ -83,7 +103,8 @@ function page(site, title, body) {
   header{background:${site.color};color:#fff;padding:14px 32px;font-weight:700;font-size:18px}
   main{max-width:420px;margin:48px auto;background:#fff;border-radius:12px;padding:28px;box-shadow:0 4px 18px rgba(0,0,0,.08)}
   h1{font-size:22px;margin:0 0 18px} label{display:block;font-size:13px;color:#52525B;margin:12px 0 4px}
-  input{width:100%;height:40px;padding:0 10px;border:1px solid #D4D4D8;border-radius:8px;font-size:15px}
+  input,select,textarea{width:100%;height:40px;padding:0 10px;border:1px solid #D4D4D8;border-radius:8px;font:inherit;font-size:15px}
+  textarea{height:64px;padding:8px 10px}
   button{margin-top:18px;width:100%;height:42px;border:0;border-radius:8px;background:${site.color};color:#fff;font-size:15px;font-weight:600;cursor:pointer}
   p{font-size:14px} a{color:${site.color}} .err{color:#B91C1C} .ok{color:#15803D}
   .pw{position:relative} .pw input{padding-right:40px}
@@ -111,9 +132,21 @@ const loginForm = (site, msg) => `<h1>Giriş yap</h1>${msg}
 </form>
 <p>Hesabınız yok mu? <a id="to-register" href="/register">Üye ol</a></p>`;
 
+// One extra sign-up field (site.signup), labelled with <label for>.
+function signupField(x) {
+  const label = `<label for="${x.id}">${esc(x.label)}</label>`;
+  if (x.type === 'textarea') return `${label}<textarea id="${x.id}" name="${x.id}"></textarea>`;
+  if (x.type === 'select') {
+    const options = x.options.map(([v, text]) => `<option value="${v}">${esc(text)}</option>`).join('');
+    return `${label}<select id="${x.id}" name="${x.id}"><option value="">Seçiniz</option>${options}</select>`;
+  }
+  return `${label}<input id="${x.id}" name="${x.id}" type="${x.type || 'text'}" autocomplete="off">`;
+}
+
 const registerForm = (site, msg) => `<h1>Üye ol</h1>${msg}
 <form id="register" method="post" action="/register">
   <label for="fullname">Ad Soyad</label><input id="fullname" name="fullname" autocomplete="off">
+  ${(site.signup || []).map(signupField).join('')}
   <label for="user">${esc(site.userLabel)}</label><input id="user" name="username" type="${site.userType}" autocomplete="off">
   <label for="pass">Şifre</label><input id="pass" name="password" type="password">
   <label for="pass2">Şifre (tekrar)</label><input id="pass2" name="password2" type="password">
@@ -253,8 +286,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     if (fs.existsSync(file)) {
       console.log(`Kasa zaten var, dokunulmadı: ${file}`);
     } else {
-      writeVault(file, local, 'test1234');
-      console.log(`Test kasası yazıldı: ${file} (ana şifre test1234)`);
+      writeVault(file, local);
+      console.log(`Test kasası yazıldı (şifresiz): ${file}`);
     }
   }
   const { url } = await startSites({ port, certDir: null });

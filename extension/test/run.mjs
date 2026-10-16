@@ -25,11 +25,11 @@ const exe = process.env.CHROME || path.join(cache, newest, 'chrome-mac-arm64/Goo
 const T = {
   ru: {
     connected: 'Подключено · 8 клиентов', noHost: 'Нет связи', insecure: 'Небезопасная страница', none: 'Ничего не найдено', changed: 'Обновить в EasyPass?',
-    update: 'Обновить', no: 'Нет', added: 'Сохранить?', first: 'Имя', save: 'Сохранить', search: 'Поиск клиента', eye: 'Показать пароль',
+    update: 'Обновить', no: 'Нет', added: 'Сохранить?', first: 'Имя', last: 'Фамилия', save: 'Сохранить', search: 'Поиск клиента', eye: 'Показать пароль', show: 'Показать',
   },
   tr: {
     connected: 'Bağlı · 8 müşteri', noHost: 'Bağlantı yok', insecure: 'Güvensiz sayfa', none: 'Sonuç yok', changed: 'güncellensin mi?',
-    update: 'Güncelle', no: 'Hayır', added: 'Kaydedilsin mi?', first: 'Ad', save: 'Kaydet', search: 'Müşteri ara', eye: 'Şifreyi göster',
+    update: 'Güncelle', no: 'Hayır', added: 'Kaydedilsin mi?', first: 'Ad', last: 'Soyad', save: 'Kaydet', search: 'Müşteri ara', eye: 'Şifreyi göster', show: 'Göster',
   },
 };
 
@@ -43,6 +43,20 @@ const variants = {
     '<input id="pass" name="pass" type="password"><input id="pass2" name="pass2" type="password">'),
   // the user typed a login before the content script loaded
   '/typed': (p) => p.replace('</body>', "<script>document.getElementById('user').value = 'already.typed'</script></body>"),
+  // a long sign-up form in place of the login form: name, contact, ID number, address, a select, consent, login
+  '/join-full': (p) => p.replace(/<form id="login"[\s\S]*?<\/form>/, `<form id="join-form" method="post" action="/">
+  <label>Ad Soyad <input id="fullname" name="fullname"></label>
+  <label>E-posta <input id="email" name="email" type="email"></label>
+  <label>Telefon <input id="phone" name="phone" type="tel"></label>
+  <label for="tc">TC kimlik no *</label><input id="tc" name="tc">
+  <label>Adres <textarea id="addr" name="addr"></textarea></label>
+  <label>Şehir <select id="city" name="city"><option value="">Seçiniz</option><option value="ist">İstanbul</option></select></label>
+  <label><input type="checkbox" id="kvkk" name="kvkk"> KVKK onayı</label>
+  <label>Kullanıcı adı <input id="user" name="user"></label>
+  <label>Şifre <input id="pass" name="pass" type="password"></label>
+  <label>Şifre (tekrar) <input id="pass2" name="pass2" type="password"></label>
+  <button id="join">Üye ol</button>
+</form>`),
   // the site draws its own show-password button next to the field
   '/own-eye': (p) => p.replace('<input id="pass" name="pass" type="password">',
     '<input id="pass" name="pass" type="password"><button type="button" class="toggle-password" aria-label="Şifreyi göster">👁</button>'),
@@ -103,6 +117,7 @@ async function ax(page) {
     focused: !!n.properties?.find((p) => p.name === 'focused')?.value.value,
     expanded: !!n.properties?.find((p) => p.name === 'expanded')?.value.value,
     pressed: n.properties?.find((p) => p.name === 'pressed')?.value.value === 'true',
+    value: n.value?.value,
   }));
 }
 const options = async (page) => (await ax(page)).filter((n) => n.role === 'option');
@@ -129,15 +144,13 @@ async function clickIcon(page, selector, name) {
   const { x, y } = await waitFor(() => iconIn(page, selector, name), `${name || 'EasyPass'} icon in ${selector}`);
   await page.mouse.click(x, y);
 }
-// Opens the panel at the field's key unless it is already open there (a login page opens it by itself);
-// either way the search box ends up focused, ready for typing.
+// Opens the panel the way a user does, with a click in the username field (it stays open if it already is),
+// and empties that field: the caret stays there, and what the test types next narrows the full list.
 async function openPanel(page, selector) {
-  const key = await waitFor(() => iconIn(page, selector), 'EasyPass icon in ' + selector);
-  if (!key.expanded) await page.mouse.click(key.x, key.y);
-  const opts = await waitFor(async () => { const o = await options(page); return o.length && o; }, 'panel options');
-  const box = (await ax(page)).find((n) => n.role === 'combobox');
-  if (!box.focused) await clickNode(page, box);
-  return opts;
+  await page.click(selector);
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Backspace');
+  return waitFor(async () => { const o = await options(page); return o.length && o; }, 'panel options');
 }
 // Every test page is a login page, so after loading one the panel opens by itself; wait for it before typing.
 const opened = (page) => waitFor(async () => (await ax(page)).some((n) => n.role === 'combobox'), 'panel opened by itself');
@@ -184,17 +197,49 @@ async function suite(lang) {
       await p.close();
     });
 
+    await scenario('popup: every site listed and searchable, 10 rows tall, details show the password only on request', async () => {
+      const p = await ctx.newPage();
+      await p.goto(`chrome-extension://${ID}/popup.html`);
+      const rows = () => p.locator('#list .opt').count();
+      await waitFor(async () => (await rows()) === 8, 'all 8 entries of both sites');
+      assert.equal(await p.evaluate(() => getComputedStyle(document.getElementById('list')).maxHeight), '460px', '10 × 46 px rows');
+      assert.equal(await p.evaluate(() => document.activeElement.id), 'q', 'search box focused');
+      await p.keyboard.type('ahmet');
+      await waitFor(async () => (await rows()) === 4, 'ahmet on both sites');
+      await p.fill('#q', 'portal-y');
+      await waitFor(async () => (await rows()) === 2, 'the site name is searchable too');
+      await p.locator('#list .opt', { hasText: 'Lale Host' }).click();
+      await p.waitForSelector('#detail:not([hidden])');
+      const text = await p.textContent('#fields');
+      assert.ok(text.includes('portal-y.test') && text.includes('lale'), text);
+      assert.ok(!text.includes('ll444'), 'password hidden until asked');
+      await p.getByRole('button', { name: t.show }).click();
+      assert.ok((await p.textContent('#fields')).includes('ll444'), 'password shown');
+      await shot(p, '0-popup-detail');
+      await p.click('#back');
+      await waitFor(async () => (await rows()) === 2, 'back to the same list');
+      await p.close();
+    });
+
+    await scenario('a web page asking for every site (all / entry) is refused by the background', async () => {
+      const replies = await sw.evaluate((u) => Promise.all([
+        handle({ cmd: 'all', q: '' }, 1, new URL(u)),
+        handle({ cmd: 'entry', entryId: 'e7' }, 1, new URL(u)),
+      ]), base + '/login');
+      assert.deepEqual(replies, [{ ok: false, error: 'bad_request' }, { ok: false, error: 'bad_request' }]);
+    });
+
     const page = await ctx.newPage();
 
-    await scenario('login page opens the panel by itself at the username key: search focused, 5 of 6 entries', async () => {
+    await scenario('login page opens the panel by itself at the username field, caret in that field, 5 of 6 entries', async () => {
       const t0 = Date.now();
       await page.goto(base + '/login');
       const opts = await waitFor(async () => { const o = await options(page); return o.length && o; }, 'panel options');
       results.push(`      page load → panel with results: ${Date.now() - t0} ms (incl. CDP polling)`);
-      assert.equal(await active(page), 'easypass-ui');
+      await waitFor(async () => (await active(page)) === 'user', 'caret put in the username field');
       const box = (await ax(page)).find((n) => n.role === 'combobox');
       assert.equal(box?.name, t.search);
-      assert.ok(box.focused, 'search box focused');
+      assert.ok(!box.focused, 'the panel does not take the caret');
       assert.equal(opts.length, 5, 'capped at 5');
       assert.ok((await iconIn(page, '#user')).expanded, 'opened at the username key');
       await shot(page, '1-panel-open');
@@ -210,8 +255,9 @@ async function suite(lang) {
       assert.equal(await iconIn(page, '#new1'), null, 'one key per form');
     });
 
-    await scenario('typing "gül" finds the 6th entry the list did not show', async () => {
+    await scenario('typing "gül" in the username field finds the 6th entry the list did not show', async () => {
       await page.keyboard.type('gül');
+      assert.equal(await page.inputValue('#user'), 'gül', 'the text stays in the page field');
       await waitFor(async () => { const o = await options(page); return o.length === 1 && o[0].name.includes('Gül Tan'); }, 'Gül Tan');
       await page.keyboard.press('ControlOrMeta+A');
       await page.keyboard.press('Backspace');
@@ -231,10 +277,11 @@ async function suite(lang) {
     });
 
     await scenario('clicking a result fills both fields (input/change events) and closes panel', async () => {
+      const typed = +(await page.getAttribute('#user', 'data-input')); // the search was typed in this field
       await clickNode(page, (await options(page)).find((x) => x.name.includes('Ahmet Yılmaz')));
       await waitFor(async () => (await page.inputValue('#pass')) === 'eski123', 'password filled');
       assert.equal(await page.inputValue('#user'), 'ahmet.yilmaz');
-      assert.equal(await page.getAttribute('#user', 'data-input'), '1');
+      assert.equal(+(await page.getAttribute('#user', 'data-input')), typed + 1);
       assert.equal(await page.getAttribute('#pass', 'data-change'), '1');
       assert.equal((await options(page)).length, 0, 'panel closed');
       assert.equal(await active(page), 'user', 'focus back on field');
@@ -247,22 +294,41 @@ async function suite(lang) {
       await waitFor(async () => (await options(page)).length === 0, 'panel closed');
       assert.equal(await active(page), 'user');
       await page.keyboard.type('x');
-      assert.equal(await page.inputValue('#user'), 'ahmet.yilmazx', 'typing goes into the page field');
+      assert.equal(await page.inputValue('#user'), 'x', 'typing goes into the page field');
       await page.click('h1');
       await page.click('#pass');
       await sleep(300);
       assert.equal((await options(page)).length, 0, 'still closed (password field click opens nothing)');
     });
 
-    await scenario('mouse click in the username field reopens the panel there, search box focused', async () => {
+    await scenario('mouse click in the username field reopens the panel there; the caret stays in the field', async () => {
       await page.click('#user');
-      await waitFor(async () => (await options(page)).length, 'panel reopened by click');
-      assert.ok((await ax(page)).find((n) => n.role === 'combobox')?.focused, 'search box focused');
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.press('Backspace');
+      await waitFor(async () => (await options(page)).length === 5, 'panel reopened by click');
+      assert.equal(await active(page), 'user', 'caret still in the username field');
       assert.ok((await iconIn(page, '#user')).expanded, 'at the username field');
       await page.click('#user'); // a second click while open keeps it open
       await sleep(200);
       assert.ok((await options(page)).length, 'still open');
-      await page.keyboard.press('Escape');
+    });
+
+    await scenario('a login that is not in EasyPass is typed by hand: list says none, Enter submits the form', async () => {
+      await page.keyboard.type('yeni.kisi');
+      await waitFor(async () => (await hasText(page, t.none)) && !(await options(page)).length, 'no match listed');
+      assert.equal(await page.inputValue('#user'), 'yeni.kisi');
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.type('ahmet'); // matches exist, but nothing is selected until ↓
+      await waitFor(async () => (await options(page)).length === 3, '3 matches for ahmet');
+      await page.click('#pass');
+      await page.keyboard.press('ControlOrMeta+A');
+      await page.keyboard.type('elle-yazilan');
+      await submitAndLoad(page, () => page.keyboard.press('Enter'));
+      const sent = hostLog().filter((r) => r.cmd === 'check').at(-1);
+      assert.deepEqual([sent.username, sent.password], ['ahmet', 'elle-yazilan'], 'the typed login went out, not a match');
+      await waitFor(() => hasText(page, t.added), 'save prompt for the typed login');
+      await clickNode(page, await button(page, t.no));
+      await waitFor(async () => !(await hasText(page, t.added)), 'prompt closed');
     });
 
     await scenario('username field of a sign-up form (two passwords): a click opens nothing', async () => {
@@ -306,12 +372,12 @@ async function suite(lang) {
       await po.close();
     });
 
-    await scenario('keyboard: type, ↓ ↑ ↓, Enter fills the highlighted (2nd) entry', async () => {
+    await scenario('keyboard in the username field: type, ↓ ↓ ↑ ↓, Enter fills the highlighted (2nd) entry', async () => {
       await openPanel(page, '#user');
       await page.keyboard.type('ahmet');
       await waitFor(async () => (await options(page)).length === 3, '3 results for ahmet');
       const second = (await options(page))[1].name;
-      for (const k of ['ArrowDown', 'ArrowUp', 'ArrowDown']) await page.keyboard.press(k);
+      for (const k of ['ArrowDown', 'ArrowDown', 'ArrowUp', 'ArrowDown']) await page.keyboard.press(k);
       await page.keyboard.press('Enter');
       const want = second.includes('Kaya') ? ['akaya', 'kaya999'] : second.includes('Yılmaz') ? ['ahmet.yilmaz', 'eski123'] : ['mehmet.a', 'mm111'];
       await waitFor(async () => (await page.inputValue('#user')) === want[0] && (await page.inputValue('#pass')) === want[1], 'second item filled');
@@ -333,6 +399,7 @@ async function suite(lang) {
       await shot(py, '3b-site-y');
       await py.keyboard.type('ahm');
       await waitFor(async () => (await options(py)).length === 1, 'one result for ahm on portal-y');
+      await py.keyboard.press('ArrowDown'); // typing in the field selects nothing until ↓
       await py.keyboard.press('Enter');
       await waitFor(async () => (await py.inputValue('#pass')) === 'lh-pass', 'portal-y password filled');
       assert.equal(await py.inputValue('#user'), 'ahmet.yilmaz');
@@ -347,6 +414,7 @@ async function suite(lang) {
       await page.keyboard.press('ControlOrMeta+A');
       await page.keyboard.type('yılmaz');
       await waitFor(async () => (await options(page)).length === 1, 'one Ahmet Yılmaz on portal-x');
+      await page.keyboard.press('ArrowDown'); // typing in the field selects nothing until ↓
       await page.keyboard.press('Enter');
       await waitFor(async () => (await page.inputValue('#pass')) === 'eski123', 'portal-x password filled');
     });
@@ -403,6 +471,7 @@ async function suite(lang) {
       await openPanel(page, '#user');
       await page.keyboard.type('yılmaz');
       await waitFor(async () => (await options(page)).length === 1, 'Yılmaz');
+      await page.keyboard.press('ArrowDown'); // typing in the field selects nothing until ↓
       await page.keyboard.press('Enter');
       await waitFor(async () => (await page.inputValue('#pass')) === 'eski123', 'filled');
       await page.click('#pass');
@@ -431,6 +500,7 @@ async function suite(lang) {
       await openPanel(page, '#user');
       await page.keyboard.type('akaya');
       await waitFor(async () => (await options(page)).length === 1, 'akaya');
+      await page.keyboard.press('ArrowDown'); // typing in the field selects nothing until ↓
       await page.keyboard.press('Enter');
       await waitFor(async () => (await page.inputValue('#pass')) === 'kaya999', 'filled');
       await page.click('#cur');
@@ -468,6 +538,7 @@ async function suite(lang) {
       await openPanel(page, '#user');
       await page.keyboard.type('zeynep');
       await waitFor(async () => (await options(page)).some((o) => o.name.includes('Zeynep Arslan')), 'new entry searchable');
+      await page.keyboard.press('ArrowDown'); // typing in the field selects nothing until ↓
       await page.keyboard.press('Enter');
       await waitFor(async () => (await page.inputValue('#pass')) === 'pw789', 'new entry fills');
       const checks = hostLog().filter((r) => r.cmd === 'check').length;
@@ -477,10 +548,50 @@ async function suite(lang) {
       assert.ok(!(await hasText(page, t.added)) && !(await hasText(page, t.changed)), 'no prompt on second submit');
     });
 
+    await scenario('sign-up form → save prompt: names from "Ad Soyad", every filled field under its label, secrets masked → all saved', async () => {
+      const ps = await ctx.newPage();
+      await ps.goto(base + '/join-full');
+      await ps.fill('#fullname', 'Kerem Can Aksoy');
+      await ps.fill('#email', 'kerem@example.test');
+      await ps.fill('#phone', '0532 111 22 33');
+      await ps.fill('#tc', '12345678901');
+      await ps.fill('#addr', 'Moda Cad. 5, Kadıköy');
+      await ps.selectOption('#city', 'ist');
+      await ps.check('#kvkk');
+      await ps.fill('#user', 'kerem.aksoy');
+      await ps.fill('#pass', 'Gizli-123');
+      await ps.fill('#pass2', 'Gizli-123');
+      await submitAndLoad(ps, () => ps.click('#join')); // the next page is the plain login page: what follows is the prompt's
+      await waitFor(() => hasText(ps, t.added), 'save prompt');
+      const nodes = await ax(ps);
+      assert.equal(nodes.find((n) => n.role === 'textbox' && n.name === t.first)?.value, 'Kerem Can');
+      assert.equal(nodes.find((n) => n.role === 'textbox' && n.name === t.last)?.value, 'Aksoy');
+      for (const s of ['Ad Soyad', 'Kerem Can Aksoy', 'E-posta', 'kerem@example.test', 'Telefon', '0532 111 22 33', 'TC kimlik no',
+        'Adres', 'Moda Cad. 5, Kadıköy', 'Şehir', 'İstanbul', 'kerem.aksoy']) assert.ok(await hasText(ps, s), 'listed: ' + s);
+      assert.ok(!(await hasText(ps, '12345678901')) && !(await hasText(ps, 'Gizli-123')), 'ID number and password masked');
+      await clickNode(ps, nodes.find((n) => n.role === 'button' && n.name === `${t.eye}: TC kimlik no`));
+      await waitFor(() => hasText(ps, '12345678901'), 'eye shows the ID number');
+      await shot(ps, '6b-save-prompt-fields');
+      await clickNode(ps, await button(ps, t.save));
+      await waitFor(async () => hostLog().some((r) => r.cmd === 'add' && r.username === 'kerem.aksoy'), 'add sent');
+      const a = hostLog().find((r) => r.cmd === 'add' && r.username === 'kerem.aksoy');
+      assert.deepEqual([a.firstName, a.lastName, a.password], ['Kerem Can', 'Aksoy', 'Gizli-123']);
+      assert.deepEqual(a.fields, [ // the login itself (username, both passwords) and the consent box are not among them
+        { label: 'Ad Soyad', value: 'Kerem Can Aksoy', secret: false },
+        { label: 'E-posta', value: 'kerem@example.test', secret: false },
+        { label: 'Telefon', value: '0532 111 22 33', secret: false },
+        { label: 'TC kimlik no', value: '12345678901', secret: true },
+        { label: 'Adres', value: 'Moda Cad. 5, Kadıköy', secret: false },
+        { label: 'Şehir', value: 'İstanbul', secret: false },
+      ]);
+      await ps.close();
+    });
+
     await scenario('fill one customer, log in by hand as another → change form leaves the filled entry alone', async () => {
       await openPanel(page, '#user');
       await page.keyboard.type('yılmaz');
       await waitFor(async () => (await options(page)).length === 1, 'Yılmaz');
+      await page.keyboard.press('ArrowDown'); // typing in the field selects nothing until ↓
       await page.keyboard.press('Enter');
       await waitFor(async () => (await page.inputValue('#user')) === 'ahmet.yilmaz', 'filled');
       await page.keyboard.press('ControlOrMeta+A');
