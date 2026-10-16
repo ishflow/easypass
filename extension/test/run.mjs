@@ -378,6 +378,15 @@ async function suite(lang) {
       await ph.close();
     });
 
+    await scenario('http on *.localhost (always this machine) is allowed: the host is asked, no insecure message', async () => {
+      const pl = await ctx.newPage();
+      const searches = () => hostLog().filter((r) => r.cmd === 'search' && r.site === 'shop.localhost').length;
+      await pl.goto(`http://shop.localhost:${plain.address().port}/login`);
+      await waitFor(() => hasText(pl, t.none), 'searched (no entries for shop.localhost)');
+      assert.ok(!(await hasText(pl, t.insecure)));
+      assert.ok(searches() > 0, 'search reached the host');
+      await pl.close();
+    });
 
     await scenario('no result cache: entry added by the app appears on the next keystroke while panel is open', async () => {
       await openPanel(page, '#user');

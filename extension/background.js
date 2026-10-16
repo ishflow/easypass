@@ -36,6 +36,8 @@ const domain = (host) => host.split('.').slice(-2).join('.');
 // The page-side script gets only what the prompt shows; the password stays in the background.
 const shown = (p) => p && { result: p.result, name: p.name, username: p.username };
 const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]']);
+// Chrome resolves *.localhost to this machine itself (never DNS), so plain http there is as safe as on localhost.
+const isLocal = (host) => LOCAL.has(host) || host.endsWith('.localhost');
 
 async function submitted({ username, password, change, site }, tab) {
   const state = await load(tab);
@@ -68,7 +70,7 @@ async function handle(msg, tab, url) {
     case 'search':
     case 'get': {
       // No filling into plain-http pages: anyone on the network path could inject a script and read the password.
-      if (url.protocol !== 'https:' && !LOCAL.has(site)) return { ok: false, error: 'insecure' };
+      if (url.protocol !== 'https:' && !isLocal(site)) return { ok: false, error: 'insecure' };
       const r = await ask(msg);
       if (msg.cmd === 'get' && r.ok) await store(tab, { ...(await load(tab)), lastFilled: { entryId: msg.entryId, username: r.username, site } });
       return r;

@@ -77,7 +77,7 @@ Program dosyalarını, kısayolu ve Chrome kaydını siler. Kasa dosyanız (`vau
 | Windows SmartScreen uyarısı | İndirilen zip'e sağ tık → Özellikler → **Engellemeyi kaldır**, sonra açın. |
 | Kasa açılmıyor / dosya bozuk | Aynı klasördeki `vault.ezp.bak` bir önceki sürümdür: kopyasını alıp `vault.ezp` adıyla açmayı deneyin. |
 | Panel bazı sitelerde çıkmıyor | Çerçeve (iframe) içindeki giriş formları bu sürümde desteklenmiyor. |
-| Panel "Güvensiz sayfa (http)" diyor | Eklenti şifreyi yalnız `https://` sayfalara yazar (`localhost` hariç); adresi `https://` ile açın. |
+| Panel "Güvensiz sayfa (http)" diyor | Eklenti şifreyi yalnız `https://` sayfalara yazar (`localhost` ve `*.localhost` hariç); adresi `https://` ile açın. |
 | Açılışta "Kasa dosyası bulunamadı … yedeği var" | Kayıt yarıda kalmış ya da bulut klasörü eşitlenmemiş. Bekleyip yeniden açın; dosya gelmezse `vault.ezp.bak` kopyasını `vault.ezp` adıyla açın. |
 
 ## Geliştirme
