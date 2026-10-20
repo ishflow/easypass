@@ -57,10 +57,12 @@ export function writeVault(vaultPath, sites, masterPassword = '') {
 
 // A whole EASYPASS_HOME: that vault and settings pointing at it. A vault with a master password also gets the key
 // cache, as if the app had just unlocked it; one without needs none (app and host open it from the file alone).
-export function prepareHome(home, sites, masterPassword = '', lang = 'tr') {
+// vaultDir: where the vault file goes (default: in home), e.g. a folder whose path may show in a screenshot.
+export function prepareHome(home, sites, masterPassword = '', lang = 'tr', vaultDir = home) {
   fs.rmSync(home, { recursive: true, force: true });
   fs.mkdirSync(home, { recursive: true });
-  const vaultPath = path.join(home, 'vault.ezp');
+  fs.mkdirSync(vaultDir, { recursive: true });
+  const vaultPath = path.join(vaultDir, 'vault.ezp');
   const { salt, key, readEntries } = writeVault(vaultPath, sites, masterPassword);
   fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ vaultPath, lang }));
   if (masterPassword) saveKeyCache(path.join(home, 'key.bin'), salt, key);

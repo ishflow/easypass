@@ -94,6 +94,27 @@ export const SITES = [
   },
 ];
 
+// The portals' own words, by site.lang (default tr). The e2e run reads some of them, e.g. the "Ad Soyad" label.
+const PAGE_TEXT = {
+  tr: {
+    signIn: 'Giriş yap', signInButton: 'Giriş', password: 'Şifre', password2: 'Şifre (tekrar)', noAccount: 'Hesabınız yok mu?',
+    signUp: 'Üye ol', member: 'Zaten üye misiniz?', fullName: 'Ad Soyad', choose: 'Seçiniz', showPw: 'Şifreyi göster',
+    welcome: 'Hoş geldiniz,', user: 'Kullanıcı:', changePw: 'Şifre değiştir', logout: 'Çıkış', account: 'Hesabım',
+    current: 'Mevcut şifre', next: 'Yeni şifre', next2: 'Yeni şifre (tekrar)', change: 'Şifreyi değiştir',
+    badLogin: 'Kullanıcı adı ya da şifre hatalı.', changed: 'Şifreniz değişti.', registered: 'Üyeliğiniz oluşturuldu.',
+    checkForm: 'Bilgileri kontrol edin.', badChange: 'Mevcut şifre yanlış ya da yeni şifreler farklı.',
+  },
+  en: {
+    signIn: 'Sign in', signInButton: 'Sign in', password: 'Password', password2: 'Confirm password', noAccount: 'No account yet?',
+    signUp: 'Create account', member: 'Already registered?', fullName: 'Full name', choose: 'Choose…', showPw: 'Show password',
+    welcome: 'Welcome,', user: 'Signed in as', changePw: 'Change password', logout: 'Sign out', account: 'My account',
+    current: 'Current password', next: 'New password', next2: 'Confirm new password', change: 'Change password',
+    badLogin: 'Wrong username or password.', changed: 'Your password was changed.', registered: 'Your account was created.',
+    checkForm: 'Please check the form.', badChange: 'The current password is wrong or the new ones differ.',
+  },
+};
+const say = (site) => PAGE_TEXT[site.lang || 'tr'];
+
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 // SPA variant: forms post with fetch and swap the card in place, no navigation (like React login screens).
@@ -109,7 +130,7 @@ const spaScript = `<script>
 </script>`;
 
 function page(site, title, body) {
-  return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>${esc(title)} · ${esc(site.name)}</title>
+  return `<!doctype html><html lang="${site.lang || 'tr'}"><head><meta charset="utf-8"><title>${esc(title)} · ${esc(site.name)}</title>
 <style>
   *{box-sizing:border-box} body{margin:0;font-family:system-ui,"Segoe UI",sans-serif;background:#F4F4F5;color:#18181B}
   header{background:${site.color};color:#fff;padding:14px 32px;font-weight:700;font-size:18px}
@@ -130,52 +151,52 @@ const passwordField = (site) => {
   const input = '<input id="pass" name="password" type="password">';
   const flip = "const p = document.getElementById('pass'); p.type = p.type === 'password' ? 'text' : 'password'";
   if (site.ownEye === 'button') {
-    return `<div class="pw">${input}<button type="button" class="pw-eye" aria-label="Şifreyi göster" onclick="${flip}">👁</button></div>`;
+    return `<div class="pw">${input}<button type="button" class="pw-eye" aria-label="${say(site).showPw}" onclick="${flip}">👁</button></div>`;
   }
-  if (site.ownEye === 'checkbox') return `${input}<label class="show"><input type="checkbox" onchange="${flip}"> Şifreyi göster</label>`;
+  if (site.ownEye === 'checkbox') return `${input}<label class="show"><input type="checkbox" onchange="${flip}"> ${say(site).showPw}</label>`;
   return input;
 };
 
-const loginForm = (site, msg) => `<h1>Giriş yap</h1>${msg}
+const loginForm = (site, msg, t = say(site)) => `<h1>${t.signIn}</h1>${msg}
 <form id="login" method="post" action="/login">
   <label for="user">${esc(site.userLabel)}</label><input id="user" name="username" type="${site.userType}" autocomplete="off">
-  <label for="pass">Şifre</label>${passwordField(site)}
-  <button id="go">Giriş</button>
+  <label for="pass">${t.password}</label>${passwordField(site)}
+  <button id="go">${t.signInButton}</button>
 </form>
-<p>Hesabınız yok mu? <a id="to-register" href="/register">Üye ol</a></p>`;
+<p>${t.noAccount} <a id="to-register" href="/register">${t.signUp}</a></p>`;
 
 // One extra sign-up field (site.signup), labelled with <label for>.
-function signupField(x) {
+function signupField(x, t) {
   const label = `<label for="${x.id}">${esc(x.label)}</label>`;
   if (x.type === 'textarea') return `${label}<textarea id="${x.id}" name="${x.id}"></textarea>`;
   if (x.type === 'select') {
     const options = x.options.map(([v, text]) => `<option value="${v}">${esc(text)}</option>`).join('');
-    return `${label}<select id="${x.id}" name="${x.id}"><option value="">Seçiniz</option>${options}</select>`;
+    return `${label}<select id="${x.id}" name="${x.id}"><option value="">${t.choose}</option>${options}</select>`;
   }
   return `${label}<input id="${x.id}" name="${x.id}" type="${x.type || 'text'}" autocomplete="off">`;
 }
 
-const registerForm = (site, msg) => `<h1>Üye ol</h1>${msg}
+const registerForm = (site, msg, t = say(site)) => `<h1>${t.signUp}</h1>${msg}
 <form id="register" method="post" action="/register">
-  <label for="fullname">Ad Soyad</label><input id="fullname" name="fullname" autocomplete="off">
-  ${(site.signup || []).map(signupField).join('')}
+  <label for="fullname">${t.fullName}</label><input id="fullname" name="fullname" autocomplete="off">
+  ${(site.signup || []).map((x) => signupField(x, t)).join('')}
   <label for="user">${esc(site.userLabel)}</label><input id="user" name="username" type="${site.userType}" autocomplete="off">
-  <label for="pass">Şifre</label><input id="pass" name="password" type="password">
-  <label for="pass2">Şifre (tekrar)</label><input id="pass2" name="password2" type="password">
-  <button id="signup">Üye ol</button>
+  <label for="pass">${t.password}</label><input id="pass" name="password" type="password">
+  <label for="pass2">${t.password2}</label><input id="pass2" name="password2" type="password">
+  <button id="signup">${t.signUp}</button>
 </form>
-<p>Zaten üye misiniz? <a href="/login">Giriş yap</a></p>`;
+<p>${t.member} <a href="/login">${t.signIn}</a></p>`;
 
-const home = (u, note = '') => `<h1 id="welcome">Hoş geldiniz, ${esc(u.first)} ${esc(u.last)}</h1>${note}
-<p>Kullanıcı: <b id="who">${esc(u.username)}</b></p>
-<p><a id="to-account" href="/account">Şifre değiştir</a> · <a id="logout" href="/logout">Çıkış</a></p>`;
+const home = (site, u, note = '', t = say(site)) => `<h1 id="welcome">${t.welcome} ${esc(u.first)} ${esc(u.last)}</h1>${note}
+<p>${t.user} <b id="who">${esc(u.username)}</b></p>
+<p><a id="to-account" href="/account">${t.changePw}</a> · <a id="logout" href="/logout">${t.logout}</a></p>`;
 
-const accountForm = (msg) => `<h1>Şifre değiştir</h1>${msg}
+const accountForm = (site, msg, t = say(site)) => `<h1>${t.changePw}</h1>${msg}
 <form id="account" method="post" action="/account">
-  <label for="cur">Mevcut şifre</label><input id="cur" name="current" type="password">
-  <label for="new1">Yeni şifre</label><input id="new1" name="next" type="password">
-  <label for="new2">Yeni şifre (tekrar)</label><input id="new2" name="next2" type="password">
-  <button id="save">Şifreyi değiştir</button>
+  <label for="cur">${t.current}</label><input id="cur" name="current" type="password">
+  <label for="new1">${t.next}</label><input id="new1" name="next" type="password">
+  <label for="new2">${t.next2}</label><input id="new2" name="next2" type="password">
+  <button id="save">${t.change}</button>
 </form>`;
 
 function createState(site) {
@@ -194,11 +215,12 @@ async function body(req) {
 
 const slug = (host) => host.split('.')[0];
 
-function handler(states) {
+function handler(sites, states) {
   return async (req, res) => {
     const host = (req.headers.host || '').split(':')[0];
-    const site = SITES.find((x) => slug(x.host) === slug(host));
+    const site = sites.find((x) => slug(x.host) === slug(host));
     if (!site) return res.writeHead(404).end('unknown site');
+    const t = say(site);
     const st = states.get(slug(host));
     const url = new URL(req.url, `https://${host}`);
     const secure = req.socket.encrypted ? '; Secure' : '';
@@ -220,15 +242,15 @@ function handler(states) {
     if (req.method === 'GET') {
       switch (url.pathname) {
         case '/': return res.writeHead(302, { location: me ? '/home' : '/login' }).end();
-        case '/login': return html('Giriş', loginForm(site, url.searchParams.has('e') ? '<p class="err" id="error">Kullanıcı adı ya da şifre hatalı.</p>' : ''));
-        case '/register': return html('Üye ol', registerForm(site, ''));
+        case '/login': return html(t.signIn, loginForm(site, url.searchParams.has('e') ? `<p class="err" id="error">${t.badLogin}</p>` : ''));
+        case '/register': return html(t.signUp, registerForm(site, ''));
         case '/home': {
           if (!me) return res.writeHead(302, { location: '/login' }).end();
-          const note = url.searchParams.has('changed') ? '<p class="ok" id="changed">Şifreniz değişti.</p>'
-            : url.searchParams.has('registered') ? '<p class="ok" id="registered">Üyeliğiniz oluşturuldu.</p>' : '';
-          return html('Hesabım', home(me, note));
+          const note = url.searchParams.has('changed') ? `<p class="ok" id="changed">${t.changed}</p>`
+            : url.searchParams.has('registered') ? `<p class="ok" id="registered">${t.registered}</p>` : '';
+          return html(t.account, home(site, me, note));
         }
-        case '/account': return me ? html('Şifre değiştir', accountForm('')) : res.writeHead(302, { location: '/login' }).end();
+        case '/account': return me ? html(t.changePw, accountForm(site, '')) : res.writeHead(302, { location: '/login' }).end();
         case '/logout':
           if (sid) st.sessions.delete(sid);
           return res.writeHead(302, { location: '/login', 'set-cookie': 'sid=; Path=/; Max-Age=0' }).end();
@@ -241,26 +263,26 @@ function handler(states) {
       case '/login': {
         const u = st.find(f.username || '');
         if (!u || u.password !== f.password) {
-          return reply({ to: '/login?e=1', inner: loginForm(site, '<p class="err" id="error">Kullanıcı adı ya da şifre hatalı.</p>') });
+          return reply({ to: '/login?e=1', inner: loginForm(site, `<p class="err" id="error">${t.badLogin}</p>`) });
         }
-        return reply({ to: '/home', inner: home(u), headers: login(u) });
+        return reply({ to: '/home', inner: home(site, u), headers: login(u) });
       }
       case '/register': {
         const [first, ...rest] = (f.fullname || '').trim().split(/\s+/);
         if (!f.username || !f.password || f.password !== f.password2 || st.find(f.username)) {
-          return reply({ title: 'Üye ol', inner: registerForm(site, '<p class="err" id="error">Bilgileri kontrol edin.</p>') });
+          return reply({ title: t.signUp, inner: registerForm(site, `<p class="err" id="error">${t.checkForm}</p>`) });
         }
         const u = { first: first || '', last: rest.join(' '), username: f.username, password: f.password };
         st.users.push(u);
-        return reply({ to: '/home?registered=1', inner: home(u, '<p class="ok" id="registered">Üyeliğiniz oluşturuldu.</p>'), headers: login(u) });
+        return reply({ to: '/home?registered=1', inner: home(site, u, `<p class="ok" id="registered">${t.registered}</p>`), headers: login(u) });
       }
       case '/account': {
         if (!me) return res.writeHead(302, { location: '/login' }).end();
         if (me.password !== f.current || !f.next || f.next !== f.next2) {
-          return reply({ title: 'Şifre değiştir', inner: accountForm('<p class="err" id="error">Mevcut şifre yanlış ya da yeni şifreler farklı.</p>') });
+          return reply({ title: t.changePw, inner: accountForm(site, `<p class="err" id="error">${t.badChange}</p>`) });
         }
         me.password = f.next;
-        return reply({ to: '/home?changed=1', inner: home(me, '<p class="ok" id="changed">Şifreniz değişti.</p>') });
+        return reply({ to: '/home?changed=1', inner: home(site, me, `<p class="ok" id="changed">${t.changed}</p>`) });
       }
       default: return res.writeHead(404).end('not found');
     }
@@ -279,9 +301,10 @@ function certificate(dir) {
 }
 
 // HTTPS with a self-signed certificate (e2e runs), or plain http when certDir is null (*.localhost by hand).
-export async function startSites({ port = 0, certDir = os.tmpdir() } = {}) {
-  const states = new Map(SITES.map((s) => [slug(s.host), createState(s)]));
-  const server = certDir ? https.createServer(certificate(certDir), handler(states)) : http.createServer(handler(states));
+// sites: SITES (Turkish portals, the e2e run) or another set, e.g. DEMO_SITES (English, docs/screenshots).
+export async function startSites({ port = 0, certDir = os.tmpdir(), sites = SITES } = {}) {
+  const states = new Map(sites.map((s) => [slug(s.host), createState(s)]));
+  const server = certDir ? https.createServer(certificate(certDir), handler(sites, states)) : http.createServer(handler(sites, states));
   await new Promise((r) => server.listen(port, '127.0.0.1', r));
   const p = server.address().port;
   const scheme = certDir ? 'https' : 'http';
