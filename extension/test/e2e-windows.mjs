@@ -42,6 +42,7 @@ const NEWCOMERS = {
   'demobank.test': { first: 'Okan', last: 'Güler', username: '10058821', password: 'Yeni-Bank-1' },
   'guvensigorta.test': { first: 'Nur', last: 'Akın', username: '34567890123', password: 'Yeni-Sigorta-1' },
   'defteronline.test': { first: 'Emre', last: 'Taş', username: 'emre@tasyapi.example', password: 'Yeni-Defter-1' },
+  'salykkabinet.test': { first: 'Cholpon', last: 'Abdyldaeva', username: '94000000000789', password: 'Yeni-Salyk-1' },
 };
 
 // no master password and no key cache: the host has to open the vault from the file alone
@@ -156,6 +157,9 @@ try {
     const neu = NEWCOMERS[site.host];
     const name = (u) => `${u.first} ${u.last}`;
     const shown = Math.min(site.users.length, 5);
+    // a number field takes digits only: there the start of the login is typed instead of the first name
+    const typed = (u) => (site.userType === 'number' ? u.username.slice(0, 7) : u.first.toLocaleLowerCase('tr'));
+    const byHand = site.userType === 'number' ? '9999999' : 'elle.yazilan';
     console.log(`--- ${site.name} (${site.host})${site.spa ? ' · SPA' : ''}${site.ownEye ? ' · kendi göz düğmesi: ' + site.ownEye : ''} ---`);
 
     await scenario(`${site.name}: giriş sayfası açılınca panel kendiliğinden açık, ${shown}/${site.users.length} müşteri, yalnız bu site`, async () => {
@@ -167,7 +171,7 @@ try {
       assert.ok(!(await find(page, 'combobox', 'Müşteri ara'))?.focused, 'the panel does not take the caret');
       await shot(page, `${tag}-a-panel-kendiliginden`);
       for (const u of site.users.filter((u) => !opts.some((o) => o.name.startsWith(name(u))))) {
-        await page.keyboard.type(u.first.toLocaleLowerCase('tr'));
+        await page.keyboard.type(typed(u));
         await waitFor(async () => { const o = await options(page); return o.length === 1 && o[0].name.startsWith(name(u)); }, `typing finds ${name(u)}`);
         await page.keyboard.press('ControlOrMeta+A');
         await page.keyboard.press('Backspace');
@@ -184,16 +188,16 @@ try {
     });
 
     await scenario(`${site.name}: kullanıcı adına elle yazılır (kasada olmayan biri) → liste "Sonuç yok", yazı alanda kalır`, async () => {
-      await page.keyboard.type('elle.yazilan');
+      await page.keyboard.type(byHand);
       await waitFor(async () => (await hasText(page, 'Sonuç yok')) && !(await options(page)).length, 'no match listed');
-      assert.equal(await page.inputValue('#user'), 'elle.yazilan', 'typed into the page field');
+      assert.equal(await page.inputValue('#user'), byHand, 'typed into the page field');
       await shot(page, `${tag}-a3-elle-yazma`);
       await page.keyboard.press('ControlOrMeta+A');
       await page.keyboard.press('Backspace');
     });
 
     await scenario(`${site.name}: "${seed.first}" seç → doldur`, async () => {
-      await fillFromPanel(page, seed.first.toLocaleLowerCase('tr'), name(seed));
+      await fillFromPanel(page, typed(seed), name(seed));
       await waitFor(async () => (await page.inputValue('#pass')) === seed.password, 'password filled');
       assert.equal(await page.inputValue('#user'), seed.username);
     });
@@ -256,7 +260,7 @@ try {
 
     await scenario(`${site.name}: yeni üye listede → doldur → giriş başarılı`, async () => {
       await go('/logout');
-      await fillFromPanel(page, neu.first.toLocaleLowerCase('tr'), name(neu));
+      await fillFromPanel(page, typed(neu), name(neu));
       await waitFor(async () => (await page.inputValue('#pass')) === neu.password, 'password filled');
       assert.equal(await page.inputValue('#user'), neu.username);
       await shot(page, `${tag}-c-yeni-uye-dolduruldu`);
@@ -281,7 +285,7 @@ try {
 
     await scenario(`${site.name}: yeni şifreyle doldur → giriş başarılı`, async () => {
       await go('/logout');
-      await fillFromPanel(page, neu.first.toLocaleLowerCase('tr'), name(neu));
+      await fillFromPanel(page, typed(neu), name(neu));
       await waitFor(async () => (await page.inputValue('#pass')) === neu.password + '-v2', 'new password filled');
       await page.click('#go');
       await page.waitForSelector('#welcome');

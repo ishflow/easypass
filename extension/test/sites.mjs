@@ -80,6 +80,18 @@ export const SITES = [
       { first: 'Deniz', last: 'Er', username: 'deniz@erlojistik.example', password: 'Defter-333' },
     ],
   },
+  {
+    // like cabinet.salyk.kg: the login (INN, 14 or 17 digits) is an <input type="number">; made-up numbers (no INN starts with 9)
+    host: 'salykkabinet.test', name: 'Кабинет налогоплательщика', color: '#1E40AF', userLabel: 'Логин', userType: 'number',
+    signup: [
+      { id: 'phone', label: 'Телефон', type: 'tel', value: '0555 123 456' },
+    ],
+    users: [
+      { first: 'Aibek', last: 'Toktogulov', username: '91000000000123', password: 'Salyk-111' },
+      { first: 'Nurgul', last: 'Asanova', username: '92000000000456', password: 'Salyk-222' },
+      { first: 'Bakyt', last: 'Osmonov', username: '93000000000789123', password: 'Salyk-333' },
+    ],
+  },
 ];
 
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

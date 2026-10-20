@@ -1,5 +1,6 @@
 (() => {
-  const USER_TYPES = new Set(['text', 'email', 'tel']);
+  // number: logins that are numbers only, like the INN on cabinet.salyk.kg
+  const USER_TYPES = new Set(['text', 'email', 'tel', 'number']);
   const visible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
   const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => ({ ok: false, error: 'no_host' }));
   // Language comes from the EasyPass app settings (host status), not from the browser.
