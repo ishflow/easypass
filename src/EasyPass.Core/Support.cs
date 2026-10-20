@@ -57,10 +57,14 @@ public static class AppPaths
         set => Write("vaultPath", value);
     }
 
+    // UI languages (Strings.<lang>.xaml, the extension's TEXT tables). Missing or unknown → Russian, the first language.
+    public static readonly string[] Languages = ["en", "ru", "tr"];
+    public const string DefaultLang = "ru";
+
     public static string Lang
     {
-        get => (string?)Read()["lang"] is "tr" ? "tr" : "ru";
-        set => Write("lang", value == "tr" ? "tr" : "ru");
+        get => (string?)Read()["lang"] is { } lang && Languages.Contains(lang) ? lang : DefaultLang;
+        set => Write("lang", Languages.Contains(value) ? value : DefaultLang);
     }
 
     static JsonObject Read()

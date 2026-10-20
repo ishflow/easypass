@@ -56,7 +56,7 @@ public class ExtensionContractTests : IDisposable
             Assert.True((bool)r["ok"]!);
             Assert.False((bool)r["locked"]!);
             Assert.Equal(7, (int)r["count"]!);
-            Assert.Contains((string?)r["lang"], new[] { "ru", "tr" });
+            Assert.Contains((string?)r["lang"], AppPaths.Languages);
         }
     }
 
@@ -65,7 +65,7 @@ public class ExtensionContractTests : IDisposable
     {
         var status = Ask(new { cmd = "status" }, () => null);
         Assert.Equal(("locked", false), ((string?)status["error"], (bool)status["ok"]!)); // popup: r.error === 'locked'
-        Assert.Contains((string?)status["lang"], new[] { "ru", "tr" }); // background keeps r.lang even when locked
+        Assert.Contains((string?)status["lang"], AppPaths.Languages); // background keeps r.lang even when locked
         Assert.Equal("locked", (string?)Ask(new { cmd = "search", q = "a", site = X }, () => null)["error"]); // content: message(r.error)
     }
 

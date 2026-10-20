@@ -23,6 +23,10 @@ const exe = process.env.CHROME || path.join(cache, newest, 'chrome-mac-arm64/Goo
 
 // Strings the test looks for, per UI language.
 const T = {
+  en: {
+    connected: 'Connected · 8 clients', noHost: 'Not connected', insecure: 'Insecure page', none: 'No matches', changed: 'Update it in EasyPass?',
+    update: 'Update', no: 'No', added: 'Save it?', first: 'First name', last: 'Last name', save: 'Save', search: 'Find a client', eye: 'Show password', show: 'Show',
+  },
   ru: {
     connected: 'Подключено · 8 клиентов', noHost: 'Нет связи', insecure: 'Небезопасная страница', none: 'Ничего не найдено', changed: 'Обновить в EasyPass?',
     update: 'Обновить', no: 'Нет', added: 'Сохранить?', first: 'Имя', last: 'Фамилия', save: 'Сохранить', search: 'Поиск клиента', eye: 'Показать пароль', show: 'Показать',
@@ -677,7 +681,7 @@ async function suite(lang) {
 }
 
 try {
-  for (const lang of process.argv.slice(2).length ? process.argv.slice(2) : ['ru', 'tr']) await suite(lang);
+  for (const lang of process.argv.slice(2).length ? process.argv.slice(2) : ['ru', 'tr', 'en']) await suite(lang);
 } finally {
   server.close();
   plain.close();

@@ -5,6 +5,16 @@
   const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => ({ ok: false, error: 'no_host' }));
   // Language comes from the EasyPass app settings (host status), not from the browser.
   const TEXT = {
+    en: {
+      search: 'Find a client…', searchLabel: 'Find a client', list: 'Clients', none: 'No matches',
+      hint: '↑ ↓ select · Enter fill · Esc close',
+      locked: 'Vault locked — open EasyPass and enter the master password',
+      noHost: 'Not connected — run the EasyPass setup again', error: 'Error: ',
+      insecure: 'Insecure page (http) — EasyPass does not fill here',
+      changed: 'Password changed. Update it in EasyPass?', update: 'Update', no: 'No',
+      added: 'This login is not in EasyPass. Save it?', first: 'First name', last: 'Last name', save: 'Save',
+      showPw: 'Show password', fromSite: 'Details entered on the site',
+    },
     ru: {
       search: 'Найти клиента…', searchLabel: 'Поиск клиента', list: 'Клиенты', none: 'Ничего не найдено',
       hint: '↑ ↓ выбор · Enter заполнить · Esc закрыть',

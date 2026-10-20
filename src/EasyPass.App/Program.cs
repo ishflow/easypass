@@ -23,15 +23,16 @@ static class Program
     }
 }
 
-/// <summary>Arayüz dili: Strings.ru.xaml / Strings.tr.xaml; XAML {DynamicResource} ile anında değişir.</summary>
+/// <summary>Arayüz dili: Strings.en.xaml / Strings.ru.xaml / Strings.tr.xaml; XAML {DynamicResource} ile anında değişir.</summary>
 static class Loc
 {
     static ResourceDictionary? current;
 
     public static void Apply(string lang)
     {
+        var known = AppPaths.Languages.Contains(lang) ? lang : AppPaths.DefaultLang;
         var strings = (ResourceDictionary)Application.LoadComponent(
-            new Uri($"/EasyPass;component/Strings.{(lang == "tr" ? "tr" : "ru")}.xaml", UriKind.Relative));
+            new Uri($"/EasyPass;component/Strings.{known}.xaml", UriKind.Relative));
         var merged = Application.Current.Resources.MergedDictionaries;
         if (current != null) merged.Remove(current);
         merged.Add(current = strings);

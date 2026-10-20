@@ -1,0 +1,8 @@
+﻿EasyPass is installed. One last step: close Chrome and open it again.
+
+Chrome asks "New extension added (EasyPass)" at the top right. Press "Enable extension". Done:
+open a site's login page and the panel opens by itself.
+
+If the question doesn't appear, open Chrome menu → Extensions → Manage Extensions and turn EasyPass on.
+
+On first start, create a new vault in EasyPass or open your existing one (vault.ezp).

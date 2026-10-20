@@ -67,7 +67,7 @@
     <sys:String x:Key="OpenFolder" xml:space="preserve">Открыть папку</sys:String>
     <sys:String x:Key="ExtHint" xml:space="preserve">В Chrome: chrome://extensions → Режим разработчика → «Загрузить распакованное расширение» → выберите эту папку.</sys:String>
     <sys:String x:Key="ExtMissing" xml:space="preserve">Папка расширения не найдена. Запустите скрипт установки (install.ps1).</sys:String>
-    <sys:String x:Key="LanguageTitle" xml:space="preserve">Язык / Dil</sys:String>
+    <sys:String x:Key="LanguageTitle" xml:space="preserve">Language / Язык / Dil</sys:String>
     <sys:String x:Key="Site" xml:space="preserve">Сайт</sys:String>
     <sys:String x:Key="ErrNeedSite" xml:space="preserve">Укажите сайт</sys:String>
     <sys:String x:Key="ErrBadSite" xml:space="preserve">Укажите полный адрес сайта, например portal.example.com</sys:String>

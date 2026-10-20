@@ -35,6 +35,23 @@ public class AppPathsTests
         Assert.False(File.Exists(_file + ".tmp"));
     }
 
+    [Theory]
+    [InlineData("en")]
+    [InlineData("ru")]
+    [InlineData("tr")]
+    public void Every_UI_language_is_kept(string lang)
+    {
+        AppPaths.Lang = lang;
+        Assert.Equal(lang, AppPaths.Lang);
+    }
+
+    [Fact]
+    public void An_unknown_language_is_saved_as_ru()
+    {
+        AppPaths.Lang = "de";
+        Assert.Equal("ru", AppPaths.Lang);
+    }
+
     [Fact]
     public void Lang_defaults_to_ru_when_missing_or_invalid()
     {

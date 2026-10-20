@@ -35,25 +35,34 @@ CloseApplications=yes
 ShowLanguageDialog=auto
 
 [Languages]
+; English first: Windows in a language that isn't listed gets English
 #ifdef WebStoreId
+Name: "en"; MessagesFile: "compiler:Default.isl"; InfoAfterFile: "chrome-store.en.txt"
 Name: "tr"; MessagesFile: "compiler:Languages\Turkish.isl"; InfoAfterFile: "chrome-store.tr.txt"
 Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"; InfoAfterFile: "chrome-store.ru.txt"
 #else
+Name: "en"; MessagesFile: "compiler:Default.isl"; InfoAfterFile: "chrome-manual.en.txt"
 Name: "tr"; MessagesFile: "compiler:Languages\Turkish.isl"; InfoAfterFile: "chrome-manual.tr.txt"
 Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl"; InfoAfterFile: "chrome-manual.ru.txt"
 #endif
 
 [CustomMessages]
+en.RunApp=Start EasyPass
 tr.RunApp=EasyPass'i başlat
 ru.RunApp=Запустить EasyPass
+en.DesktopIcon=Create a desktop shortcut
 tr.DesktopIcon=Masaüstüne kısayol koy
 ru.DesktopIcon=Создать ярлык на рабочем столе
+en.OpenChrome=Open Chrome's extensions page and the extension folder
 tr.OpenChrome=Chrome'da eklentiler sayfasını ve eklenti klasörünü aç
 ru.OpenChrome=Открыть страницу расширений Chrome и папку расширения
+en.NeedRuntime=EasyPass needs the .NET 10 Desktop Runtime, and this computer doesn't have it.%n%nDownload and install it from Microsoft? (about 60 MB; Windows may ask for administrator approval)
 tr.NeedRuntime=EasyPass için .NET 10 Desktop Runtime gerekiyor ve bu bilgisayarda yok.%n%nMicrosoft'tan indirilip kurulsun mu? (yaklaşık 60 MB, Windows yönetici onayı isteyebilir)
 ru.NeedRuntime=Для EasyPass нужен .NET 10 Desktop Runtime, на этом компьютере его нет.%n%nСкачать и установить его с сайта Microsoft? (около 60 МБ, Windows может запросить права администратора)
+en.RuntimeMissing=The .NET 10 Desktop Runtime could not be installed. Install it from https://dotnet.microsoft.com/download/dotnet/10.0 and run the setup again.
 tr.RuntimeMissing=.NET 10 Desktop Runtime kurulamadı. https://dotnet.microsoft.com/download/dotnet/10.0 adresinden kurup kurulumu yeniden çalıştırın.
 ru.RuntimeMissing=Не удалось установить .NET 10 Desktop Runtime. Установите его с https://dotnet.microsoft.com/download/dotnet/10.0 и запустите установку снова.
+en.AppRunning=EasyPass is open. Close the app first so no unsaved change is lost, then press OK.
 tr.AppRunning=EasyPass açık. Kaydedilmemiş değişiklik kaybolmasın diye önce uygulamayı kapatın, sonra Tamam'a basın.
 ru.AppRunning=EasyPass открыт. Закройте приложение, чтобы не потерять несохранённые изменения, затем нажмите OK.
 
@@ -197,9 +206,23 @@ begin
     '}' + #13#10, False);
 end;
 
+// İlk kurulum: uygulama kurulumun dilinde açılsın. Ayar dosyası zaten varsa (güncelleme) dili olduğu gibi kalır.
+procedure WriteFirstLanguage;
+var
+  Settings: String;
+begin
+  Settings := ExpandConstant('{userappdata}\EasyPass\settings.json');
+  if FileExists(Settings) then Exit;
+  ForceDirectories(ExtractFileDir(Settings));
+  SaveStringToFile(Settings, '{"lang":"' + ActiveLanguage + '"}', False);
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssPostInstall then WriteHostManifest;
+  if CurStep = ssPostInstall then begin
+    WriteHostManifest;
+    WriteFirstLanguage;
+  end;
 end;
 
 function InitializeUninstall: Boolean;

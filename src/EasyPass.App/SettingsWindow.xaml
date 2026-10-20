@@ -15,8 +15,9 @@
                     <StackPanel>
                         <TextBlock Text="{DynamicResource LanguageTitle}" Style="{StaticResource Heading}" />
                         <StackPanel Orientation="Horizontal">
-                            <Button x:Name="RussianButton" Content="Русский" MinWidth="110" Click="Language_Click" />
-                            <Button x:Name="TurkishButton" Content="Türkçe" MinWidth="110" Margin="8,0,0,0" Click="Language_Click" />
+                            <Button x:Name="EnglishButton" Tag="en" Content="English" MinWidth="110" Click="Language_Click" />
+                            <Button x:Name="RussianButton" Tag="ru" Content="Русский" MinWidth="110" Margin="8,0,0,0" Click="Language_Click" />
+                            <Button x:Name="TurkishButton" Tag="tr" Content="Türkçe" MinWidth="110" Margin="8,0,0,0" Click="Language_Click" />
                         </StackPanel>
                     </StackPanel>
                 </Border>

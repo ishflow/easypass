@@ -1,0 +1,12 @@
+﻿EasyPass is installed. One last step: add the Chrome extension (only once).
+
+Press "Next"; if the box on the last screen is ticked, Chrome's extensions page and the extension folder open by themselves.
+
+1. On Chrome's extensions page, turn on "Developer mode" (top right).
+2. Drag the "extension" folder, selected in the window that opened, onto the Chrome page.
+   (Or press "Load unpacked" and choose this folder.)
+3. "EasyPass" appears in the list. Done: open a site's login page and the panel opens by itself.
+
+Extension folder: %LOCALAPPDATA%\EasyPass\extension
+
+On first start, create a new vault in EasyPass or open your existing one (vault.ezp).

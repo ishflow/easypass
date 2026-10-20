@@ -1,0 +1,83 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <sys:String x:Key="SetupWelcome" xml:space="preserve">Welcome to EasyPass</sys:String>
+    <sys:String x:Key="SetupIntro" xml:space="preserve">Passwords live in a single vault file. Tip: keep it in a Google Drive or Yandex Disk folder; after reinstalling Windows, install EasyPass and open this file.</sys:String>
+    <sys:String x:Key="SetupNewTitle" xml:space="preserve">Create a new vault</sys:String>
+    <sys:String x:Key="SetupLocation" xml:space="preserve">Location</sys:String>
+    <sys:String x:Key="Pick" xml:space="preserve">Choose…</sys:String>
+    <sys:String x:Key="CreateVault" xml:space="preserve">Create vault</sys:String>
+    <sys:String x:Key="SetupOpenTitle" xml:space="preserve">Open an existing vault</sys:String>
+    <sys:String x:Key="VaultFile" xml:space="preserve">Vault file</sys:String>
+    <sys:String x:Key="MasterPassword" xml:space="preserve">Master password</sys:String>
+    <sys:String x:Key="Open" xml:space="preserve">Open</sys:String>
+    <sys:String x:Key="Cancel" xml:space="preserve">Cancel</sys:String>
+    <sys:String x:Key="LockTitle" xml:space="preserve">This vault has a master password</sys:String>
+    <sys:String x:Key="Settings" xml:space="preserve">Settings</sys:String>
+    <sys:String x:Key="NewEntry" xml:space="preserve">New client</sys:String>
+    <sys:String x:Key="SearchHint" xml:space="preserve">Search: first name, last name, username…</sys:String>
+    <sys:String x:Key="EditTitleEdit" xml:space="preserve">Edit client</sys:String>
+    <sys:String x:Key="FirstName" xml:space="preserve">First name</sys:String>
+    <sys:String x:Key="LastName" xml:space="preserve">Last name</sys:String>
+    <sys:String x:Key="Extra1" xml:space="preserve">Note 1</sys:String>
+    <sys:String x:Key="Extra2" xml:space="preserve">Note 2</sys:String>
+    <sys:String x:Key="Username" xml:space="preserve">Username</sys:String>
+    <sys:String x:Key="Password" xml:space="preserve">Password</sys:String>
+    <sys:String x:Key="Copy" xml:space="preserve">Copy</sys:String>
+    <sys:String x:Key="Show" xml:space="preserve">Show</sys:String>
+    <sys:String x:Key="Hide" xml:space="preserve">Hide</sys:String>
+    <sys:String x:Key="Save" xml:space="preserve">Save</sys:String>
+    <sys:String x:Key="Delete" xml:space="preserve">Delete</sys:String>
+    <sys:String x:Key="CountAll" xml:space="preserve">Clients: {0}</sys:String>
+    <sys:String x:Key="CountFound" xml:space="preserve">Found: {0}</sys:String>
+    <sys:String x:Key="ErrWrongPassword" xml:space="preserve">Wrong master password, or the vault file is damaged.</sys:String>
+    <sys:String x:Key="ErrNotVault" xml:space="preserve">This file is not an EasyPass vault, or it is damaged.</sys:String>
+    <sys:String x:Key="ErrFailed" xml:space="preserve">Failed: </sys:String>
+    <sys:String x:Key="ErrPickLocation" xml:space="preserve">Choose where to create the vault.</sys:String>
+    <sys:String x:Key="ErrFileExists" xml:space="preserve">There is already a file here. Open it with "Open an existing vault", or choose another name.</sys:String>
+    <sys:String x:Key="ErrPickFile" xml:space="preserve">Choose the vault file.</sys:String>
+    <sys:String x:Key="ErrEnterMaster" xml:space="preserve">Enter the master password.</sys:String>
+    <sys:String x:Key="DlgNewTitle" xml:space="preserve">Where to create the vault</sys:String>
+    <sys:String x:Key="DlgOpenTitle" xml:space="preserve">Choose the vault file</sys:String>
+    <sys:String x:Key="DlgFilter" xml:space="preserve">EasyPass vault (*.ezp)|*.ezp</sys:String>
+    <sys:String x:Key="DlgFilterAll" xml:space="preserve">EasyPass vault (*.ezp)|*.ezp|All files (*.*)|*.*</sys:String>
+    <sys:String x:Key="ErrKeyChanged" xml:space="preserve">The master password was changed on another computer. Enter the new one.</sys:String>
+    <sys:String x:Key="ErrKeyChangedDirty" xml:space="preserve">The vault's master password was changed on another computer. Write down what is in the form, then close and reopen EasyPass.</sys:String>
+    <sys:String x:Key="ErrReload" xml:space="preserve">Could not reread the vault: </sys:String>
+    <sys:String x:Key="AskSaveChanges" xml:space="preserve">There are unsaved changes. Save them?</sys:String>
+    <sys:String x:Key="ErrNeedName" xml:space="preserve">Enter a first or last name.</sys:String>
+    <sys:String x:Key="ErrNeedUsername" xml:space="preserve">Enter the username.</sys:String>
+    <sys:String x:Key="ErrNeedPassword" xml:space="preserve">Enter the password.</sys:String>
+    <sys:String x:Key="Saved" xml:space="preserve">Saved.</sys:String>
+    <sys:String x:Key="ErrSave" xml:space="preserve">Not saved: </sys:String>
+    <sys:String x:Key="AskDelete" xml:space="preserve">Delete {0} ({1})?&#10;This cannot be undone.</sys:String>
+    <sys:String x:Key="DeleteTitle" xml:space="preserve">Delete client</sys:String>
+    <sys:String x:Key="ErrDelete" xml:space="preserve">Could not delete: </sys:String>
+    <sys:String x:Key="Deleted" xml:space="preserve">Deleted.</sys:String>
+    <sys:String x:Key="Copied" xml:space="preserve">Password copied. The clipboard will be cleared in 30 seconds.</sys:String>
+    <sys:String x:Key="ErrClipboard" xml:space="preserve">The clipboard is busy, try again.</sys:String>
+    <sys:String x:Key="ErrTitle" xml:space="preserve">EasyPass — error</sys:String>
+    <sys:String x:Key="SettingsWindowTitle" xml:space="preserve">Settings — EasyPass</sys:String>
+    <sys:String x:Key="Close" xml:space="preserve">Close</sys:String>
+    <sys:String x:Key="OpenOther" xml:space="preserve">Open another vault…</sys:String>
+    <sys:String x:Key="ChromeTitle" xml:space="preserve">Chrome connection</sys:String>
+    <sys:String x:Key="ChromeOk" xml:space="preserve">Installed: the Chrome extension can connect to EasyPass.</sys:String>
+    <sys:String x:Key="ChromeMissing" xml:space="preserve">Not installed: run the EasyPass setup again (or install.ps1).</sys:String>
+    <sys:String x:Key="ExtFolder" xml:space="preserve">Extension folder</sys:String>
+    <sys:String x:Key="OpenFolder" xml:space="preserve">Open folder</sys:String>
+    <sys:String x:Key="ExtHint" xml:space="preserve">In Chrome: chrome://extensions → Developer mode → "Load unpacked" → choose this folder.</sys:String>
+    <sys:String x:Key="ExtMissing" xml:space="preserve">Extension folder not found. Run the EasyPass setup again (or install.ps1).</sys:String>
+    <sys:String x:Key="LanguageTitle" xml:space="preserve">Language / Язык / Dil</sys:String>
+    <sys:String x:Key="Site" xml:space="preserve">Site</sys:String>
+    <sys:String x:Key="ErrNeedSite" xml:space="preserve">Site is required</sys:String>
+    <sys:String x:Key="ErrBadSite" xml:space="preserve">Enter the site's full address, e.g. portal.example.com</sys:String>
+    <sys:String x:Key="ErrUnreadable" xml:space="preserve">the vault file can't be read right now (the cloud may still be syncing it). Try again in a few seconds; what is in the form is not lost.</sys:String>
+    <sys:String x:Key="ErrVaultMissing" xml:space="preserve">Vault file not found: {0}&#10;Its backup is next to it (.bak or .tmp): a save was interrupted, or the cloud folder hasn't synced yet. Wait, then reopen EasyPass. If the file doesn't come back, copy {0}.bak under the vault's name and open it with "Open an existing vault". Don't create a new vault in this folder.</sys:String>
+    <sys:String x:Key="NoPasswordNote" xml:space="preserve">The vault has no master password: there is nothing to forget, but anyone who gets the vault file can read it. Keep the file in a folder only you can access.</sys:String>
+    <sys:String x:Key="OldMasterOptional" xml:space="preserve">Master password (only for old vaults that have one)</sys:String>
+    <sys:String x:Key="ErrNeedOldMaster" xml:space="preserve">This vault has a master password: enter it once, and it is removed when the vault opens.</sys:String>
+    <sys:String x:Key="LockOnceHint" xml:space="preserve">Enter the master password once: it is removed when the vault opens and never asked again.</sys:String>
+    <sys:String x:Key="PasswordRemoved" xml:space="preserve">The vault's master password was removed; it won't be asked again.</sys:String>
+    <sys:String x:Key="ErrRemovePassword" xml:space="preserve">Could not remove the master password (it will be tried again next time): </sys:String>
+    <sys:String x:Key="SiteFields" xml:space="preserve">Details entered on the site</sys:String>
+</ResourceDictionary>

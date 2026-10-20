@@ -1,6 +1,14 @@
 // Toolbar popup: connection status, then a search over every site's entries; a click opens one entry's details.
 // Language comes from the EasyPass app settings (host status), default Russian.
 const TEXT = {
+  en: {
+    ok: (n) => `Connected · ${n} ${n === 1 ? 'client' : 'clients'}`,
+    locked: 'Vault locked — open EasyPass and enter the master password',
+    noHost: 'Not connected — run the EasyPass setup again',
+    search: 'Find a client or site…', searchLabel: 'Find a client', list: 'Clients', none: 'No matches',
+    back: '← Back', site: 'Site', username: 'Username', password: 'Password', extra1: 'Note 1', extra2: 'Note 2',
+    show: 'Show', hide: 'Hide', copy: 'Copy', copied: 'Copied', error: 'Error: ',
+  },
   ru: {
     ok: (n) => `Подключено · ${n} ${{ one: 'клиент', few: 'клиента' }[new Intl.PluralRules('ru').select(n)] || 'клиентов'}`,
     locked: 'Хранилище заблокировано — откройте EasyPass и введите мастер-пароль',

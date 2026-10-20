@@ -28,9 +28,10 @@ public partial class SettingsWindow : Window
         MarkLanguage(AppPaths.Lang);
     }
 
+    // each language button carries its code in Tag
     void Language_Click(object sender, RoutedEventArgs e)
     {
-        var lang = sender == TurkishButton ? "tr" : "ru";
+        var lang = (string)((Button)sender).Tag;
         AppPaths.Lang = lang;
         Loc.Apply(lang);
         MarkLanguage(lang);
@@ -38,8 +39,8 @@ public partial class SettingsWindow : Window
 
     void MarkLanguage(string lang)
     {
-        RussianButton.Style = (Style)FindResource(lang == "tr" ? typeof(Button) : "AccentButton");
-        TurkishButton.Style = (Style)FindResource(lang == "tr" ? "AccentButton" : typeof(Button));
+        foreach (var button in new[] { EnglishButton, RussianButton, TurkishButton })
+            button.Style = (Style)FindResource((string)button.Tag == lang ? "AccentButton" : typeof(Button));
     }
 
     void OpenOther_Click(object sender, RoutedEventArgs e) { Choice = SettingsChoice.OpenOther; Close(); }
