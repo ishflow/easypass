@@ -7,7 +7,7 @@
 
 #define AppName "EasyPass"
 #ifndef AppVersion
-  #define AppVersion "1.5.0"
+  #define AppVersion "1.6.0"
 #endif
 ; extension/manifest.json içindeki "key" → paketlenmemiş eklentinin sabit kimliği (install.ps1 ile aynı)
 #define DevId "coikeomihlacdkjplpedddjmnkfobaon"
@@ -81,6 +81,8 @@ Name: "{userdesktop}\EasyPass"; Filename: "{app}\EasyPass.exe"; WorkingDir: "{ap
 [Registry]
 ; Chrome yardımcı programı nerede bulur: bu anahtar → manifest (CurStepChanged yazar)
 Root: HKCU; Subkey: "{#HostKey}"; ValueType: string; ValueName: ""; ValueData: "{app}\com.easypass.host.json"; Flags: uninsdeletekey
+; Windows açılışında tepside sessiz başlar: bildirimler tarayıcı kapalıyken de çıksın
+Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "EasyPass"; ValueData: """{app}\EasyPass.exe"" --background"; Flags: uninsdeletevalue
 #ifdef WebStoreId
 ; Chrome'un "eklenti eklendi, etkinleştirilsin mi?" sorusu; kaldırınca anahtar silinir, Chrome eklentiyi de kaldırır
 Root: HKCU; Subkey: "Software\Google\Chrome\Extensions\{#WebStoreId}"; ValueType: string; ValueName: "update_url"; ValueData: "https://clients2.google.com/service/update2/crx"; Flags: uninsdeletekey
@@ -134,10 +136,24 @@ begin
   Exec(ExpandConstant('{sys}\taskkill.exe'), '/f /im EasyPass.Host.exe', '', SW_HIDE, ewWaitUntilTerminated, Code);
 end;
 
+// Tepsideki uygulamanın kapatılacak penceresi yok. Mutex'i yalnız 1.6+ açar: v1.5 --quit'i tanımaz, yeni bir pencere açardı.
+procedure QuitTrayApp;
+var
+  Code, I: Integer;
+begin
+  if not CheckForMutexes('EasyPass.App') then Exit;
+  Exec(ExpandConstant('{app}\EasyPass.exe'), '--quit', '', SW_HIDE, ewWaitUntilTerminated, Code);
+  for I := 1 to 30 do begin
+    if not CheckForMutexes('EasyPass.App') then Exit;
+    Sleep(100);
+  end;
+end;
+
 // Uygulama açıkken dosyaları değişmesin: kullanıcı kapatana ya da vazgeçene kadar sor.
 function AppClosed: Boolean;
 begin
   Result := True;
+  QuitTrayApp;
   while IsRunning('EasyPass.exe') do
     if MsgBox(CustomMessage('AppRunning'), mbInformation, MB_OKCANCEL) = IDCANCEL then begin
       Result := False;
