@@ -82,7 +82,13 @@ const salykPage = (url) => inTurn(async () => {
   }
   const page = pageOf(url);
   if (s.state === 'attempt') {
-    if (page === 'login') return null; // wrong password, or back from the organization page
+    if (page === 'login') { // wrong password, or back from the organization page
+      if (s.selected) {
+        const { selected, ...rest } = s;
+        await keep(rest);
+      }
+      return null;
+    }
     if (page === 'other') {
       if (s.selected) await keep({ ...s, state: 'open' }); // "Войти" was pressed; without the organization page it is a public page
       return null;
@@ -99,7 +105,7 @@ const salykPage = (url) => inTurn(async () => {
     await keep({ ...s, state: 'closed' }); // the site's session timed out, or the user came back
   }
   const panel = await ask({ cmd: 'work_get', site: url.hostname, entryId: s.entryId, month: s.month });
-  if (panel.error !== 'not_found') return { panel };
+  if (panel.error !== 'not_found') return { panel: { ...panel, entryId: s.entryId } };
   await drop(); // the customer was deleted meanwhile
   return null;
 });
@@ -120,7 +126,7 @@ const salyk = {
   }),
   work_save: (msg) => inTurn(async () => {
     const s = await session();
-    if (!s) return { ok: false, error: 'not_found' };
+    if (s?.entryId !== msg.entryId) return { ok: false, error: 'not_found' }; // a panel left open for an earlier customer
     if (stale(s)) {
       await drop();
       return { ok: true };
@@ -129,8 +135,8 @@ const salyk = {
     if (r.ok) await drop();
     return r;
   }),
-  work_close: () => inTurn(async () => {
-    await drop();
+  work_close: (msg) => inTurn(async () => {
+    if ((await session())?.entryId === msg.entryId) await drop();
     return { ok: true };
   }),
 };

@@ -914,6 +914,16 @@ async function salykSuite(lang) {
       assert.equal(await taskButton(page, INS, t.done), undefined);
     });
 
+    await scenarioFresh('back from the organization page to login, then a public page → session not opened', async () => {
+      await signIn(page, A);
+      await waitFor(async () => (await state())?.selected, 'organization page seen');
+      await page.goto(sp('/account/login'));
+      await opened(page);
+      await page.goto(sp('/account/forgotpassword'));
+      await sleep(300);
+      assert.equal((await state()).state, 'attempt');
+    });
+
     await scenarioFresh('back from the organization page to the login page → no panel', async () => {
       await signIn(page, A);
       await page.goto(sp('/account/login'));
@@ -1029,6 +1039,31 @@ async function salykSuite(lang) {
       await p1.close();
       await p2.close();
     });
+
+    for (const action of ['save', 'close']) {
+      await scenarioFresh(`a panel for A left open while B signs in: its ${action} leaves B's session alone and writes nothing`, async () => {
+        await sw.evaluate(([e, m]) => chrome.storage.local.set({ salyk: { entryId: e, month: m, at: Date.now(), state: 'closed' } }), [A[2], thisMonth]);
+        const [p1, p2] = [await ctx.newPage(), await ctx.newPage()];
+        for (const p of [p1, p2]) {
+          await p.goto(sp('/account/login'));
+          await workPanel(p);
+        }
+        await p1.bringToFront();
+        await clickNode(p1, await button(p1, t.close));
+        await waitFor(async () => (await state()) === null, 'A answered');
+        await signIn(p1, B);
+        await waitFor(async () => (await state())?.entryId === B[2], 'B tracked');
+        const mark = hostLog().length;
+        await p2.bringToFront();
+        await clickNode(p2, await button(p2, t[action]));
+        await waitFor(async () => !(await taskButton(p2, INS, t.done)), 'stale panel closed');
+        await sleep(200);
+        assert.equal(hostSince(mark, 'work_save').length, 0);
+        assert.equal((await state())?.entryId, B[2]);
+        await p1.close();
+        await p2.close();
+      });
+    }
 
     await scenarioFresh('session from two months ago is dropped silently: no panel, no update message, no work_get', async () => {
       await sw.evaluate((u) => chrome.storage.local.set({ salyk: { entryId: u, month: '2020-01', at: Date.now(), state: 'closed' } }), A[2]);

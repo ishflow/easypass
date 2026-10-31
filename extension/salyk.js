@@ -35,7 +35,7 @@
     return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, 9).toISOString();
   };
 
-  let host, root, T, lang, dialog;
+  let host, root, T, lang, dialog, entryId; // entryId: whom the panel on this page asks about
 
   function shell() {
     host = document.createElement('easypass-work');
@@ -131,7 +131,7 @@
   }
 
   function closeSession() {
-    send({ cmd: 'work_close' });
+    send({ cmd: 'work_close', entryId });
     closeModal();
   }
 
@@ -151,7 +151,7 @@
   }
 
   function showHint() {
-    send({ cmd: 'work_close' }); // nothing to ask: this visit is over
+    send({ cmd: 'work_close', entryId }); // nothing to ask: this visit is over
     shell();
     const box = el('div', 'hint', T.noTasks);
     box.setAttribute('role', 'status');
@@ -252,7 +252,7 @@
       refresh();
       const reminders = {};
       for (const [id, at] of Object.entries(picked)) if (statuses[id] === 'partial') reminders[id] = at;
-      const r = await send({ cmd: 'work_save', statuses, reminders });
+      const r = await send({ cmd: 'work_save', entryId, statuses, reminders });
       busy = false;
       if (r.ok || r.error === 'not_found') return closeModal(); // not_found: answered in another tab
       error.textContent = message(r.error, false);
@@ -282,6 +282,7 @@
     const r = await send({ cmd: 'salyk_page' });
     if (r?.readName) readName(r.username);
     if (r?.panel === undefined && r?.ok !== false) return void (dialog && closeModal()); // nothing to ask (any more)
+    entryId = r.panel?.entryId;
     const asked = await send({ cmd: 'lang' });
     lang = TEXT[asked] ? asked : 'ru';
     T = TEXT[lang];
