@@ -38,7 +38,7 @@ static class Program
             e.Handled = true;
         };
         var window = new MainWindow();
-        app.SessionEnding += (_, e) => e.Cancel = !window.ReadyToLeave();
+        app.SessionEnding += (_, e) => { if (window.ReadyToLeave()) app.Shutdown(); else e.Cancel = true; }; // no quitting flag left behind if Windows cancels the shutdown
         new Thread(() =>
         {
             while (true)
