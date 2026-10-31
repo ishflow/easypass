@@ -75,6 +75,9 @@ public partial class DrawerWindow : Window
         return new Rect(area.Right - width, area.Top, width, area.Height);
     }
 
+    // The top list is as tall as its rows, up to 60% of the drawer; the bottom one takes the rest. Both scroll on their own (and stay virtualized).
+    void Window_SizeChanged(object sender, SizeChangedEventArgs e) => TodoItems.MaxHeight = Math.Max(120, e.NewSize.Height * 0.6);
+
     void Place(Rect r) => (Left, Top, Width, Height) = (r.Left, r.Top, r.Width, r.Height);
 
     void Tab_Click(object sender, MouseButtonEventArgs e) => Toggle(!expanded);

@@ -9,16 +9,18 @@
             <TextBlock x:Name="Heading" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,0,0,8" />
             <TextBlock x:Name="EmptyText" Text="{DynamicResource WorkNoTasks}" Style="{StaticResource Secondary}" FontSize="12" Visibility="Collapsed" />
             <StackPanel x:Name="Rows" />
-            <DockPanel x:Name="Actions" Margin="0,4,0,0">
-                <TextBlock x:Name="EditLink" DockPanel.Dock="Right" FontSize="12" VerticalAlignment="Center">
-                    <Hyperlink Foreground="{StaticResource AccentBrush}" Click="EditList_Click"><Run Text="{DynamicResource WorkEditList}" /></Hyperlink>
-                </TextBlock>
-                <Button x:Name="SaveButton" Content="{DynamicResource WorkSave}" Style="{StaticResource AccentButton}" Height="28" Padding="14,0"
-                        HorizontalAlignment="Left" Click="Save_Click" />
-                <!-- shown for a second after each save; no click, no focus -->
+            <StackPanel x:Name="Actions" Margin="0,4,0,0">
+                <DockPanel>
+                    <TextBlock x:Name="EditLink" DockPanel.Dock="Right" FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0">
+                        <Hyperlink Foreground="{StaticResource AccentBrush}" Click="EditList_Click"><Run Text="{DynamicResource WorkEditList}" /></Hyperlink>
+                    </TextBlock>
+                    <Button x:Name="SaveButton" Content="{DynamicResource WorkSave}" Style="{StaticResource AccentButton}" Height="28" Padding="14,0"
+                            HorizontalAlignment="Left" Click="Save_Click" />
+                </DockPanel>
+                <!-- its own line, always there (Hidden, not Collapsed): shown for a second after each save, nothing moves; no click, no focus -->
                 <TextBlock x:Name="SavedMark" Text="{DynamicResource WorkSaved}" Foreground="{StaticResource SuccessBrush}" FontSize="12"
-                           VerticalAlignment="Center" Margin="12,0,0,0" Visibility="Collapsed" AutomationProperties.LiveSetting="Polite" />
-            </DockPanel>
+                           Margin="0,4,0,0" Visibility="Hidden" AutomationProperties.LiveSetting="Polite" />
+            </StackPanel>
         </StackPanel>
     </Border>
 </UserControl>

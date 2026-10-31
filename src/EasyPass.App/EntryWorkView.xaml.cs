@@ -34,7 +34,7 @@ public partial class EntryWorkView : UserControl
     public EntryWorkView()
     {
         InitializeComponent();
-        savedTimer.Tick += (_, _) => { savedTimer.Stop(); SavedMark.Visibility = Visibility.Collapsed; };
+        savedTimer.Tick += (_, _) => { savedTimer.Stop(); SavedMark.Visibility = Visibility.Hidden; };
     }
 
     void Flash()
