@@ -35,17 +35,17 @@ public partial class TasksView : UserControl
     DockPanel Row(WorkTask task)
     {
         var row = new DockPanel();
-        var delete = new Button { Margin = new Thickness(8, 0, 0, 0), Style = (Style)FindResource("DangerButton") };
+        var delete = new Button { Margin = new Thickness(4, 0, 0, 0), Height = 26, Padding = new Thickness(10, 0, 10, 0), FontSize = 12, Style = (Style)FindResource("DangerButton") };
         delete.SetResourceReference(ContentProperty, "TaskDelete");
         delete.Click += (_, _) => Delete(task);
-        var rename = new Button { Margin = new Thickness(8, 0, 0, 0) };
+        var rename = new Button { Margin = new Thickness(8, 0, 0, 0), Height = 26, Padding = new Thickness(10, 0, 10, 0), FontSize = 12 };
         rename.SetResourceReference(ContentProperty, "TaskRename");
         rename.Click += (_, _) => StartInput(task.Name, task.Id);
         DockPanel.SetDock(delete, Dock.Right);
         DockPanel.SetDock(rename, Dock.Right);
         row.Children.Add(delete);
         row.Children.Add(rename);
-        row.Children.Add(new TextBlock { Text = task.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        row.Children.Add(new TextBlock { Text = task.Name, FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap });
         return row;
     }
 

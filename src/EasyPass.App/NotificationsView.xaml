@@ -1,42 +1,79 @@
 <UserControl x:Class="EasyPass.App.NotificationsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Grid>
-        <TextBlock x:Name="EmptyText" Text="{DynamicResource NotifEmpty}" Style="{StaticResource Secondary}" Margin="32" Visibility="Collapsed" />
-        <ListBox x:Name="NotificationList" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True"
-                 VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
-            <ListBox.ItemContainerStyle>
-                <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                    <EventSetter Event="MouseLeftButtonUp" Handler="Row_Click" />
-                    <EventSetter Event="KeyDown" Handler="Row_KeyDown" />
-                </Style>
-            </ListBox.ItemContainerStyle>
-            <ListBox.GroupStyle>
-                <GroupStyle>
-                    <GroupStyle.HeaderTemplate>
-                        <DataTemplate>
-                            <TextBlock Text="{Binding Name}" FontWeight="SemiBold" Margin="12,12,0,4" />
-                        </DataTemplate>
-                    </GroupStyle.HeaderTemplate>
-                </GroupStyle>
-            </ListBox.GroupStyle>
-            <ListBox.ItemTemplate>
-                <DataTemplate>
-                    <DockPanel>
-                        <StackPanel DockPanel.Dock="Right" Margin="12,0,0,0" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Time}" FontSize="12" TextAlignment="Right" />
-                            <TextBlock Text="{Binding State}" FontSize="12" TextAlignment="Right" Foreground="{StaticResource TextSecondaryBrush}" />
-                        </StackPanel>
-                        <StackPanel>
-                            <TextBlock Text="{Binding Task}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                            <TextBlock FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis">
-                                <Run Text="{Binding Customer, Mode=OneWay}" />
-                                <Run Text="{Binding Login, Mode=OneWay}" />
-                            </TextBlock>
-                        </StackPanel>
-                    </DockPanel>
-                </DataTemplate>
-            </ListBox.ItemTemplate>
-        </ListBox>
-    </Grid>
+    <Border Style="{StaticResource Pane}">
+        <Grid>
+            <TextBlock x:Name="EmptyText" Text="{DynamicResource NotifEmpty}" Style="{StaticResource Secondary}" Margin="32" Visibility="Collapsed" />
+            <ListBox x:Name="NotificationList" Padding="0" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <Setter Property="MinHeight" Value="48" />
+                        <Setter Property="Padding" Value="16,0" />
+                        <EventSetter Event="MouseLeftButtonUp" Handler="Row_Click" />
+                        <EventSetter Event="KeyDown" Handler="Row_KeyDown" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,0" Height="34">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <!-- fired = half-filled orange, planned = dashed grey -->
+                                        <Image x:Name="Mark" Source="{StaticResource GlyphPartial}" Style="{StaticResource StatusGlyph}" Margin="0,0,8,0"
+                                               AutomationProperties.Name="{Binding Name}" />
+                                        <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding ItemCount, Mode=OneWay}" Style="{StaticResource NumText}" FontWeight="Medium"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    </StackPanel>
+                                </Border>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Items[0].Planned}" Value="True">
+                                        <Setter TargetName="Mark" Property="Source" Value="{StaticResource GlyphNone}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                    </GroupStyle>
+                </ListBox.GroupStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border BorderBrush="{StaticResource HairBrush}" BorderThickness="0,0,0,1" Padding="0,8">
+                            <DockPanel>
+                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="16,0,0,0">
+                                    <Border x:Name="StatePill" Style="{StaticResource PillNone}" Margin="0,0,12,0">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Image x:Name="StateMark" Source="{StaticResource GlyphNone}" Style="{StaticResource StatusGlyphSmall}" Margin="0,0,5,0"
+                                                   AutomationProperties.Name="{Binding State}" />
+                                            <TextBlock Text="{Binding State}" FontSize="12" FontWeight="Medium" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+                                    <TextBlock Text="{Binding Time}" Style="{StaticResource NumText}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Task}" FontWeight="Medium" TextWrapping="Wrap" />
+                                    <WrapPanel>
+                                        <TextBlock Text="{Binding Customer, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Login, Mode=OneWay}" Style="{StaticResource NumText}" FontSize="12"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="8,0,0,0" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </DockPanel>
+                        </Border>
+                        <DataTemplate.Triggers>
+                            <DataTrigger Binding="{Binding State}" Value="">
+                                <Setter TargetName="StatePill" Property="Visibility" Value="Collapsed" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Resolved}" Value="True">
+                                <Setter TargetName="StatePill" Property="Style" Value="{StaticResource PillDone}" />
+                                <Setter TargetName="StateMark" Property="Source" Value="{StaticResource GlyphDone}" />
+                            </DataTrigger>
+                        </DataTemplate.Triggers>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+    </Border>
 </UserControl>
