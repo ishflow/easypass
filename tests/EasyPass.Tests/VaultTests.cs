@@ -223,6 +223,123 @@ public class VaultTests : IDisposable
         Assert.Equal("old", Assert.Single(v.Entries).Password);
     }
 
+    // The bytes v1.5 wrote: same capsule, plain text with "entries" only and no todoHidden on the entry.
+    static void WriteV15File(string path, byte[] key)
+    {
+        var plain = System.Text.Encoding.UTF8.GetBytes("""
+            {"entries":[{"id":"old1","site":"x.com","firstName":"Ayşe","lastName":"Su","extra1":"","extra2":"","username":"ayse","password":"p",
+            "fields":[{"label":"Telefon","value":"0532","secret":false}],"updatedAt":"2026-01-02T03:04:05Z"}]}
+            """);
+        var file = File.ReadAllBytes(path);
+        var data = new byte[24 + 12 + 16 + plain.Length];
+        file.AsSpan(0, 24).CopyTo(data);
+        RandomNumberGenerator.Fill(data.AsSpan(24, 12));
+        using (var aes = new AesGcm(key, 16))
+            aes.Encrypt(data.AsSpan(24, 12), plain, data.AsSpan(24 + 12 + 16), data.AsSpan(24 + 12, 16), data.AsSpan(0, 24));
+        File.WriteAllBytes(path, data);
+    }
+
+    [Fact]
+    public void Old_v15_file_opens_with_empty_tasks_work_reminders()
+    {
+        var path = _tmp.File();
+        var key = Vault.Create(path, "pw").Key;
+        WriteV15File(path, key);
+
+        var v = Vault.Open(path, key);
+        var e = Assert.Single(v.Entries);
+        Assert.Equal(("old1", "x.com", "Ayşe", "ayse", "p", false), (e.Id, e.Site, e.FirstName, e.Username, e.Password, e.TodoHidden));
+        Assert.Equal("0532", Assert.Single(e.Fields).Value);
+        Assert.Empty(v.Data.Tasks);
+        Assert.Empty(v.Data.Work);
+        Assert.Empty(v.Data.Reminders);
+
+        v.Update(d => d.Tasks.Add(new WorkTask { Name = "НДС" })); // first new field written: nothing of the old data is lost
+        var w = Vault.Open(path, key);
+        Assert.Equal("p", Assert.Single(w.Entries).Password);
+        Assert.Equal("НДС", Assert.Single(w.Data.Tasks).Name);
+    }
+
+    static (Vault V, string EntryId, string TaskId) WithWork(string path)
+    {
+        var v = Vault.Create(path, "pw");
+        var e = new Entry { Username = "u", TodoHidden = true };
+        var t = new WorkTask { Name = "НДС" };
+        var due = new DateTime(2026, 11, 5, 9, 0, 0, DateTimeKind.Utc);
+        v.Update(d =>
+        {
+            d.Entries.Add(e);
+            d.Tasks.Add(t);
+            d.Work.Add(new WorkRecord { EntryId = e.Id, Month = "2026-11", Tasks = new() { [t.Id] = "partial" }, UpdatedAt = due });
+            d.Reminders.Add(new Reminder { EntryId = e.Id, TaskId = t.Id, Month = "2026-11", DueAt = due });
+        });
+        return (v, e.Id, t.Id);
+    }
+
+    [Fact]
+    public void New_lists_round_trip_through_the_encrypted_file()
+    {
+        var path = _tmp.File();
+        var (v, entryId, taskId) = WithWork(path);
+
+        var d = Vault.Open(path, v.Key).Data;
+        Assert.True(Assert.Single(d.Entries).TodoHidden);
+        Assert.Equal(taskId, Assert.Single(d.Tasks).Id);
+        var w = Assert.Single(d.Work);
+        Assert.Equal((entryId, "2026-11", "partial"), (w.EntryId, w.Month, w.Tasks[taskId]));
+        var r = Assert.Single(d.Reminders);
+        Assert.Equal(new DateTime(2026, 11, 5, 9, 0, 0, DateTimeKind.Utc), r.DueAt);
+        Assert.Equal(DateTimeKind.Utc, r.DueAt.Kind);
+        Assert.Null(r.DismissedAt);
+        Assert.Null(r.ResolvedAt);
+    }
+
+    [Fact]
+    public void Failed_update_leaves_work_as_on_disk()
+    {
+        var path = _tmp.File();
+        var (v, _, taskId) = WithWork(path);
+        Directory.CreateDirectory(path + ".tmp"); // the temp file can no longer be written
+
+        Assert.ThrowsAny<Exception>(() => v.Update(d =>
+        {
+            d.Tasks[0].Name = "changed";
+            d.Tasks.Clear();
+            d.Work[0].Tasks[taskId] = "done";
+            d.Work[0].Month = "1999-01";
+            d.Reminders[0].DismissedAt = DateTime.UtcNow;
+            d.Entries[0].TodoHidden = false;
+        }));
+
+        Assert.Equal("НДС", Assert.Single(v.Data.Tasks).Name);
+        var w = Assert.Single(v.Data.Work);
+        Assert.Equal(("2026-11", "partial"), (w.Month, w.Tasks[taskId]));
+        Assert.Null(Assert.Single(v.Data.Reminders).DismissedAt);
+        Assert.True(Assert.Single(v.Entries).TodoHidden);
+    }
+
+    [Fact]
+    public void Entries_only_update_keeps_the_other_lists()
+    {
+        var path = _tmp.File();
+        var (v, _, _) = WithWork(path);
+        v.Update(l => l.Add(new Entry { Username = "b" }));
+
+        var d = Vault.Open(path, v.Key).Data;
+        Assert.Equal(2, d.Entries.Count);
+        Assert.Single(d.Tasks);
+        Assert.Single(d.Work);
+        Assert.Single(d.Reminders);
+    }
+
+    [Fact]
+    public void Change_password_keeps_the_other_lists()
+    {
+        var path = _tmp.File();
+        WithWork(path).V.ChangePassword("yeni");
+        Assert.Single(Vault.Open(path, "yeni").Data.Work);
+    }
+
     [Fact]
     public void Save_waits_for_a_reader_briefly_holding_the_file()
     {

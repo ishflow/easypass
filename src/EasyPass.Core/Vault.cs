@@ -18,6 +18,8 @@ public sealed class Entry
     /// <summary>What else was typed into the site's sign-up form, under the site's own labels (never the login itself).</summary>
     public List<EntryField> Fields { get; set; } = [];
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    /// <summary>"Remove from the list" in the to-do view; new work brings the customer back.</summary>
+    public bool TodoHidden { get; set; }
     [JsonIgnore] public string FullName => $"{FirstName} {LastName}".Trim();
     internal Entry Clone() => (Entry)MemberwiseClone(); // Fields is shared: it is replaced, never changed in place
 }
@@ -30,10 +32,59 @@ public sealed class EntryField
     public bool Secret { get; set; }
 }
 
+/// <summary>The one shared work list. A deleted task stays archived so that history keeps its name.</summary>
+public sealed class WorkTask
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Name { get; set; } = "";
+    public bool Archived { get; set; }
+    internal WorkTask Clone() => (WorkTask)MemberwiseClone();
+}
+
+/// <summary>One customer's month: task id → "done" | "partial". Grey = no key; no keys left = no record.</summary>
+public sealed class WorkRecord
+{
+    public string EntryId { get; set; } = "";
+    public string Month { get; set; } = "";
+    public Dictionary<string, string> Tasks { get; set; } = [];
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    internal WorkRecord Clone() => new() { EntryId = EntryId, Month = Month, Tasks = new(Tasks), UpdatedAt = UpdatedAt };
+}
+
+/// <summary>At most one per (entry, task, month).</summary>
+public sealed class Reminder
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string EntryId { get; set; } = "";
+    public string TaskId { get; set; } = "";
+    public string Month { get; set; } = "";
+    public DateTime DueAt { get; set; }
+    public DateTime? DismissedAt { get; set; }
+    public DateTime? ResolvedAt { get; set; }
+    internal Reminder Clone() => (Reminder)MemberwiseClone();
+}
+
+/// <summary>The vault's plain text. Lists missing from an older file stay empty.</summary>
+public sealed class VaultData
+{
+    public List<Entry> Entries { get; set; } = [];
+    public List<WorkTask> Tasks { get; set; } = [];
+    public List<WorkRecord> Work { get; set; } = [];
+    public List<Reminder> Reminders { get; set; } = [];
+
+    internal VaultData Clone() => new()
+    {
+        Entries = Entries.ConvertAll(e => e.Clone()),
+        Tasks = Tasks.ConvertAll(t => t.Clone()),
+        Work = Work.ConvertAll(w => w.Clone()),
+        Reminders = Reminders.ConvertAll(r => r.Clone()),
+    };
+}
+
 // Salt differs from the open vault: the master password was changed elsewhere, the key cache is stale.
 public sealed class VaultPasswordChangedException() : CryptographicException("Kasanın ana şifresi değişmiş; yeniden açın.");
 
-// File: "EZP1" | iterations int32 LE | salt 16 | nonce 12 | tag 16 | AES-256-GCM(JSON {"entries":[...]}), AAD = first 24 bytes.
+// File: "EZP1" | iterations int32 LE | salt 16 | nonce 12 | tag 16 | AES-256-GCM(JSON VaultData), AAD = first 24 bytes.
 // A vault without a master password has the same format: key from the empty password with a single PBKDF2 round
 // (there is no secret to stretch), so anyone with the file can open it — the price of never losing it to a forgotten password.
 public sealed class Vault
@@ -41,14 +92,15 @@ public sealed class Vault
     const int Iterations = 600_000, PasswordlessIterations = 1, HeaderLen = 24, NonceLen = 12, TagLen = 16;
     static readonly byte[] Magic = "EZP1"u8.ToArray();
     static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
-    sealed record Doc(List<Entry> Entries);
 
-    List<Entry> _entries = [];
+    VaultData _data = new();
     int _iterations;
     byte[] _stamp = []; // header + nonce of the loaded file; every save draws a new random nonce
 
     public string Path { get; }
-    public IReadOnlyList<Entry> Entries => _entries;
+    public IReadOnlyList<Entry> Entries => _data.Entries;
+    /// <summary>The state in memory: read only, every change goes through Update.</summary>
+    public VaultData Data => _data;
     public byte[] Salt { get; private set; }
     public byte[] Key { get; private set; }
     public bool HasPassword => _iterations != PasswordlessIterations;
@@ -72,7 +124,7 @@ public sealed class Vault
         var salt = RandomNumberGenerator.GetBytes(16);
         var iterations = IterationsFor(password);
         var v = new Vault(path, iterations, salt, Derive(password, salt, iterations));
-        Locked(() => v.Save([]));
+        Locked(() => v.Save(new VaultData()));
         return v;
     }
 
@@ -118,13 +170,15 @@ public sealed class Vault
         return true;
     }
 
-    public void Update(Action<List<Entry>> change) => Locked(() =>
+    public void Update(Action<List<Entry>> change) => Update(d => change(d.Entries));
+
+    public void Update(Action<VaultData> change) => Locked(() =>
     {
         ReloadIfChanged();
-        // copies, so a change that fails to save leaves the in-memory entries exactly as on disk
-        var list = _entries.Select(e => e.Clone()).ToList();
-        change(list);
-        Save(list);
+        // copies, so a change that fails to save leaves the in-memory data exactly as on disk
+        var copy = _data.Clone();
+        change(copy);
+        Save(copy);
     });
 
     /// <summary>Empty new password = remove the master password.</summary>
@@ -139,14 +193,14 @@ public sealed class Vault
             ReloadIfChanged();
             var old = (Salt, Key, _iterations);
             (Salt, Key, _iterations) = (salt, key, iterations);
-            try { Save(_entries); }
+            try { Save(_data); }
             catch { (Salt, Key, _iterations) = old; throw; }
         });
     }
 
     public IReadOnlyList<Entry> Search(string query, int limit = 20, string? site = null)
     {
-        var pool = site is null ? _entries : _entries.Where(e => Sites.Matches(e.Site, site));
+        var pool = site is null ? _data.Entries : _data.Entries.Where(e => Sites.Matches(e.Site, site));
         var words = TextFold.Fold(query).Split(' ', StringSplitOptions.RemoveEmptyEntries);
         if (words.Length == 0) return pool.OrderByDescending(e => e.UpdatedAt).Take(limit).ToList();
         var first = words[0];
@@ -195,13 +249,18 @@ public sealed class Vault
         var cipher = data.AsSpan(HeaderLen + NonceLen + TagLen);
         var plain = new byte[cipher.Length];
         using (var aes = new AesGcm(Key, TagLen)) aes.Decrypt(nonce, cipher, tag, plain, data.AsSpan(0, HeaderLen));
-        _entries = JsonSerializer.Deserialize<Doc>(plain, Json)?.Entries ?? [];
+        var d = JsonSerializer.Deserialize<VaultData>(plain, Json) ?? new();
+        d.Entries ??= [];
+        d.Tasks ??= [];
+        d.Work ??= [];
+        d.Reminders ??= [];
+        _data = d;
         _stamp = data[..(HeaderLen + NonceLen)];
     }
 
-    void Save(List<Entry> entries)
+    void Save(VaultData d)
     {
-        var plain = JsonSerializer.SerializeToUtf8Bytes(new Doc(entries), Json);
+        var plain = JsonSerializer.SerializeToUtf8Bytes(d, Json);
         var data = new byte[HeaderLen + NonceLen + TagLen + plain.Length];
         Magic.CopyTo(data, 0);
         BinaryPrimitives.WriteInt32LittleEndian(data.AsSpan(4), _iterations);
@@ -223,7 +282,7 @@ public sealed class Vault
             try { Replace(tmp); break; }
             catch (Exception e) when (attempt < 5 && e is IOException or UnauthorizedAccessException) { Thread.Sleep(100); }
         }
-        _entries = entries;
+        _data = d;
         _stamp = data[..(HeaderLen + NonceLen)];
     }
 
