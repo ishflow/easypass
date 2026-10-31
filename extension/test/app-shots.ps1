@@ -1,10 +1,12 @@
 # App window screenshots for the README (called by screenshots.mjs): starts EasyPass.exe on a demo EASYPASS_HOME,
-# searches for one client and selects it, then shots the main window (app.png) and Settings (settings.png).
+# searches for one client and selects it, then shots the main window (app.png), Settings (settings.png), the three work
+# tabs (todo.png, notifications.png, tasks.png) and the reminder window (reminder.png); -Prefix goes before each file name.
 param(
     [Parameter(Mandatory)] [string] $AppHome,
     [Parameter(Mandatory)] [string] $Exe,
     [Parameter(Mandatory)] [string] $Out,
-    [Parameter(Mandatory)] [string] $Search
+    [Parameter(Mandatory)] [string] $Search,
+    [string] $Prefix = ''
 )
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Drawing
@@ -56,9 +58,11 @@ function Set-Size($el, $w, $h) {
 }
 
 $env:EASYPASS_HOME = $AppHome
+# one instance per user: a copy that is still running would take this launch over and keep its own vault
+Start-Process -FilePath $Exe -ArgumentList '--quit' -Wait
 $p = Start-Process -FilePath $Exe -PassThru
 try {
-    $main = Wait-For { $w = Windows-Of $p.Id | Select-Object -First 1; if ($w -and (Find-Id $w 'SearchBox')) { $w } } 'main window'
+    $main = Wait-For { foreach ($w in (Windows-Of $p.Id)) { if (Find-Id $w 'SearchBox') { $w; break } } } 'main window'
     $hwnd = Set-Size $main 1120 720
     (Find-Id $main 'SearchBox').GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue($Search)
     $item = Wait-For {
@@ -71,22 +75,38 @@ try {
     # back to the whole list: the selected client stays selected
     (Find-Id $main 'SearchBox').GetCurrentPattern([Windows.Automation.ValuePattern]::Pattern).SetValue('')
     Start-Sleep -Milliseconds 800
-    [Shot]::Save($hwnd, (Join-Path $Out 'app.png'))
-    Write-Host 'wrote app.png'
+    [Shot]::Save($hwnd, (Join-Path $Out ($Prefix + 'app.png')))
+    Write-Host "wrote $($Prefix)app.png"
 
-    $settingsButton = $main.FindFirst('Descendants', (New-Object Windows.Automation.AndCondition(
-        (New-Object Windows.Automation.PropertyCondition($A::ControlTypeProperty, [Windows.Automation.ControlType]::Button)),
-        (New-Object Windows.Automation.PropertyCondition($A::NameProperty, 'Settings')))))
+    # the button has no AutomationId: find it by its label in any of the three languages
+    $labels = @('Settings', 'Ayarlar', [regex]::Unescape('\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438'))
+    $settingsButton = $main.FindAll('Descendants', (New-Object Windows.Automation.PropertyCondition($A::ControlTypeProperty, [Windows.Automation.ControlType]::Button))) |
+        Where-Object { $labels -contains $_.Current.Name } | Select-Object -First 1
     $settingsButton.GetCurrentPattern([Windows.Automation.InvokePattern]::Pattern).Invoke()
     $settings = Wait-For { $main.FindFirst('Children', (New-Object Windows.Automation.PropertyCondition($A::ControlTypeProperty, [Windows.Automation.ControlType]::Window))) } 'settings window'
     Start-Sleep -Milliseconds 800
-    [Shot]::Save([IntPtr]$settings.Current.NativeWindowHandle, (Join-Path $Out 'settings.png'))
-    Write-Host 'wrote settings.png'
+    [Shot]::Save([IntPtr]$settings.Current.NativeWindowHandle, (Join-Path $Out ($Prefix + 'settings.png')))
+    Write-Host "wrote $($Prefix)settings.png"
     $settings.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()
+
+    # the work tabs, by position (the Notifications header carries a count badge); a full list for the to-do tab
+    $tabItems = (Find-Id $main 'Tabs').FindAll('Children', (New-Object Windows.Automation.PropertyCondition($A::ControlTypeProperty, [Windows.Automation.ControlType]::TabItem)))
+    foreach ($tab in @(@(1, 'todo'), @(2, 'notifications'), @(3, 'tasks'))) {
+        $tabItems[$tab[0]].GetCurrentPattern([Windows.Automation.SelectionItemPattern]::Pattern).Select()
+        Start-Sleep -Milliseconds 800
+        [Shot]::Save($hwnd, (Join-Path $Out ($Prefix + $tab[1] + '.png')))
+        Write-Host "wrote $($Prefix)$($tab[1]).png"
+    }
+    # the reminder window: a small window of the same process (the demo vault has a reminder that is already due)
+    $reminder = Wait-For { foreach ($w in (Windows-Of $p.Id)) { if ($w.Current.NativeWindowHandle -ne $hwnd -and $w.Current.BoundingRectangle.Width -lt 1200 -and -not (Find-Id $w 'SearchBox')) { $w; break } } } 'reminder window' 40
+    Start-Sleep -Milliseconds 500
+    [Shot]::Save([IntPtr]$reminder.Current.NativeWindowHandle, (Join-Path $Out ($Prefix + 'reminder.png')))
+    Write-Host "wrote $($Prefix)reminder.png"
 } finally {
     Start-Sleep -Milliseconds 300
+    # closing the window only hides it in the tray; --quit ends the app
     if (-not $p.HasExited) {
-        $p.CloseMainWindow() | Out-Null
+        Start-Process -FilePath $Exe -ArgumentList '--quit' -Wait
         if (-not $p.WaitForExit(10000)) { Stop-Process -Id $p.Id -Force }
     }
 }

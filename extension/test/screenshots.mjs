@@ -1,8 +1,8 @@
 // README screenshots on Windows: the installed EasyPass (or EASYPASS_DIR) with an English demo vault and the English
 // demo portals (demo-sites.mjs), in Chrome for Testing at 2x. Writes docs/images/*.png; the app window shots come from
-// app-shots.ps1. Your own Chrome and vault are untouched. Usage: cd extension/test && node screenshots.mjs [--out <dir>]
+// app-shots.ps1 (also the work tabs and the reminder window, in three languages). Your own Chrome and vault are untouched. Usage: cd extension/test && node screenshots.mjs [--out <dir>]
 import { chromium } from 'playwright-core';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,7 +30,9 @@ for (const product of ['Chromium', 'Google\\Chrome for Testing']) {
 
 // the vault path shows in Settings: a shared folder rather than one with the Windows user name in it
 const vaultDir = path.join(process.env.PUBLIC || home, 'Documents', 'EasyPass demo');
-const vault = prepareHome(home, DEMO_SITES, '', 'en', vaultDir);
+const TASKS = [{ id: 'task-vat', name: 'VAT return', archived: false }, { id: 'task-payroll', name: 'Payroll', archived: false },
+  { id: 'task-annual', name: 'Annual report', archived: false }];
+const vault = prepareHome(home, DEMO_SITES, '', 'en', vaultDir, TASKS);
 const sites = await startSites({ certDir: home, sites: DEMO_SITES });
 const [tax, , bank] = DEMO_SITES;
 const newcomer = { first: 'Mia', last: 'Lawson', username: '70058821', password: 'Bank-Mia-44' };
@@ -194,6 +196,56 @@ try {
   sites.server.close();
 }
 
-// 7. The app with the same vault: Mia Lawson with the details from the bank's sign-up, and Settings
-execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(here, 'app-shots.ps1'),
-  '-AppHome', home, '-Exe', path.join(installed, 'EasyPass.exe'), '-Out', out, '-Search', newcomer.first], { stdio: 'inherit' });
+// 7. Monthly work for a few demo clients, saved through the real host (as the page panel does). A reminder that is
+// already due (the host accepts up to 5 minutes back) makes the reminder window appear when the app starts.
+async function seedWork() {
+  const host = spawn(path.join(installed, 'EasyPass.Host.exe'), [], { env: { ...process.env, EASYPASS_HOME: home } });
+  let buf = Buffer.alloc(0);
+  const waiting = [];
+  host.stdout.on('data', (d) => {
+    buf = Buffer.concat([buf, d]);
+    while (buf.length >= 4 && buf.length >= 4 + buf.readInt32LE(0)) {
+      const n = buf.readInt32LE(0);
+      waiting.shift()(JSON.parse(buf.subarray(4, 4 + n)));
+      buf = buf.subarray(4 + n);
+    }
+  });
+  const call = (o) => new Promise((resolve) => {
+    waiting.push(resolve);
+    const b = Buffer.from(JSON.stringify(o));
+    const len = Buffer.alloc(4);
+    len.writeInt32LE(b.length);
+    host.stdin.write(Buffer.concat([len, b]));
+  });
+  const { items } = await call({ id: 1, cmd: 'all', q: '' });
+  const now = new Date();
+  const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const due = new Date(Date.now() - 2 * 60000).toISOString();
+  const plan = [
+    [{ 'task-vat': 'done', 'task-payroll': 'partial' }, { 'task-payroll': due }],
+    [{ 'task-vat': 'done', 'task-payroll': 'done' }, {}],
+    [{ 'task-annual': 'partial' }, { 'task-annual': new Date(Date.now() + 26 * 3600000).toISOString() }],
+    [{ 'task-vat': 'partial' }, { 'task-vat': new Date(Date.now() + 5 * 3600000).toISOString() }],
+    [{ 'task-vat': 'done' }, {}],
+  ];
+  for (const [i, [statuses, reminders]] of plan.entries()) {
+    const r = await call({ id: 10 + i, cmd: 'work_save', site: items[i].site, entryId: items[i].id, month, statuses, reminders });
+    if (!r.ok) throw new Error('work_save failed: ' + r.error);
+  }
+  host.stdin.end();
+}
+await seedWork();
+
+// 8. The app with the same vault: Mia Lawson with the details from the bank's sign-up, Settings, the work tabs and
+// the reminder window. English into docs/images; Russian and Turkish next to it in docs/images/i18n (same files, lang prefix).
+const appShots = (dir, prefix) => execFileSync('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(here, 'app-shots.ps1'),
+  '-AppHome', home, '-Exe', path.join(installed, 'EasyPass.exe'), '-Out', dir, '-Search', newcomer.first, '-Prefix', prefix], { stdio: 'inherit' });
+appShots(out, '');
+const settingsFile = path.join(home, 'settings.json');
+const settings = JSON.parse(fs.readFileSync(settingsFile, 'utf8'));
+fs.mkdirSync(path.join(out, 'i18n'), { recursive: true });
+for (const lang of ['ru', 'tr']) {
+  fs.writeFileSync(settingsFile, JSON.stringify({ ...settings, lang }));
+  appShots(path.join(out, 'i18n'), lang + '-');
+}
+fs.writeFileSync(settingsFile, JSON.stringify(settings));

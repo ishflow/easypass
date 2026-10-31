@@ -102,6 +102,42 @@ the language. The list refreshes within 2 seconds when the extension saves somet
 <img src="docs/images/settings.png" width="30%" alt="Settings: English, Russian and Turkish, the vault file and the Chrome connection">
 </p>
 
+## Monthly work (v1.6)
+
+For offices that do the same jobs for every client every month (a VAT return, payroll, an annual report), EasyPass
+keeps a per-client, per-month record in the same vault file, and reminds you of what is left.
+
+- **After you sign out of the tracked portal** (`cabinet.salyk.kg`), a panel opens on the page that follows: mark each
+  job of the month *Done* or *Not finished*. For a job that is not finished, pick when to be reminded (in 2 or 5 hours,
+  tomorrow, in 2 days, or a number of hours or days). It only opens for a client you signed in as through EasyPass,
+  and no other site gets this script.
+- **The client's name is read from the portal** the first time you sign in, when the entry has no name yet. A name you
+  typed yourself is never overwritten.
+- **The app** has three more tabs next to *Clients*: **To do** (this month's list: not started, unfinished, done, with
+  month navigation and search), **Notifications** (reminders that are due and planned ones) and **Tasks** (the list of
+  jobs, which you add, rename and delete). The *Clients* tab shows a client's earlier months.
+- **A reminder pops up in the lower right corner** of the screen with the job, the client's name and login (never the
+  password). It stays until you click it, and comes back after a restart if you didn't.
+- **The app lives in the tray.** Closing the window hides it; use the tray icon's *Exit* to quit. It can start with
+  Windows (`EasyPass.exe --background` starts it hidden) so reminders arrive without opening anything, and a second
+  launch just brings the window forward. `EasyPass.exe --quit` ends a running copy (the setup uses it).
+
+<p align="center">
+<img src="docs/images/todo.png" width="49%" alt="The To do tab: this month's clients grouped as unfinished and done, with their jobs">
+<img src="docs/images/notifications.png" width="49%" alt="The Notifications tab: a due reminder and two planned ones">
+</p>
+<p align="center">
+<img src="docs/images/tasks.png" width="49%" alt="The Tasks tab: the list of monthly jobs">
+<img src="docs/images/reminder.png" width="30%" alt="The reminder window in the lower right corner: job, client name and login">
+</p>
+
+The same tabs and texts are in Russian and Turkish (`docs/images/i18n/`).
+
+> **Update every computer together.** Version 1.6 adds jobs, work records and reminders to the vault file. EasyPass
+> 1.5 doesn't know these fields: if 1.5 opens the vault (for example on another computer that shares the file through
+> a cloud folder) and saves anything, **it silently deletes them**. The first work you record in 1.6 is the moment
+> after which this matters; update all your computers before then. `vault.ezp.bak` keeps the previous version of the file.
+
 ## Features
 
 - **Only that site's logins.** A page only ever sees the entries saved for its own site (or its parent domain). The
@@ -111,6 +147,7 @@ the language. The list refreshes within 2 seconds when the extension saves somet
   Disk folder. After reinstalling Windows, install EasyPass and open the file. Every save keeps the previous version
   as `vault.ezp.bak`.
 - **Works with the app closed.** Chrome starts EasyPass's small helper program by itself.
+- **Starts with Windows, lives in the tray**, and shows reminders for unfinished monthly work (see above).
 - **Show-password eye** in password fields, unless the site already has its own.
 - **Number-only logins** (tax IDs and customer numbers in `type="number"` fields) work like any other.
 - **English, Russian and Turkish.** Settings → *Language / Язык / Dil*; the extension follows the app. A first install
