@@ -30,7 +30,7 @@ const T = {
     done: 'Done', partial: 'Not finished', close: 'Close', h2: '2 hours', h5: '5 hours', tomorrow: 'Tomorrow', d2: 'In 2 days', custom: 'Custom reminder',
     reminderClosed: 'reminder closed', update2: 'Update EasyPass', noTasks: 'Add tasks in EasyPass', locked: 'Vault locked', retry: 'Try again',
     dotDone: 'Done this month', dotPartial: 'Not finished this month',
-    ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list',
+    ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list', add: '+ Add a task', saved: 'Saved',
     summary: (d, p, n) => `This month: done ${d} · not finished ${p} · not started ${n}`,
   },
   ru: {
@@ -39,7 +39,7 @@ const T = {
     done: 'Сделано', partial: 'Не завершено', close: 'Закрыть', h2: '2 часа', h5: '5 часов', tomorrow: 'Завтра', d2: 'Через 2 дня', custom: 'Своё напоминание',
     reminderClosed: 'напоминание закрыто', update2: 'Обновите EasyPass', noTasks: 'Добавьте работы в EasyPass', locked: 'Хранилище заблокировано', retry: 'Повторить',
     dotDone: 'Готово в этом месяце', dotPartial: 'Не завершено в этом месяце',
-    ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ',
+    ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ', add: '+ Добавить работу', saved: 'Сохранено',
     summary: (d, p, n) => `Этот месяц: готово ${d} · не завершено ${p} · не начато ${n}`,
   },
   tr: {
@@ -48,7 +48,7 @@ const T = {
     done: 'Yapıldı', partial: 'Bitmedi', close: 'Kapat', h2: '2 saat', h5: '5 saat', tomorrow: 'Yarın', d2: '2 gün sonra', custom: 'Özel hatırlatma',
     reminderClosed: 'hatırlatma kapatıldı', update2: "EasyPass'i güncelleyin", noTasks: "EasyPass'te iş ekleyin", locked: 'Kilitli', retry: 'Yeniden dene',
     dotDone: 'Bu ay bitti', dotPartial: 'Bu ay yarım',
-    ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir',
+    ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir', add: '+ İş ekle', saved: 'Kaydedildi',
     summary: (d, p, n) => `Bu ay: bitti ${d} · yarım ${p} · başlanmadı ${n}`,
   },
 };
@@ -1456,6 +1456,110 @@ async function salykSuite(lang) {
       await pb(p, REP, t.done).waitFor();
       assert.equal(await pb(p, INS, t.done).count(), 0);
       assert.deepEqual((await assignedOf(F)).tasks.map((x) => x.id), ['t2', 't3']);
+      await p.close();
+    });
+
+    // --- spec §13: add a task from the panel, keep the unsaved toggles, the brief "saved" mark ---
+    const G = ['99000000000004', 'Salyk-777', 'x-g', 'Бекова Нурзат'];
+    fs.writeFileSync(external, JSON.stringify([...JSON.parse(fs.readFileSync(external, 'utf8')), extra(G)]));
+    sites.states.get('salykkabinet').users.push({ first: 'X', last: 'Y', org: G[3], username: G[0], password: G[1] });
+    const overlaySave = async (page) => (await ax(page)).filter((n) => n.role === 'button' && n.name === t.save).at(-1); // the overlay's, in front of the panel's
+    const pressedIn = async (page, task, name) => (await taskButton(page, task, name))?.pressed;
+
+    await scenarioFresh('"add a task" in the exit panel: overlay with the tasks not on the list, Save adds them at once, pressed toggles stay, the button goes when nothing is left', async () => {
+      assert.ok((await assignTo(G[2], ['t1'])).ok);
+      const mark = hostLog().length;
+      await exitTo(page, G);
+      await workPanel(page);
+      await press(page, INS, t.done);
+      await clickNode(page, await button(page, t.add));
+      await waitFor(async () => (await checks(page)).length, 'overlay');
+      assert.deepEqual(await checks(page), [[VAT, false], [REP, false]], 'only tasks off the list');
+      assert.equal((await overlaySave(page)).disabled, true, 'nothing ticked');
+      await shot(page, '16-add-overlay');
+      await tick(page, REP);
+      await clickNode(page, await overlaySave(page));
+      await waitFor(() => taskButton(page, REP, t.done), 'the new task has its toggles');
+      assert.equal(await pressedIn(page, INS, t.done), true, 'the pressed toggle is kept');
+      assert.equal(await taskButton(page, VAT, t.done), undefined);
+      assert.deepEqual(hostSince(mark, 'work_assign').map((x) => x.taskIds), [['t1', 't3']]);
+      assert.equal(hostSince(mark, 'work_save').length, 0, 'nothing saved yet');
+      await clickNode(page, await button(page, t.add));
+      await waitFor(async () => (await checks(page)).length, 'overlay again');
+      await tick(page, VAT);
+      await clickNode(page, await overlaySave(page));
+      await waitFor(() => taskButton(page, VAT, t.done), 'all three');
+      assert.equal(await button(page, t.add), undefined, 'nothing left to add: no button');
+      assert.equal(await pressedIn(page, INS, t.done), true);
+    });
+
+    await scenarioFresh('"edit task list" keeps the unsaved toggles of the tasks that stay on the list', async () => {
+      await exitTo(page, G);
+      await workPanel(page);
+      await press(page, INS, t.done);
+      await press(page, REP, t.partial);
+      await clickNode(page, await waitFor(() => button(page, `${REP}: ${t.h2}`), 'reminder choice'));
+      await clickNode(page, await button(page, t.edit));
+      await waitFor(() => hasText(page, t.ask), 'checklist');
+      await clickNode(page, await button(page, t.next)); // same list
+      await workPanel(page);
+      assert.equal(await pressedIn(page, INS, t.done), true);
+      assert.equal(await pressedIn(page, REP, t.partial), true);
+      assert.equal((await button(page, t.save)).disabled, false, 'the chosen time is kept too');
+      await clickNode(page, await button(page, t.edit));
+      await waitFor(() => hasText(page, t.ask), 'checklist');
+      await tick(page, INS);
+      await clickNode(page, await button(page, t.next));
+      await waitFor(async () => (await taskButton(page, INS, t.done)) === undefined && (await taskButton(page, REP, t.partial)), 'INS left the list');
+      assert.equal(await pressedIn(page, REP, t.partial), true, 'REP stays pressed');
+    });
+
+    await scenarioFresh('"saved" mark: after the exit panel closes, in a page corner, about a second, no focus change', async () => {
+      await exitTo(page, G);
+      await workPanel(page, VAT);
+      await press(page, VAT, t.done);
+      const focus = () => page.evaluate(() => document.activeElement.tagName);
+      await clickNode(page, await button(page, t.save));
+      await waitFor(async () => !(await taskButton(page, VAT, t.done)), 'panel closed');
+      const t0 = Date.now();
+      await waitFor(() => hasText(page, t.saved), 'saved mark');
+      const during = await focus();
+      assert.notEqual(during, 'EASYPASS-SAVED', 'the mark takes no focus');
+      await waitFor(async () => !(await hasText(page, t.saved)), 'mark closes itself', 2500);
+      assert.equal(await focus(), during, 'focus unchanged by the mark going away');
+      const shown = Date.now() - t0;
+      assert.ok(shown > 300 && shown < 2400, 'about a second: ' + shown);
+      await shot(page, '17-saved');
+    });
+
+    await scenario('salyk: popup: add a task keeps pressed toggles, edit list keeps them, the saved mark closes itself', async () => {
+      const mark = hostLog().length;
+      const p = await popupDetail(F[0]); // list: НДС, Отчёт
+      await pb(p, VAT, t.done).waitFor();
+      await pb(p, REP, t.done).click();
+      await p.getByRole('button', { name: t.edit, exact: true }).click();
+      await p.getByRole('checkbox', { name: VAT, exact: true }).waitFor();
+      await p.getByRole('button', { name: t.next, exact: true }).click();
+      await pb(p, REP, t.done).waitFor();
+      assert.equal(await pressed(p, REP, t.done), true, 'edit list keeps the pressed toggle');
+      await p.getByRole('button', { name: t.add, exact: true }).click();
+      const boxes = p.getByRole('checkbox');
+      await boxes.first().waitFor();
+      assert.deepEqual(await boxes.evaluateAll((l) => l.map((x) => x.parentElement.textContent)), [INS], 'only the task off the list');
+      const save = p.getByRole('button', { name: t.save, exact: true }).last();
+      assert.equal(await save.isDisabled(), true);
+      await shot(p, '18-popup-add');
+      await boxes.first().check();
+      await save.click();
+      await pb(p, INS, t.done).waitFor();
+      assert.equal(await pressed(p, REP, t.done), true, 'add keeps the pressed toggle');
+      assert.deepEqual(hostSince(mark, 'work_assign').map((x) => x.taskIds), [['t2', 't3'], ['t1', 't2', 't3']]);
+      assert.equal(await p.getByRole('button', { name: t.add, exact: true }).count(), 0, 'nothing left to add');
+      await saveBtn(p).click();
+      const saved = p.getByText(t.saved, { exact: true });
+      await saved.waitFor();
+      await saved.waitFor({ state: 'detached', timeout: 2500 });
+      assert.equal((await workGet(F[2], thisMonth)).statuses.t3, 'done');
       await p.close();
     });
   } finally {

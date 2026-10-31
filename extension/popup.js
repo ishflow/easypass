@@ -9,7 +9,7 @@ const TEXT = {
     back: '← Back', site: 'Site', username: 'Username', password: 'Password', extra1: 'Note 1', extra2: 'Note 2',
     show: 'Show', hide: 'Hide', copy: 'Copy', copied: 'Copied', error: 'Error: ',
     summary: (r) => `This month: done ${r.done} · not finished ${r.partial} · not started ${r.notStarted}`,
-    done: 'Done', partial: 'Not finished', save: 'Save', saved: 'Saved', retry: 'Try again', noTasks: 'Add tasks in EasyPass', ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list',
+    done: 'Done', partial: 'Not finished', save: 'Save', saved: 'Saved', retry: 'Try again', noTasks: 'Add tasks in EasyPass', add: '+ Add a task', ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list',
     h2: '2 hours', h5: '5 hours', tomorrow: 'Tomorrow', d2: 'In 2 days', custom: 'Custom reminder', hours: 'hours', days: 'days',
     remind: 'Reminder:', reminderClosed: 'reminder closed',
   },
@@ -21,7 +21,7 @@ const TEXT = {
     back: '← Назад', site: 'Сайт', username: 'Логин', password: 'Пароль', extra1: 'Доп. информация 1', extra2: 'Доп. информация 2',
     show: 'Показать', hide: 'Скрыть', copy: 'Копировать', copied: 'Скопировано', error: 'Ошибка: ',
     summary: (r) => `Этот месяц: готово ${r.done} · не завершено ${r.partial} · не начато ${r.notStarted}`,
-    done: 'Сделано', partial: 'Не завершено', save: 'Сохранить', saved: 'Сохранено', retry: 'Повторить', noTasks: 'Добавьте работы в EasyPass', ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ',
+    done: 'Сделано', partial: 'Не завершено', save: 'Сохранить', saved: 'Сохранено', retry: 'Повторить', noTasks: 'Добавьте работы в EasyPass', add: '+ Добавить работу', ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ',
     h2: '2 часа', h5: '5 часов', tomorrow: 'Завтра', d2: 'Через 2 дня', custom: 'Своё напоминание', hours: 'часов', days: 'дней',
     remind: 'Напоминание:', reminderClosed: 'напоминание закрыто',
   },
@@ -33,7 +33,7 @@ const TEXT = {
     back: '← Geri', site: 'Site', username: 'Kullanıcı adı', password: 'Şifre', extra1: 'Ek bilgi 1', extra2: 'Ek bilgi 2',
     show: 'Göster', hide: 'Gizle', copy: 'Kopyala', copied: 'Kopyalandı', error: 'Hata: ',
     summary: (r) => `Bu ay: bitti ${r.done} · yarım ${r.partial} · başlanmadı ${r.notStarted}`,
-    done: 'Yapıldı', partial: 'Bitmedi', save: 'Kaydet', saved: 'Kaydedildi', retry: 'Yeniden dene', noTasks: "EasyPass'te iş ekleyin", ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir',
+    done: 'Yapıldı', partial: 'Bitmedi', save: 'Kaydet', saved: 'Kaydedildi', retry: 'Yeniden dene', noTasks: "EasyPass'te iş ekleyin", add: '+ İş ekle', ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir',
     h2: '2 saat', h5: '5 saat', tomorrow: 'Yarın', d2: '2 gün sonra', custom: 'Özel hatırlatma', hours: 'saat', days: 'gün',
     remind: 'Hatırlatma:', reminderClosed: 'hatırlatma kapatıldı',
   },
@@ -41,6 +41,7 @@ const TEXT = {
 const $ = (id) => document.getElementById(id);
 const send = (msg) => chrome.runtime.sendMessage(msg).catch(() => ({ ok: false, error: 'no_host' }));
 let t = TEXT.ru, items = [], active = -1, query = 0, opened = 0;
+let carry = null; // the unsaved toggles while the list changes: { ids: tasks that were on it, statuses, picked }
 
 function showStatus(r) {
   t = TEXT[r?.lang] || TEXT.ru;
@@ -195,7 +196,60 @@ function showChecklist(item, w, ticked) {
   $('work').replaceChildren(el('p', 'ask', t.ask), list, error, actions);
 }
 
-function showWork(item, w, note = '') {
+// Spec §13: the pool's tasks that are not on the customer's list, in front of the details. Save adds them to the list.
+function showAdd(item, w, addable, back, remember) {
+  const mine = opened;
+  const chosen = new Set();
+  const over = el('div', 'over');
+  const close = () => {
+    over.remove();
+    back.focus();
+  };
+  const error = el('p', 'err');
+  error.setAttribute('role', 'alert');
+  const save = btn('green', t.save, async () => {
+    save.disabled = true;
+    error.textContent = '';
+    const keep = new Set([...w.tasks.map((x) => x.id), ...chosen]);
+    const r = await send({ cmd: 'work_assign', site: item.site, entryId: item.id, taskIds: w.allTasks.map((x) => x.id).filter((id) => keep.has(id)) });
+    if (mine !== opened) return void over.remove();
+    if (r.ok) {
+      remember();
+      over.remove();
+      return showWork(item, await send({ cmd: 'work_get', site: item.site, entryId: item.id }));
+    }
+    error.textContent = fail(r.error);
+    save.disabled = false;
+  });
+  save.disabled = true;
+  const list = el('div', 'checks scroll');
+  list.setAttribute('role', 'group');
+  list.setAttribute('aria-label', t.add);
+  list.append(...addable.map((task) => {
+    const label = el('label', 'check');
+    const box = el('input');
+    box.type = 'checkbox';
+    box.addEventListener('change', () => {
+      box.checked ? chosen.add(task.id) : chosen.delete(task.id);
+      save.disabled = !chosen.size;
+    });
+    label.append(box, el('span', '', task.name));
+    return label;
+  }));
+  const actions = el('div', 'actions');
+  actions.append(save, btn('', t.close, close));
+  const box = el('div', 'obox');
+  box.setAttribute('role', 'dialog');
+  box.setAttribute('aria-modal', 'true');
+  box.setAttribute('aria-label', t.add);
+  box.append(el('p', 'ask', t.add), list, error, actions);
+  over.append(box);
+  over.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } });
+  document.body.append(over);
+  list.querySelector('input').focus();
+}
+
+function showWork(item, w, saved = false) {
   const box = $('work');
   if (!w.ok && w.error === 'bad_request') return void (box.hidden = true); // another site, or a host without this command
   box.hidden = false;
@@ -205,6 +259,15 @@ function showWork(item, w, note = '') {
   const when = (iso) => new Date(iso).toLocaleString(document.documentElement.lang, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
   const statuses = { ...w.statuses };
   const picked = {}; // taskId → UTC ISO; only what is chosen now goes to the host, never the reminder it already has
+  if (carry) { // back from changing the list: what was pressed stays for the tasks that were already there
+    for (const { id } of w.tasks.filter((x) => carry.ids.has(x.id))) {
+      if (carry.statuses[id]) statuses[id] = carry.statuses[id];
+      else delete statuses[id];
+      if (carry.picked[id]) picked[id] = carry.picked[id];
+    }
+    carry = null;
+  }
+  const remember = () => { carry = { ids: new Set(w.tasks.map((x) => x.id)), statuses, picked }; };
   const existing = Object.fromEntries(w.reminders.map((r) => [r.taskId, r]));
   const refreshers = [];
   let busy = false;
@@ -286,7 +349,7 @@ function showWork(item, w, note = '') {
     for (const [id, at] of Object.entries(picked)) if (statuses[id] === 'partial') reminders[id] = at;
     const r = await send({ cmd: 'work_save', site: item.site, entryId: item.id, statuses, reminders });
     busy = false;
-    if (r.ok && opened === mine) return showWork(item, await send({ cmd: 'work_get', site: item.site, entryId: item.id }), t.saved);
+    if (r.ok && opened === mine) return showWork(item, await send({ cmd: 'work_get', site: item.site, entryId: item.id }), true);
     if (opened !== mine) return;
     error.textContent = fail(r.error);
     save.textContent = t.retry;
@@ -294,14 +357,26 @@ function showWork(item, w, note = '') {
   });
   const mine = opened;
   const actions = el('div', 'actions');
-  if (w.allTasks) actions.append(btn('link', t.edit, () => showChecklist(item, w, w.tasks.map((x) => x.id))));
+  if (w.allTasks) actions.append(btn('link', t.edit, () => (remember(), showChecklist(item, w, w.tasks.map((x) => x.id)))));
   actions.append(save);
-  box.replaceChildren(...rows, error, actions, el('p', 'ok', note));
+  box.replaceChildren(...rows, error, actions);
+  const addable = (w.allTasks || []).filter((x) => !w.tasks.some((y) => y.id === x.id));
+  if (addable.length) {
+    const add = btn('add', t.add, () => showAdd(item, w, addable, add, remember));
+    box.append(add);
+  }
+  if (saved) { // a mark that closes itself: no click, no focus
+    const mark = el('p', 'ok', t.saved);
+    mark.setAttribute('role', 'status');
+    box.append(mark);
+    setTimeout(() => mark.remove(), 1000);
+  }
   refresh();
 }
 
 async function openEntry(item) {
   const mine = ++opened;
+  carry = null;
   // the work of a tracked site's customer is asked together with the entry: one render, tasks above login and password
   const [r, w] = await Promise.all([send({ cmd: 'entry', entryId: item.id }), send({ cmd: 'work_get', site: item.site, entryId: item.id })]);
   if (mine !== opened) return;
@@ -329,6 +404,7 @@ async function openEntry(item) {
 function backToList() {
   $('detail').hidden = true;
   opened++; // a late reply of the closed details is dropped
+  carry = null;
   $('work').replaceChildren();
   $('fields').replaceChildren(); // the password leaves the page with the details
   $('browse').hidden = false;

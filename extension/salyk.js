@@ -10,19 +10,19 @@
     en: {
       done: 'Done', partial: 'Not finished', save: 'Save', close: 'Close', retry: 'Try again',
       h2: '2 hours', h5: '5 hours', tomorrow: 'Tomorrow', d2: 'In 2 days', custom: 'Custom reminder', hours: 'hours', days: 'days',
-      remind: 'Reminder:', reminderClosed: 'reminder closed', noTasks: 'Add tasks in EasyPass', ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list', update: 'Update EasyPass',
+      remind: 'Reminder:', reminderClosed: 'reminder closed', noTasks: 'Add tasks in EasyPass', add: '+ Add a task', saved: 'Saved', ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list', update: 'Update EasyPass',
       locked: 'Vault locked — open EasyPass and enter the master password', noHost: 'Not connected — run the EasyPass setup again', error: 'Error: ',
     },
     ru: {
       done: 'Сделано', partial: 'Не завершено', save: 'Сохранить', close: 'Закрыть', retry: 'Повторить',
       h2: '2 часа', h5: '5 часов', tomorrow: 'Завтра', d2: 'Через 2 дня', custom: 'Своё напоминание', hours: 'часов', days: 'дней',
-      remind: 'Напоминание:', reminderClosed: 'напоминание закрыто', noTasks: 'Добавьте работы в EasyPass', ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ', update: 'Обновите EasyPass',
+      remind: 'Напоминание:', reminderClosed: 'напоминание закрыто', noTasks: 'Добавьте работы в EasyPass', add: '+ Добавить работу', saved: 'Сохранено', ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ', update: 'Обновите EasyPass',
       locked: 'Хранилище заблокировано — откройте EasyPass и введите мастер-пароль', noHost: 'Нет связи — запустите install.ps1', error: 'Ошибка: ',
     },
     tr: {
       done: 'Yapıldı', partial: 'Bitmedi', save: 'Kaydet', close: 'Kapat', retry: 'Yeniden dene',
       h2: '2 saat', h5: '5 saat', tomorrow: 'Yarın', d2: '2 gün sonra', custom: 'Özel hatırlatma', hours: 'saat', days: 'gün',
-      remind: 'Hatırlatma:', reminderClosed: 'hatırlatma kapatıldı', noTasks: "EasyPass'te iş ekleyin", ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir', update: "EasyPass'i güncelleyin",
+      remind: 'Hatırlatma:', reminderClosed: 'hatırlatma kapatıldı', noTasks: "EasyPass'te iş ekleyin", add: '+ İş ekle', saved: 'Kaydedildi', ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir', update: "EasyPass'i güncelleyin",
       locked: "Kilitli — EasyPass'i açıp ana şifreyi girin", noHost: 'Bağlantı yok — kurulum betiğini çalıştırın', error: 'Hata: ',
     },
   };
@@ -35,7 +35,8 @@
     return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n, 9).toISOString();
   };
 
-  let host, root, T, lang, dialog, entryId; // entryId: whom the panel on this page asks about
+  let host, root, T, lang, dialog, overlay, entryId; // entryId: whom the panel on this page asks about
+  let carry = null; // the panel's unsaved toggles while the list changes: { ids: tasks that were on it, statuses, picked }
 
   function shell() {
     host = document.createElement('easypass-work');
@@ -58,6 +59,10 @@
       .btn[aria-pressed=true],.primary{background:#0E7C6B;border-color:#0E7C6B;color:#fff}
       .btn.orange[aria-pressed=true]{background:#C2410C;border-color:#C2410C}
       .btn:disabled{opacity:.5;cursor:default}
+      .btn.add{justify-self:start}
+      .over{position:fixed;inset:0;display:grid;place-items:center;padding:16px;background:rgba(28,31,35,.35)}
+      .small{width:340px}
+      .scroll{display:grid;gap:8px;max-height:240px;overflow:auto}
       .btn.link{height:auto;margin-right:auto;padding:0;border:0;background:none;color:#0E7C6B;font-size:12px;text-decoration:underline}
       .check{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #E3E1DC;border-radius:8px;font-weight:600;cursor:pointer}
       input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:#0E7C6B}
@@ -95,7 +100,7 @@
     if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
-      closeSession();
+      overlay ? closeOverlay() : closeSession();
     }
   }
 
@@ -103,7 +108,7 @@
   function trapTab(e) {
     e.stopPropagation();
     if (e.key !== 'Tab') return;
-    const all = [...dialog.querySelectorAll('button:not(:disabled), input, select')].filter((x) => x.getClientRects().length);
+    const all = [...(overlay || dialog).querySelectorAll('button:not(:disabled), input, select')].filter((x) => x.getClientRects().length);
     const at = all.indexOf(root.activeElement);
     if (at === (e.shiftKey ? 0 : all.length - 1) || at < 0) {
       e.preventDefault();
@@ -130,8 +135,28 @@
   function closeModal() {
     document.removeEventListener('keydown', onKey, true);
     host.remove();
-    host = root = dialog = null;
+    host = root = dialog = overlay = null;
+    carry = null;
     document.dispatchEvent(new CustomEvent('easypass:work-panel', { detail: { open: false } }));
+  }
+
+  // A mark in a corner of the page, in its own closed shadow root: no focus, no click, gone after a second.
+  function flashSaved() {
+    const flash = document.createElement('easypass-saved');
+    flash.style.cssText = 'all:initial;position:fixed;top:0;left:0;z-index:2147483647';
+    const r = flash.attachShadow({ mode: 'closed' });
+    r.innerHTML = '<style>*{box-sizing:border-box;margin:0;font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif}'
+      + '.saved{position:fixed;right:16px;bottom:16px;padding:8px 12px;background:#0E7C6B;color:#fff;border-radius:8px;box-shadow:0 8px 24px rgba(28,31,35,.14);font-size:13px;font-weight:600;pointer-events:none}</style>';
+    const mark = el('div', 'saved', T.saved);
+    mark.setAttribute('role', 'status');
+    r.append(mark);
+    document.documentElement.append(flash);
+    setTimeout(() => flash.remove(), 1000);
+  }
+
+  function closeOverlay() {
+    overlay.remove();
+    overlay = null;
   }
 
   function closeSession() {
@@ -202,11 +227,63 @@
     dialog.querySelector('input').focus();
   }
 
+  // Spec §13: the pool's tasks that are not on the customer's list, in front of the panel. Save adds them to the list.
+  function showAdd(w, addable, back, remember) {
+    const chosen = new Set();
+    const error = el('p', 'err');
+    error.setAttribute('role', 'alert');
+    const save = btn('primary', T.save, async () => {
+      save.disabled = true;
+      error.textContent = '';
+      const keep = new Set([...w.tasks.map((x) => x.id), ...chosen]);
+      const r = await send({ cmd: 'work_assign', entryId, taskIds: w.allTasks.map((x) => x.id).filter((id) => keep.has(id)) });
+      if (r.ok) return void (remember(), closeOverlay(), pageLoaded()); // the panel again, with the new tasks and the old toggles
+      if (r.error === 'not_found') return closeModal(); // answered in another tab
+      error.textContent = message(r.error, false);
+      save.disabled = false;
+    });
+    save.disabled = true;
+    const list = el('div', 'scroll');
+    list.setAttribute('role', 'group');
+    list.setAttribute('aria-label', T.add);
+    list.append(...addable.map((task) => {
+      const label = el('label', 'check');
+      const box = el('input');
+      box.type = 'checkbox';
+      box.addEventListener('change', () => {
+        box.checked ? chosen.add(task.id) : chosen.delete(task.id);
+        save.disabled = !chosen.size;
+      });
+      label.append(box, el('span', '', task.name));
+      return label;
+    }));
+    const actions = el('div', 'actions');
+    actions.append(save, btn('', T.close, () => (closeOverlay(), back.focus())));
+    const box = el('div', 'box small');
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', T.add);
+    box.append(el('h2', '', T.add), list, error, actions);
+    overlay = el('div', 'over');
+    overlay.append(box);
+    root.append(overlay);
+    list.querySelector('input').focus();
+  }
+
   function showPanel(w) {
     openModal();
     const when = (iso) => new Date(iso).toLocaleString(lang, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     const statuses = { ...w.statuses };
     const picked = {}; // taskId → UTC ISO; only what is chosen now goes to the host, never the reminder it already has
+    if (carry) { // back from changing the list: what was pressed stays for the tasks that were already there
+      for (const { id } of w.tasks.filter((x) => carry.ids.has(x.id))) {
+        if (carry.statuses[id]) statuses[id] = carry.statuses[id];
+        else delete statuses[id];
+        if (carry.picked[id]) picked[id] = carry.picked[id];
+      }
+      carry = null;
+    }
+    const remember = () => { carry = { ids: new Set(w.tasks.map((x) => x.id)), statuses, picked }; };
     const existing = Object.fromEntries(w.reminders.map((r) => [r.taskId, r]));
     const refreshers = [];
     const refresh = () => {
@@ -288,7 +365,7 @@
     error.setAttribute('role', 'alert');
     const actions = el('div', 'actions');
     const save = btn('primary', T.save, doSave);
-    if (w.allTasks) actions.append(btn('link', T.edit, () => showChecklist(w, w.tasks.map((x) => x.id))));
+    if (w.allTasks) actions.append(btn('link', T.edit, () => (remember(), showChecklist(w, w.tasks.map((x) => x.id)))));
     actions.append(save, btn('', T.close, closeSession));
     async function doSave() {
       busy = true;
@@ -298,7 +375,11 @@
       for (const [id, at] of Object.entries(picked)) if (statuses[id] === 'partial') reminders[id] = at;
       const r = await send({ cmd: 'work_save', entryId, statuses, reminders });
       busy = false;
-      if (r.ok || r.error === 'not_found') return closeModal(); // not_found: answered in another tab
+      if (r.ok || r.error === 'not_found') {
+        closeModal(); // not_found: answered in another tab
+        if (r.ok) flashSaved();
+        return;
+      }
       error.textContent = message(r.error, false);
       save.textContent = T.retry;
       refresh();
@@ -307,6 +388,11 @@
     const title = el('h2', '', [w.name, w.username].filter(Boolean).join(' · '));
     dialog.setAttribute('aria-label', title.textContent);
     dialog.append(title, list, error, actions);
+    const addable = (w.allTasks || []).filter((x) => !w.tasks.some((y) => y.id === x.id));
+    if (addable.length) {
+      const add = btn('add', T.add, () => showAdd(w, addable, add, remember));
+      dialog.append(add);
+    }
     refresh();
     dialog.querySelector('button').focus();
   }
