@@ -28,6 +28,7 @@ public partial class TodoView : UserControl
         MonthText.Text = MonthName(month);
         NextMonth.IsEnabled = monthsBack > 0;
         CountText.Text = string.Format(L("TodoTitleFmt"), list.Done, list.Rows.Count);
+        ShowBar(list);
 
         IEnumerable<TodoRow> rows = list.Rows;
         if (!string.IsNullOrWhiteSpace(TodoSearch.Text))
@@ -44,14 +45,29 @@ public partial class TodoView : UserControl
         var months = new Dictionary<string, string>();
         string Name(string m) => months.TryGetValue(m, out var name) ? name : months[m] = MonthName(m);
         var tasks = vault.Data.Tasks;
-        var items = rows.Select(r => new TodoItem(r.Entry.Id, r.Entry.FullName == "" ? r.Entry.Username : r.Entry.FullName, r.Entry.Username, names[r.Group],
-            new[] { r.LastMonth == null ? null : MonthMarks.Of(tasks, Name(r.LastMonth), r.LastTasks), MonthMarks.Of(tasks, Name(month), r.ThisTasks) }
-                .OfType<MonthMarks>().ToList())).ToList();
+        var items = rows.Select(r => new TodoItem(r.Entry.Id, r.Entry.FullName == "" ? r.Entry.Username : r.Entry.FullName, r.Entry.Username, names[r.Group], r.Group,
+            r.LastMonth == null ? null : MonthMarks.Of(tasks, Name(r.LastMonth), r.LastTasks), MonthMarks.Of(tasks, Name(month), r.ThisTasks))).ToList();
 
         var view = new ListCollectionView(items);
         view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(TodoItem.Group)));
         TodoList.ItemsSource = view;
         EmptyText.Visibility = list.Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>Legend numbers and the bar; the rounded ends go to the first and last non-empty part.</summary>
+    void ShowBar(TodoList l)
+    {
+        (LegendDone.Text, LegendWarn.Text, LegendNone.Text) = (l.Done.ToString(), l.Unfinished.ToString(), l.NotStarted.ToString());
+        System.Windows.Automation.AutomationProperties.SetName(BarGrid,
+            $"{L("TodoDone")} {l.Done}, {L("TodoUnfinished")} {l.Unfinished}, {L("TodoNotStarted")} {l.NotStarted}");
+        var parts = new[] { (Col: BarDoneCol, Part: BarDone, N: l.Done), (Col: BarWarnCol, Part: BarWarn, N: l.Unfinished), (Col: BarNoneCol, Part: BarNone, N: l.NotStarted) };
+        var shown = parts.Where(p => p.N > 0).ToList();
+        foreach (var (col, part, n) in parts)
+        {
+            col.Width = new GridLength(n, GridUnitType.Star);
+            var (first, last) = (shown.Count > 0 && shown[0].Part == part, shown.Count > 0 && shown[^1].Part == part);
+            part.CornerRadius = new CornerRadius(first ? 4 : 0, last ? 4 : 0, last ? 4 : 0, first ? 4 : 0);
+        }
     }
 
     void PrevMonth_Click(object sender, RoutedEventArgs e) { monthsBack++; Refresh(); }

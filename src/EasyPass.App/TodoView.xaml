@@ -1,61 +1,189 @@
 <UserControl x:Class="EasyPass.App.TodoView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <DockPanel>
-        <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,12">
-            <DockPanel>
-                <Button Content="◀" Width="36" Padding="0" AutomationProperties.Name="{DynamicResource TodoPrevMonth}" Click="PrevMonth_Click" />
-                <TextBlock x:Name="MonthText" Width="150" TextAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" />
-                <Button x:Name="NextMonth" Content="▶" Width="36" Padding="0" AutomationProperties.Name="{DynamicResource TodoNextMonth}" Click="NextMonth_Click" />
-                <TextBlock x:Name="CountText" DockPanel.Dock="Right" FontWeight="SemiBold" VerticalAlignment="Center" Margin="16,0,4,0" />
-                <Grid MaxWidth="520" HorizontalAlignment="Left" Margin="16,0,0,0">
-                    <TextBox x:Name="TodoSearch" Padding="12,0" TextChanged="TodoSearch_TextChanged" />
-                    <TextBlock Text="{DynamicResource SearchHint}" Margin="14,0" VerticalAlignment="Center" IsHitTestVisible="False"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               Visibility="{Binding Text.IsEmpty, ElementName=TodoSearch, Converter={StaticResource BoolToVisibility}}" />
-                </Grid>
-            </DockPanel>
-        </Border>
-        <Grid>
-            <TextBlock x:Name="EmptyText" Text="{DynamicResource TodoEmpty}" Style="{StaticResource Secondary}" Margin="32" Visibility="Collapsed" />
-            <ListBox x:Name="TodoList" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True"
-                     VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
-                <ListBox.ItemContainerStyle>
-                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-                        <EventSetter Event="MouseLeftButtonUp" Handler="Row_Click" />
-                        <EventSetter Event="KeyDown" Handler="Row_KeyDown" />
-                    </Style>
-                </ListBox.ItemContainerStyle>
-                <ListBox.GroupStyle>
-                    <GroupStyle>
-                        <GroupStyle.HeaderTemplate>
-                            <DataTemplate>
-                                <TextBlock FontWeight="SemiBold" Margin="12,12,0,4">
-                                    <Run Text="{Binding Name, Mode=OneWay}" />
-                                    <Run Text="{Binding ItemCount, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" />
-                                </TextBlock>
-                            </DataTemplate>
-                        </GroupStyle.HeaderTemplate>
-                    </GroupStyle>
-                </ListBox.GroupStyle>
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:core="clr-namespace:EasyPass.Core;assembly=EasyPass.Core">
+    <UserControl.Resources>
+        <!-- D's "not started" stripe: 135 degrees, grey on grey -->
+        <DrawingBrush x:Key="HatchBrush" TileMode="Tile" Viewport="0,0,8,8" ViewportUnits="Absolute" Viewbox="0,0,8,8" ViewboxUnits="Absolute">
+            <DrawingBrush.Drawing>
+                <DrawingGroup>
+                    <GeometryDrawing Brush="#EEF0F4" Geometry="M0,0 H8 V8 H0 Z" />
+                    <GeometryDrawing Geometry="M0,8 L8,0 M-2,2 L2,-2 M6,10 L10,6">
+                        <GeometryDrawing.Pen>
+                            <Pen Brush="#D7DBE3" Thickness="2.8" />
+                        </GeometryDrawing.Pen>
+                    </GeometryDrawing>
+                </DrawingGroup>
+            </DrawingBrush.Drawing>
+        </DrawingBrush>
+
+        <Style x:Key="MonthArrow" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="28" />
+            <Setter Property="Height" Value="28" />
+        </Style>
+
+        <Style x:Key="LegendNum" TargetType="TextBlock" BasedOn="{StaticResource NumText}">
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Margin" Value="5,0,0,0" />
+        </Style>
+
+        <!-- Last month: the status glyph alone, the task name is its tooltip and accessible name -->
+        <DataTemplate x:Key="LastMarkTemplate">
+            <Image x:Name="Mark" Source="{StaticResource GlyphPartial}" Style="{StaticResource StatusGlyphSmall}" Margin="0,2,4,2"
+                   ToolTip="{Binding Name}" AutomationProperties.Name="{Binding Name}" />
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Done}" Value="True">
+                    <Setter TargetName="Mark" Property="Source" Value="{StaticResource GlyphDone}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Border Style="{StaticResource Pane}">
+        <DockPanel>
+            <Border DockPanel.Dock="Top" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,14,16,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource MonthArrow}" AutomationProperties.Name="{DynamicResource TodoPrevMonth}"
+                                ToolTip="{DynamicResource TodoPrevMonth}" Click="PrevMonth_Click">
+                            <Path Data="M6,1 L2,5 L6,9" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                        <TextBlock x:Name="MonthText" MinWidth="150" Padding="6,0" TextAlignment="Center" VerticalAlignment="Center"
+                                   FontSize="20" FontWeight="SemiBold" />
+                        <Button x:Name="NextMonth" Style="{StaticResource MonthArrow}" AutomationProperties.Name="{DynamicResource TodoNextMonth}"
+                                ToolTip="{DynamicResource TodoNextMonth}" Click="NextMonth_Click">
+                            <Path Data="M2,1 L6,5 L2,9" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                  StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                        </Button>
+                    </StackPanel>
+
+                    <!-- Month progress: count, legend, one bar split done / unfinished / not started -->
+                    <StackPanel Grid.Column="1" MaxWidth="300" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="24,0">
                         <DockPanel>
-                            <Button DockPanel.Dock="Right" Content="{DynamicResource TodoHide}" Height="30" Padding="10,0" FontSize="12" Margin="12,0,0,0"
-                                    VerticalAlignment="Center" Click="Hide_Click" />
-                            <StackPanel>
-                                <TextBlock TextTrimming="CharacterEllipsis">
-                                    <Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold" />
-                                    <Run Text="{Binding Login, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
-                                </TextBlock>
-                                <StackPanel TextBlock.FontSize="12">
-                                    <ItemsControl ItemsSource="{Binding Months}" Focusable="False" ItemTemplate="{StaticResource MonthMarksTemplate}" />
-                                </StackPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Margin="12,0,0,0">
+                                <Ellipse Width="10" Height="10" Fill="{StaticResource SuccessBrush}" VerticalAlignment="Center" />
+                                <TextBlock x:Name="LegendDone" Style="{StaticResource LegendNum}" />
+                                <Ellipse Width="10" Height="10" Fill="{StaticResource WarningBrush}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                <TextBlock x:Name="LegendWarn" Style="{StaticResource LegendNum}" />
+                                <Ellipse Width="10" Height="10" Stroke="{StaticResource TextTertiaryBrush}" StrokeThickness="1.8" StrokeDashArray="1.3 1.2"
+                                         VerticalAlignment="Center" Margin="12,0,0,0" />
+                                <TextBlock x:Name="LegendNone" Style="{StaticResource LegendNum}" />
                             </StackPanel>
+                            <TextBlock x:Name="CountText" Style="{StaticResource NumText}" FontWeight="SemiBold" VerticalAlignment="Center" />
                         </DockPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
-        </Grid>
-    </DockPanel>
+                        <Grid x:Name="BarGrid" Height="8" Margin="0,6,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition x:Name="BarDoneCol" Width="0*" />
+                                <ColumnDefinition x:Name="BarWarnCol" Width="0*" />
+                                <ColumnDefinition x:Name="BarNoneCol" Width="0*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.ColumnSpan="3" Background="{StaticResource NoneTintBrush}" CornerRadius="4" />
+                            <Border x:Name="BarDone" Background="{StaticResource SuccessBrush}" />
+                            <Border x:Name="BarWarn" Grid.Column="1" Background="{StaticResource WarningBrush}" />
+                            <Border x:Name="BarNone" Grid.Column="2" Background="{StaticResource HatchBrush}" />
+                        </Grid>
+                    </StackPanel>
+
+                    <Grid Grid.Column="2" Width="300" VerticalAlignment="Center">
+                        <Path Data="M10.3,6 A4.3,4.3 0 1 1 1.7,6 A4.3,4.3 0 1 1 10.3,6 M9.3,9.3 L12.5,12.5" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="10,0,0,0" IsHitTestVisible="False" />
+                        <TextBox x:Name="TodoSearch" Height="32" Padding="30,0,10,0" TextChanged="TodoSearch_TextChanged" />
+                        <TextBlock Text="{DynamicResource SearchHint}" Margin="31,0,10,0" VerticalAlignment="Center" IsHitTestVisible="False" TextTrimming="CharacterEllipsis"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Visibility="{Binding Text.IsEmpty, ElementName=TodoSearch, Converter={StaticResource BoolToVisibility}}" />
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <Grid>
+                <TextBlock x:Name="EmptyText" Text="{DynamicResource TodoEmpty}" Style="{StaticResource Secondary}" Margin="32" Visibility="Collapsed" />
+                <ListBox x:Name="TodoList" Padding="0" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                         VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                            <Setter Property="MinHeight" Value="40" />
+                            <Setter Property="Padding" Value="16,0" />
+                            <EventSetter Event="MouseLeftButtonUp" Handler="Row_Click" />
+                            <EventSetter Event="KeyDown" Handler="Row_KeyDown" />
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.GroupStyle>
+                        <GroupStyle>
+                            <GroupStyle.HeaderTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,0" Height="34">
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Image x:Name="Mark" Source="{StaticResource GlyphNone}" Style="{StaticResource StatusGlyph}" Margin="0,0,8,0"
+                                                   AutomationProperties.Name="{Binding Name}" />
+                                            <TextBlock Text="{Binding Name, Mode=OneWay}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding ItemCount, Mode=OneWay}" Style="{StaticResource NumText}" FontWeight="Medium"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding Items[0].Kind}" Value="{x:Static core:TodoGroup.Unfinished}">
+                                            <Setter TargetName="Mark" Property="Source" Value="{StaticResource GlyphPartial}" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Items[0].Kind}" Value="{x:Static core:TodoGroup.Done}">
+                                            <Setter TargetName="Mark" Property="Source" Value="{StaticResource GlyphDone}" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </GroupStyle.HeaderTemplate>
+                        </GroupStyle>
+                    </ListBox.GroupStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border BorderBrush="{StaticResource HairBrush}" BorderThickness="0,0,0,1" Padding="0,8">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" MinWidth="120" />
+                                        <ColumnDefinition Width="132" />
+                                        <ColumnDefinition Width="220" />
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="24" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Title, Mode=OneWay}" FontWeight="Medium" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Login, Mode=OneWay}" Style="{StaticResource NumText}" FontSize="12"
+                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                    <ItemsControl Grid.Column="2" ItemsSource="{Binding This.Tasks}" Focusable="False" ItemTemplate="{StaticResource TaskMarkTemplate}"
+                                                  VerticalAlignment="Center" Margin="12,4,0,0">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                    </ItemsControl>
+                                    <DockPanel Grid.Column="3" VerticalAlignment="Center" Margin="12,0,0,0">
+                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Last.Month}" Style="{StaticResource Caption}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <ItemsControl ItemsSource="{Binding Last.Tasks}" Focusable="False" ItemTemplate="{StaticResource LastMarkTemplate}" VerticalAlignment="Center">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                        </ItemsControl>
+                                    </DockPanel>
+                                    <Button Grid.Column="4" Style="{StaticResource XButton}" VerticalAlignment="Center"
+                                            ToolTip="{DynamicResource TodoHide}" AutomationProperties.Name="{DynamicResource TodoHide}" Click="Hide_Click">
+                                        <Path Data="M1,1 L9,9 M9,1 L1,9" Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                              StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                    </Button>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </DockPanel>
+    </Border>
 </UserControl>

@@ -27,14 +27,14 @@ public partial class NotificationsView : UserControl
         var past = d.Reminders.Where(r => !plannedIds.Contains(r.Id) && tasks.ContainsKey(r.TaskId) && entries.ContainsKey(r.EntryId))
             .OrderByDescending(r => r.DueAt);
 
-        NotificationItem Item(Reminder r, string group)
+        NotificationItem Item(Reminder r, string group, bool isPlanned)
         {
             var entry = entries[r.EntryId];
             var state = r.ResolvedAt != null ? L("NotifResolved") : r.DismissedAt != null ? L("NotifDismissed") : "";
-            return new NotificationItem(r.EntryId, tasks[r.TaskId], entry.FullName, entry.Username, r.DueAt.ToLocalTime().ToString("g", culture), state, group);
+            return new NotificationItem(r.EntryId, tasks[r.TaskId], entry.FullName, entry.Username, r.DueAt.ToLocalTime().ToString("g", culture), state, group, isPlanned, r.ResolvedAt != null);
         }
         var (dueName, plannedName) = (L("NotifDue"), L("NotifPlanned"));
-        var items = past.Select(r => Item(r, dueName)).Concat(planned.Select(r => Item(r, plannedName))).ToList();
+        var items = past.Select(r => Item(r, dueName, false)).Concat(planned.Select(r => Item(r, plannedName, true))).ToList();
 
         var view = new ListCollectionView(items);
         view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(NotificationItem.Group)));
