@@ -1,0 +1,20 @@
+<Window x:Class="EasyPass.App.PickTasksWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource WorkAddTitle}" Width="380" Height="420" MinHeight="260"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Style="{StaticResource AppWindow}">
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="20,12">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button x:Name="SaveButton" Content="{DynamicResource Save}" Style="{StaticResource AccentButton}" MinWidth="100" IsEnabled="False" IsDefault="True" Click="Save_Click" />
+                <Button Content="{DynamicResource Cancel}" MinWidth="100" Margin="8,0,0,0" IsCancel="True" />
+            </StackPanel>
+        </Border>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20">
+                <TextBlock Text="{DynamicResource WorkAddTitle}" Style="{StaticResource Heading}" />
+                <StackPanel x:Name="Boxes" />
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

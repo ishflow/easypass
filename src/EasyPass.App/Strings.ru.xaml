@@ -124,4 +124,9 @@
     <sys:String x:Key="WorkPickTitle" xml:space="preserve">Какие работы выполняются для этого клиента каждый месяц?</sys:String>
     <sys:String x:Key="WorkNext" xml:space="preserve">Далее</sys:String>
     <sys:String x:Key="WorkEditList" xml:space="preserve">Изменить список работ</sys:String>
+    <sys:String x:Key="WorkSaved" xml:space="preserve">Сохранено</sys:String>
+    <sys:String x:Key="WorkAddTitle" xml:space="preserve">Добавить работы клиенту</sys:String>
+    <sys:String x:Key="DrawerTitle" xml:space="preserve">Дела и напоминания</sys:String>
+    <sys:String x:Key="DrawerTodoFmt" xml:space="preserve">К выполнению: {0}</sys:String>
+    <sys:String x:Key="DrawerPending" xml:space="preserve">Ожидающие напоминания</sys:String>
 </ResourceDictionary>

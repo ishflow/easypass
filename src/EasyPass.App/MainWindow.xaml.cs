@@ -33,6 +33,7 @@ public partial class MainWindow : Window
     readonly object vaultGate = new();
     readonly TrayIcon tray;
     readonly ReminderService reminders;
+    readonly DrawerWindow drawer;
 
     public MainWindow()
     {
@@ -44,6 +45,7 @@ public partial class MainWindow : Window
         tray = new TrayIcon(this);
         Application.Current.Exit += (_, _) => tray.Dispose();
         reminders = new ReminderService(this, tray);
+        drawer = new DrawerWindow(this);
         IsVisibleChanged += (_, _) => RefreshTab(); // gizliyken ekran hesaplanmaz, açılınca yetişir
         // eklentinin yazdığı kayıtlar pencere odakta olmasa da görünsün; yalnız dosya tarihi/boyutu bakılır
         new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => ReloadFromDisk(), Dispatcher).Start();
@@ -117,6 +119,7 @@ public partial class MainWindow : Window
         }
         KeyCache.Save(v.Salt, v.Key);
         ShowPanel(MainPanel);
+        drawer.Available = true;
         if (resetForm) { lastSite = ""; SearchBox.Text = ""; Edit(null); }
         RefreshTab();
         if (removeError != null) SetStatus(L("ErrRemovePassword") + removeError, error: true);
@@ -142,6 +145,7 @@ public partial class MainWindow : Window
         var path = vault?.Path ?? AppPaths.VaultPath ?? "";
         KeyCache.Clear();
         vault = null;
+        drawer.Available = false;
         editingId = null;
         FillForm(null);
         EntryList.ItemsSource = null;
@@ -252,6 +256,7 @@ public partial class MainWindow : Window
             else Edit(editingId);
             RefreshTab();
             reminders.Check();
+            drawer.Reload();
         }
         catch (VaultPasswordChangedException)
         {

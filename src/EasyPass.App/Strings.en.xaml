@@ -124,4 +124,9 @@
     <sys:String x:Key="WorkPickTitle" xml:space="preserve">Which tasks are done for this client every month?</sys:String>
     <sys:String x:Key="WorkNext" xml:space="preserve">Next</sys:String>
     <sys:String x:Key="WorkEditList" xml:space="preserve">Edit task list</sys:String>
+    <sys:String x:Key="WorkSaved" xml:space="preserve">Saved</sys:String>
+    <sys:String x:Key="WorkAddTitle" xml:space="preserve">Add tasks to this client</sys:String>
+    <sys:String x:Key="DrawerTitle" xml:space="preserve">To do and reminders</sys:String>
+    <sys:String x:Key="DrawerTodoFmt" xml:space="preserve">To do: {0}</sys:String>
+    <sys:String x:Key="DrawerPending" xml:space="preserve">Pending reminders</sys:String>
 </ResourceDictionary>

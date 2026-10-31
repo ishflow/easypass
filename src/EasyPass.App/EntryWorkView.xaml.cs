@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using EasyPass.Core;
 using static EasyPass.App.Loc;
 
@@ -28,7 +29,20 @@ public partial class EntryWorkView : UserControl
     readonly Dictionary<string, string> customText = [];
     readonly HashSet<string> customDays = [];
 
-    public EntryWorkView() => InitializeComponent();
+    readonly DispatcherTimer savedTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+
+    public EntryWorkView()
+    {
+        InitializeComponent();
+        savedTimer.Tick += (_, _) => { savedTimer.Stop(); SavedMark.Visibility = Visibility.Collapsed; };
+    }
+
+    void Flash()
+    {
+        SavedMark.Visibility = Visibility.Visible;
+        savedTimer.Stop();
+        savedTimer.Start();
+    }
 
     internal bool IsDirty => draft.Count != baseline.Count || draft.Any(d => baseline.GetValueOrDefault(d.Key) != d.Value) || picks.Count > 0;
 
@@ -93,6 +107,7 @@ public partial class EntryWorkView : UserControl
         if (!Main.Write(d => Work.Save(d, id, m, statuses, due, now.ToUniversalTime()))) return false;
         Discard();
         Refresh(Main.ActiveVault, id);
+        Flash();
         return true;
     }
 
@@ -107,7 +122,7 @@ public partial class EntryWorkView : UserControl
         var chosen = pool.Where(t => ticks.Contains(t.Id)).Select(t => t.Id).ToList();
         var (was, wasLink) = (ticks, linkOpen);
         linkOpen = false; // the refresh inside Write shows the new list
-        if (Main.Write(d => Work.Assign(d, id, chosen, DateTime.UtcNow))) return;
+        if (Main.Write(d => Work.Assign(d, id, chosen, DateTime.UtcNow))) { Flash(); return; }
         (ticks, linkOpen) = (was, wasLink);
         Refresh(Main.ActiveVault, id);
     }
@@ -124,7 +139,26 @@ public partial class EntryWorkView : UserControl
         if (pool.Count == 0) return;
         if (picking) { BuildPick(); return; }
         foreach (var task in tasks) Rows.Children.Add(Row(task, focusTask));
+        if (pool.Any(t => !tasks.Contains(t)))
+        {
+            var add = new Button { Height = 26, Padding = new Thickness(10, 0, 10, 0), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Left };
+            add.SetResourceReference(ContentProperty, "TaskAdd");
+            add.Click += (_, _) => AddTasks();
+            Rows.Children.Add(add);
+        }
         SaveButton.IsEnabled = IsDirty && Valid;
+    }
+
+    // Unsaved buttons stay: the refresh inside Write keeps them (same client, dirty)
+    void AddTasks()
+    {
+        if (entryId is not { } id) return;
+        var window = new PickTasksWindow(pool.Where(t => !tasks.Contains(t))) { Owner = Window.GetWindow(this) };
+        if (window.ShowDialog() != true) return;
+        var chosen = window.Chosen;
+        // the list as it is in the vault now, plus the ticked ones
+        if (Main.Write(d => Work.Assign(d, id, d.Entries.FirstOrDefault(e => e.Id == id) is { } entry
+                ? [.. Work.TasksOf(d, entry).Select(t => t.Id).Concat(chosen).Distinct()] : [], DateTime.UtcNow))) Flash();
     }
 
     void BuildPick()
