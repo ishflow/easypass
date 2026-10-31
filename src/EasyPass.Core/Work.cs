@@ -40,7 +40,7 @@ public static class Work
         return status;
     }
 
-    static HashSet<string> ActiveTasks(VaultData d) => [.. d.Tasks.Where(t => !t.Archived).Select(t => t.Id)];
+    internal static HashSet<string> ActiveTasks(VaultData d) => [.. d.Tasks.Where(t => !t.Archived).Select(t => t.Id)];
 
     public static void Save(VaultData d, string entryId, string month, IReadOnlyDictionary<string, string> statuses,
         IReadOnlyDictionary<string, DateTime> reminders, DateTime nowUtc)

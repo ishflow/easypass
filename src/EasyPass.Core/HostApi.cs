@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 
 namespace EasyPass.Core;
@@ -5,9 +6,13 @@ namespace EasyPass.Core;
 // Native Messaging protocol, spec §5. Host Program only does the framing.
 // "all" and "entry" reach every site's entries: only the extension's own toolbar popup sends them
 // (background.js refuses them from web pages, which only ever see their own site's entries).
+// "summary" is popup-only too; "work_*" and "set_name" come only from a tracked site, with the sender's real site.
 public static class HostApi
 {
     const int AllLimit = 200; // the popup scrolls through these; typing narrows the search to the rest
+    const int MaxWorkKeys = 200, MaxNameText = 100;
+    const string IsoUtc = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'"; // what Date.prototype.toISOString() writes
+    static readonly TimeSpan DueSlack = TimeSpan.FromMinutes(5), DueHorizon = TimeSpan.FromDays(365);
 
     public static JsonObject Handle(JsonObject request, Func<Vault?> getVault)
     {
@@ -15,7 +20,8 @@ public static class HostApi
         try
         {
             var cmd = Str(request, "cmd");
-            if (cmd is not ("status" or "search" or "get" or "check" or "update" or "add" or "all" or "entry")) return Fail(res, "bad_request");
+            if (cmd is not ("status" or "search" or "get" or "check" or "update" or "add" or "all" or "entry"
+                or "work_get" or "work_save" or "set_name" or "summary")) return Fail(res, "bad_request");
             if (getVault() is not { } v)
             {
                 Fail(res, "locked");
@@ -25,14 +31,7 @@ public static class HostApi
             return cmd switch
             {
                 "status" => Ok(res, new() { ["locked"] = false, ["count"] = v.Entries.Count, ["lang"] = AppPaths.Lang }),
-                "search" => Site(request) is not { } site ? Fail(res, "bad_request") : Ok(res, new()
-                {
-                    ["items"] = new JsonArray([.. v.Search(Str(request, "q") ?? "", site: site).Select(e => (JsonNode)new JsonObject
-                    {
-                        ["id"] = e.Id, ["firstName"] = e.FirstName, ["lastName"] = e.LastName,
-                        ["extra1"] = e.Extra1, ["extra2"] = e.Extra2, ["username"] = e.Username,
-                    })]),
-                }),
+                "search" => Site(request) is not { } site ? Fail(res, "bad_request") : Search(res, request, v, site),
                 "get" => Site(request) is not { } site || Str(request, "entryId") is not { } id ? Fail(res, "bad_request")
                     : Find(v, id, site) is not { } e ? Fail(res, "not_found")
                     : Ok(res, new() { ["username"] = e.Username, ["password"] = e.Password }),
@@ -57,10 +56,118 @@ public static class HostApi
                             ["label"] = f.Label, ["value"] = f.Value, ["secret"] = f.Secret,
                         })]),
                     }),
+                "work_get" => WorkGet(res, request, v),
+                "work_save" => WorkSave(res, request, v),
+                "set_name" => SetName(res, request, v),
+                "summary" => Summary(res, v),
                 _ => Add(res, request, v),
             };
         }
         catch (Exception e) { return Fail(res, e.Message); }
+    }
+
+    static JsonObject Search(JsonObject res, JsonObject req, Vault v, string site)
+    {
+        var month = Work.MonthOf(DateTime.Now);
+        var active = Work.ActiveTasks(v.Data);
+        var thisMonth = v.Data.Work.Where(w => w.Month == month).ToList(); // once, not per item: 5,000 customers × 24 months
+        return Ok(res, new()
+        {
+            ["items"] = new JsonArray([.. v.Search(Str(req, "q") ?? "", site: site).Select(e => (JsonNode)new JsonObject
+            {
+                ["id"] = e.Id, ["firstName"] = e.FirstName, ["lastName"] = e.LastName,
+                ["extra1"] = e.Extra1, ["extra2"] = e.Extra2, ["username"] = e.Username,
+                ["monthStatus"] = Work.MonthStatus(thisMonth, e.Id, month, active),
+            })]),
+        });
+    }
+
+    static JsonObject WorkGet(JsonObject res, JsonObject req, Vault v)
+    {
+        if (Site(req) is not { } site || Str(req, "entryId") is not { } id) return Fail(res, "bad_request");
+        var month = Work.MonthOf(DateTime.Now);
+        if (req["month"] is not null && (Str(req, "month") is not { } asked || !Work.IsMonth(month = asked))) return Fail(res, "bad_request");
+        if (Find(v, id, site) is not { } e) return Fail(res, "not_found");
+        var active = Work.ActiveTasks(v.Data);
+        var statuses = new JsonObject();
+        if (v.Data.Work.FirstOrDefault(w => w.EntryId == id && w.Month == month) is { } record)
+            foreach (var (task, status) in record.Tasks)
+                if (active.Contains(task)) statuses[task] = status; // an archived id sent back would be refused
+        return Ok(res, new()
+        {
+            ["username"] = e.Username, ["name"] = e.FullName, ["month"] = month,
+            ["tasks"] = new JsonArray([.. v.Data.Tasks.Where(t => !t.Archived).Select(t => (JsonNode)new JsonObject { ["id"] = t.Id, ["name"] = t.Name })]),
+            ["statuses"] = statuses,
+            ["reminders"] = new JsonArray([.. v.Data.Reminders.Where(r => r.EntryId == id && r.Month == month && r.ResolvedAt is null).Select(r => (JsonNode)new JsonObject
+            {
+                ["taskId"] = r.TaskId, ["dueAt"] = r.DueAt.ToString(IsoUtc, CultureInfo.InvariantCulture), ["dismissed"] = r.DismissedAt is not null,
+            })]),
+        });
+    }
+
+    static JsonObject WorkSave(JsonObject res, JsonObject req, Vault v)
+    {
+        if (Site(req) is not { } site || Str(req, "entryId") is not { } id || Str(req, "month") is not { } month
+            || req["statuses"] is not JsonObject rawStatuses || req["reminders"] is not JsonObject rawReminders
+            || rawStatuses.Count > MaxWorkKeys || rawReminders.Count > MaxWorkKeys)
+            return Fail(res, "bad_request");
+        // the month the login happened in: the session may have started before midnight on the last day
+        var local = DateTime.Now;
+        if (month != Work.MonthOf(local) && month != Work.MonthOf(local.AddMonths(-1))) return Fail(res, "bad_request");
+
+        var statuses = new Dictionary<string, string>();
+        foreach (var (task, _) in rawStatuses)
+        {
+            if (Str(rawStatuses, task) is not { } status) return Fail(res, "bad_request");
+            statuses[task] = status;
+        }
+        var now = DateTime.UtcNow;
+        var reminders = new Dictionary<string, DateTime>();
+        foreach (var (task, _) in rawReminders)
+        {
+            if (Str(rawReminders, task) is not { } text
+                || !DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var due)
+                || due < now - DueSlack || due > now + DueHorizon)
+                return Fail(res, "bad_request");
+            reminders[task] = due;
+        }
+
+        if (Find(v, id, site) is null) return Fail(res, "not_found");
+        var found = false;
+        v.Update(d =>
+        {
+            if (!d.Entries.Any(e => e.Id == id && Sites.Matches(e.Site, site))) return;
+            Work.Save(d, id, month, statuses, reminders, now); // refuses unknown and archived tasks, bad statuses
+            found = true;
+        });
+        return found ? Ok(res, new()) : Fail(res, "not_found");
+    }
+
+    static JsonObject SetName(JsonObject res, JsonObject req, Vault v)
+    {
+        if (Site(req) is not { } site || Str(req, "entryId") is not { } id || Str(req, "text") is not { Length: <= MaxNameText } text)
+            return Fail(res, "bad_request");
+        if (Find(v, id, site) is not { } before) return Fail(res, "not_found");
+        var changed = false;
+        if (NoName(before) && Work.ParseName(text) is { } name)
+            v.Update(list =>
+            {
+                if (list.FirstOrDefault(e => e.Id == id && Sites.Matches(e.Site, site)) is not { } e || !NoName(e)) return;
+                (e.LastName, e.FirstName, e.UpdatedAt) = (name.LastName, name.FirstName, DateTime.UtcNow);
+                changed = true;
+            });
+        return Find(v, id, site) is not { } after ? Fail(res, "not_found")
+            : Ok(res, new() { ["firstName"] = after.FirstName, ["lastName"] = after.LastName, ["changed"] = changed });
+    }
+
+    // a name typed by hand always wins over one read from the site
+    static bool NoName(Entry e) => string.IsNullOrWhiteSpace(e.FirstName) && string.IsNullOrWhiteSpace(e.LastName);
+
+    static JsonObject Summary(JsonObject res, Vault v)
+    {
+        var month = Work.MonthOf(DateTime.Now);
+        var todo = Work.Todo(v.Data, month);
+        return Ok(res, new() { ["month"] = month, ["done"] = todo.Done, ["partial"] = todo.Unfinished, ["notStarted"] = todo.NotStarted });
     }
 
     static JsonObject Check(JsonObject res, JsonObject req, Vault v)

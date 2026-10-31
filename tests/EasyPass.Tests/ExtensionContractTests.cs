@@ -75,9 +75,60 @@ public class ExtensionContractTests : IDisposable
         var items = Ask(new { cmd = "search", q = "ahm", site = X })["items"]!.AsArray();
         Assert.Equal(["Ahmet Kaya", "Ahmet Yılmaz", "Mehmet Ahmetoğlu"], items.Select(i => $"{i!["firstName"]} {i["lastName"]}"));
         foreach (var i in items)
-            Assert.Equal(["extra1", "extra2", "firstName", "id", "lastName", "username"], Keys(i!.AsObject())); // no password, no site
+            Assert.Equal(["extra1", "extra2", "firstName", "id", "lastName", "monthStatus", "username"], Keys(i!.AsObject())); // no password, no site
         var a = items[1]!;
         Assert.Equal((_ahmetX, "ahmet.yilmaz", "Kadıköy şube", ""), ((string?)a["id"], (string?)a["username"], (string?)a["extra1"], (string?)a["extra2"]));
+    }
+
+    [Fact]
+    public void Work_panel_contract()
+    {
+        // salyk.js / background.js: every shape, key by key; fake-host.mjs answers the same (plan: Host protocol)
+        WorkTask t1 = new() { Name = "Страховка" }, t2 = new() { Name = "НДС" };
+        _v.Update(d => d.Tasks.AddRange([t1, t2]));
+        var month = Work.MonthOf(DateTime.Now);
+
+        var empty = Ask(new { cmd = "work_get", site = X, entryId = _ahmetX });
+        Assert.Equal(["id", "month", "name", "ok", "reminders", "statuses", "tasks", "username"], Keys(empty)); // no password
+        Assert.Equal((month, "Ahmet Yılmaz", "ahmet.yilmaz"), ((string?)empty["month"], (string?)empty["name"], (string?)empty["username"]));
+        Assert.Equal(JsonValueKind.Object, empty["statuses"]!.GetValueKind());
+        Assert.Equal(JsonValueKind.Array, empty["reminders"]!.GetValueKind());
+        foreach (var t in empty["tasks"]!.AsArray()) Assert.Equal(["id", "name"], Keys(t!.AsObject()));
+
+        var due = DateTime.UtcNow.AddHours(2).ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'"); // Date.prototype.toISOString()
+        var saved = Ask(new
+        {
+            cmd = "work_save", site = X, entryId = _ahmetX, month,
+            statuses = new Dictionary<string, string> { [t1.Id] = "done", [t2.Id] = "partial" },
+            reminders = new Dictionary<string, string> { [t2.Id] = due },
+        });
+        Assert.Equal(["id", "ok"], Keys(saved));
+
+        var full = Ask(new { cmd = "work_get", site = X, entryId = _ahmetX, month });
+        Assert.Equal("done", (string?)full["statuses"]![t1.Id]);
+        Assert.Equal("partial", (string?)full["statuses"]![t2.Id]);
+        var reminder = Assert.Single(full["reminders"]!.AsArray())!.AsObject();
+        Assert.Equal(["dismissed", "dueAt", "taskId"], Keys(reminder));
+        Assert.Equal((t2.Id, due, JsonValueKind.False), ((string?)reminder["taskId"], (string?)reminder["dueAt"], reminder["dismissed"]!.GetValueKind()));
+
+        var item = Ask(new { cmd = "search", q = "yılmaz", site = X })["items"]![0]!;
+        Assert.Equal("partial", (string?)item["monthStatus"]);
+        var none = Ask(new { cmd = "search", q = "kaya", site = X })["items"]![0]!.AsObject();
+        Assert.True(none.ContainsKey("monthStatus")); // present and null: content.js draws no dot
+        Assert.Null(none["monthStatus"]);
+
+        var summary = Ask(new { cmd = "summary", site = "ext-id" });
+        Assert.Equal(["done", "id", "month", "notStarted", "ok", "partial"], Keys(summary));
+        Assert.Equal((month, 0, 1, 0), ((string?)summary["month"], (int)summary["done"]!, (int)summary["partial"]!, (int)summary["notStarted"]!));
+
+        var blank = new Entry { Site = X, Username = "93000000000789123", Password = "p" };
+        _v.Update(l => l.Add(blank));
+        var named = Ask(new { cmd = "set_name", site = X, entryId = blank.Id, text = "Сатыбалдиева Айгуль" });
+        Assert.Equal(["changed", "firstName", "id", "lastName", "ok"], Keys(named));
+        Assert.Equal(("Айгуль", "Сатыбалдиева", JsonValueKind.True), ((string?)named["firstName"], (string?)named["lastName"], named["changed"]!.GetValueKind()));
+
+        Assert.Equal("bad_request", (string?)Ask(new { cmd = "work_get", site = X })["error"]);
+        Assert.Equal("locked", (string?)Ask(new { cmd = "work_get", site = X, entryId = _ahmetX }, () => null)["error"]);
     }
 
     [Fact]
