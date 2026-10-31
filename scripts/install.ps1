@@ -11,6 +11,16 @@ $lnk      = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\EasyPa
 $manifest = Join-Path $dest 'com.easypass.host.json'
 $hostExe  = Join-Path $dest 'EasyPass.Host.exe'
 
+# Mutex'i yalnız 1.6+ açar: v1.5 --quit'i tanımaz, yeni bir pencere açardı.
+$m = $null
+if ([Threading.Mutex]::TryOpenExisting('EasyPass.App', [ref]$m)) {
+    $m.Dispose()
+    & (Join-Path $dest 'EasyPass.exe') --quit
+    foreach ($i in 1..150) {
+        if (-not (Get-Process EasyPass -ErrorAction SilentlyContinue)) { break }
+        Start-Sleep -Milliseconds 100
+    }
+}
 if (Get-Process EasyPass -ErrorAction SilentlyContinue) {
     throw 'EasyPass açık. Kaydedilmemiş değişiklik kaybolmasın diye önce uygulamayı kapatın, sonra tekrar çalıştırın.'
 }
