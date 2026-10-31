@@ -30,6 +30,7 @@ const T = {
     done: 'Done', partial: 'Not finished', close: 'Close', h2: '2 hours', h5: '5 hours', tomorrow: 'Tomorrow', d2: 'In 2 days', custom: 'Custom reminder',
     reminderClosed: 'reminder closed', update2: 'Update EasyPass', noTasks: 'Add tasks in EasyPass', locked: 'Vault locked', retry: 'Try again',
     dotDone: 'Done this month', dotPartial: 'Not finished this month',
+    ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list',
     summary: (d, p, n) => `This month: done ${d} · not finished ${p} · not started ${n}`,
   },
   ru: {
@@ -38,6 +39,7 @@ const T = {
     done: 'Сделано', partial: 'Не завершено', close: 'Закрыть', h2: '2 часа', h5: '5 часов', tomorrow: 'Завтра', d2: 'Через 2 дня', custom: 'Своё напоминание',
     reminderClosed: 'напоминание закрыто', update2: 'Обновите EasyPass', noTasks: 'Добавьте работы в EasyPass', locked: 'Хранилище заблокировано', retry: 'Повторить',
     dotDone: 'Готово в этом месяце', dotPartial: 'Не завершено в этом месяце',
+    ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ',
     summary: (d, p, n) => `Этот месяц: готово ${d} · не завершено ${p} · не начато ${n}`,
   },
   tr: {
@@ -46,6 +48,7 @@ const T = {
     done: 'Yapıldı', partial: 'Bitmedi', close: 'Kapat', h2: '2 saat', h5: '5 saat', tomorrow: 'Yarın', d2: '2 gün sonra', custom: 'Özel hatırlatma',
     reminderClosed: 'hatırlatma kapatıldı', update2: "EasyPass'i güncelleyin", noTasks: "EasyPass'te iş ekleyin", locked: 'Kilitli', retry: 'Yeniden dene',
     dotDone: 'Bu ay bitti', dotPartial: 'Bu ay yarım',
+    ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir',
     summary: (d, p, n) => `Bu ay: bitti ${d} · yarım ${p} · başlanmadı ${n}`,
   },
 };
@@ -137,6 +140,7 @@ async function ax(page) {
     expanded: !!n.properties?.find((p) => p.name === 'expanded')?.value.value,
     disabled: !!n.properties?.find((p) => p.name === 'disabled')?.value.value,
     pressed: n.properties?.find((p) => p.name === 'pressed')?.value.value === 'true',
+    checked: n.properties?.find((p) => p.name === 'checked')?.value.value === 'true',
     value: n.value?.value,
   }));
 }
@@ -1109,7 +1113,7 @@ async function salykSuite(lang) {
       await waitFor(async () => (await state())?.state === 'attempt', 'attempt bound to the new entry');
       await load(page, () => page.click('a.btn-light-primary'));
       await load(page, () => page.click('#logout'));
-      await workPanel(page);
+      await waitFor(() => hasText(page, t.ask), 'a new customer has no task list yet: the checklist comes first');
       assert.ok(await hasText(page, 'Zamira · 95000000000001'), 'title');
       await clickNode(page, await button(page, t.close));
       await waitFor(async () => (await state()) === null, 'finished');
@@ -1124,7 +1128,7 @@ async function salykSuite(lang) {
 
     await scenarioFresh('login list: green and orange dot with a name for screen readers; none when not started', async () => {
       const save = (entryId, statuses, month = thisMonth) => sw.evaluate(([s, e, m, st]) => ask({ cmd: 'work_save', site: s, entryId: e, month: m, statuses: st, reminders: {} }), [SY, entryId, month, statuses]);
-      assert.ok((await save(A[2], { t1: 'done' })).ok);
+      assert.ok((await save(A[2], { t1: 'done', t2: 'done', t3: 'done' })).ok); // green = all of the customer's tasks (§7d)
       assert.ok((await save(B[2], { t1: 'done', t2: 'partial' })).ok);
       assert.ok((await save(C[2], { t1: 'done' }, lastMonth)).ok); // on the list, not started this month
       await page.goto(sp('/account/login'));
@@ -1176,7 +1180,7 @@ async function salykSuite(lang) {
       };
       assert.ok(!(await seen(base + '/login')).some((u) => u.endsWith('/salyk.js')), 'salyk.js on an untracked site');
       assert.ok((await seen(sp('/account/login'))).some((u) => u.endsWith('/salyk.js')), 'salyk.js on the tracked site');
-      for (const cmd of ['salyk_page', 'salyk_name', 'salyk_logout', 'work_save', 'work_close', 'work_get', 'set_name']) {
+      for (const cmd of ['salyk_page', 'salyk_name', 'salyk_logout', 'work_save', 'work_assign', 'work_close', 'work_get', 'set_name']) {
         const mark = hostLog().length;
         assert.deepEqual(await sw.evaluate(([c, u]) => handle({ cmd: c, entryId: 'e1', text: 'Ad Soyad' }, 1, new URL(u)), [cmd, base + '/login']), { ok: false, error: 'bad_request' }, cmd);
         assert.equal(hostSince(mark, cmd).length, 0, 'reached the host: ' + cmd);
@@ -1215,7 +1219,8 @@ async function salykSuite(lang) {
     });
 
     // --- spec §7c: this month's work from the toolbar popup, without signing in ---
-    const putWork = (statuses, reminders = {}) => sw.evaluate(([s, st, r, m]) => ask({ cmd: 'work_save', site: s, entryId: 'e12', month: m, statuses: st, reminders: r }), [SY, statuses, reminders, thisMonth]);
+    const assignTo = (entryId, taskIds) => sw.evaluate(([s, e, ids]) => ask({ cmd: 'work_assign', site: s, entryId: e, taskIds: ids }), [SY, entryId, taskIds]);
+    const putWork = async (statuses, reminders = {}) => (await assignTo('e12', ['t1', 't2', 't3']), sw.evaluate(([s, st, r, m]) => ask({ cmd: 'work_save', site: s, entryId: 'e12', month: m, statuses: st, reminders: r }), [SY, statuses, reminders, thisMonth]));
     async function popupDetail(who) {
       const p = await ctx.newPage();
       await p.goto(`chrome-extension://${ID}/popup.html`);
@@ -1339,16 +1344,119 @@ async function salykSuite(lang) {
       const msgs = [
         { cmd: 'work_get', site: SY, entryId: 'e12' },
         { cmd: 'work_save', site: SY, entryId: 'e12', statuses: { t1: 'done' }, reminders: {} },
+        { cmd: 'work_assign', site: SY, entryId: 'e12', taskIds: ['t1'] },
       ];
       for (const m of msgs) {
         assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, 1, new URL(u)), [m, base + '/login']), { ok: false, error: 'bad_request' }, 'untracked page: ' + m.cmd);
       }
       assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, 1, new URL(u)), [msgs[0], sp('/')]), { ok: false, error: 'bad_request' }, 'tracked page: work_get');
       assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, 1, new URL(u)), [msgs[1], sp('/')]), { ok: false, error: 'not_found' }, 'tracked page: work_save is only the panel path, bound to the session');
-      assert.equal(hostSince(mark, 'work_get').length + hostSince(mark, 'work_save').length, 0, 'nothing reached the host');
+      assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, 1, new URL(u)), [msgs[2], sp('/')]), { ok: false, error: 'not_found' }, 'tracked page: work_assign is only the panel path, bound to the session');
+      await sw.evaluate((s) => chrome.storage.local.set({ salyk: s }), { entryId: A[2], month: thisMonth, at: Date.now(), state: 'closed' });
+      assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, 1, new URL(u)), [msgs[2], sp('/')]), { ok: false, error: 'not_found' }, 'another customer than the session\'s');
+      await sw.evaluate(() => chrome.storage.local.remove('salyk'));
+      assert.equal(['work_get', 'work_save', 'work_assign'].flatMap((c) => hostSince(mark, c)).length, 0, 'nothing reached the host');
       const popup = `chrome-extension://${ID}/popup.html`;
-      assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, undefined, new URL(u)), [{ cmd: 'work_get', site: 'portal-x.test', entryId: 'e1' }, popup]), { ok: false, error: 'bad_request' }, 'popup: untracked site');
-      assert.equal(hostSince(mark, 'work_get').length, 0);
+      for (const cmd of ['work_get', 'work_assign']) {
+        assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, undefined, new URL(u)), [{ cmd, site: 'portal-x.test', entryId: 'e1', taskIds: ['t1'] }, popup]), { ok: false, error: 'bad_request' }, 'popup: untracked site ' + cmd);
+      }
+      assert.equal(['work_get', 'work_assign'].flatMap((c) => hostSince(mark, c)).length, 0);
+    });
+
+    // --- spec §7d: tasks per customer. Two customers that only the fake host knows (the vault written by the app), no list yet ---
+    const E = ['97000000000002', 'Salyk-555', 'x-e', 'Иманова Айнура']; // the exit panel
+    const F = ['98000000000003', 'Salyk-666', 'x-f']; // the popup
+    const extra = (who) => ({ id: who[2], site: SY, firstName: '', lastName: '', extra1: '', extra2: '', username: who[0], password: who[1], fields: [], updatedAt: 1, taskIds: null });
+    fs.writeFileSync(external, JSON.stringify([...(fs.existsSync(external) ? JSON.parse(fs.readFileSync(external, 'utf8')) : []), extra(E), extra(F)]));
+    sites.states.get('salykkabinet').users.push({ first: 'X', last: 'Y', org: E[3], username: E[0], password: E[1] });
+    const checks = async (page) => (await ax(page)).filter((n) => n.role === 'checkbox').map((n) => [n.name, n.checked]);
+    const tick = async (page, name) => clickNode(page, (await ax(page)).find((n) => n.role === 'checkbox' && n.name === name));
+    const assignedOf = async (who) => (await workGet(who[2], thisMonth));
+    async function exitTo(page, who) { // password → name read → Войти → logout
+      await signIn(page, who);
+      await waitFor(async () => (await workGet(who[2], thisMonth)).name, 'name read');
+      await load(page, () => page.click('a.btn-light-primary'));
+      await load(page, () => page.click('#logout'));
+    }
+
+    await scenarioFresh('first exit asks which tasks are done every month; Close assigns nothing and it asks again; Next keeps only the chosen', async () => {
+      const mark = hostLog().length;
+      await exitTo(page, E);
+      await waitFor(() => hasText(page, t.ask), 'checklist');
+      assert.deepEqual(await checks(page), [[INS, false], [VAT, false], [REP, false]]);
+      assert.equal((await button(page, t.next)).disabled, true, 'nothing ticked');
+      assert.equal(await taskButton(page, INS, t.done), undefined, 'no task rows before the list');
+      await shot(page, '14-checklist');
+      await clickNode(page, await button(page, t.close));
+      await waitFor(async () => (await state()) === null, 'session finished');
+      assert.equal(hostSince(mark, 'work_assign').length, 0, 'Close assigns nothing');
+      assert.equal((await assignedOf(E)).assigned, false);
+
+      await exitTo(page, E);
+      await waitFor(() => hasText(page, t.ask), 'asked again');
+      await tick(page, INS);
+      await tick(page, REP);
+      assert.equal((await button(page, t.next)).disabled, false);
+      await clickNode(page, await button(page, t.next));
+      await workPanel(page);
+      assert.equal(await taskButton(page, VAT, t.done), undefined, 'only the chosen tasks');
+      assert.ok(await taskButton(page, REP, t.done));
+      const [sent] = hostSince(mark, 'work_assign');
+      assert.deepEqual([sent.site, sent.entryId, sent.taskIds], [SY, E[2], ['t1', 't3']]);
+      assert.equal((await state())?.entryId, E[2], 'the session goes on');
+    });
+
+    await scenarioFresh('second visit skips the checklist and shows only the chosen tasks', async () => {
+      await exitTo(page, E);
+      await workPanel(page);
+      assert.deepEqual(await checks(page), []);
+      assert.equal(await taskButton(page, VAT, t.done), undefined);
+    });
+
+    await scenarioFresh('the "' + 'edit task list' + '" link reopens the checklist ticked with the current list; Next changes it', async () => {
+      await exitTo(page, E);
+      await workPanel(page);
+      await clickNode(page, await button(page, t.edit));
+      await waitFor(() => hasText(page, t.ask), 'checklist');
+      assert.deepEqual(await checks(page), [[INS, true], [VAT, false], [REP, true]]);
+      await tick(page, INS);
+      await tick(page, VAT);
+      await clickNode(page, await button(page, t.next));
+      await waitFor(() => taskButton(page, VAT, t.done), 'panel with the new list');
+      assert.equal(await taskButton(page, INS, t.done), undefined);
+      assert.deepEqual((await assignedOf(E)).tasks.map((x) => x.id), ['t2', 't3']);
+    });
+
+    await scenario('salyk: popup checklist: marks come ticked, Next stays disabled until one is ticked, then only the chosen show; the link changes the list', async () => {
+      await sw.evaluate(([s, e, m]) => ask({ cmd: 'work_save', site: s, entryId: e, month: m, statuses: { t2: 'done' }, reminders: {} }), [SY, F[2], thisMonth]);
+      const mark = hostLog().length;
+      const p = await popupDetail(F[0]);
+      const box = (name) => p.getByRole('checkbox', { name, exact: true });
+      const next = p.getByRole('button', { name: t.next, exact: true });
+      await box(VAT).waitFor();
+      assert.equal(await p.getByText(t.ask).count(), 1);
+      assert.deepEqual([await box(INS).isChecked(), await box(VAT).isChecked(), await box(REP).isChecked()], [false, true, false], 'the mark comes ticked');
+      await box(VAT).uncheck();
+      assert.equal(await next.isDisabled(), true);
+      await box(INS).check();
+      await box(VAT).check();
+      await shot(p, '15-popup-checklist');
+      await next.click();
+      await pb(p, INS, t.done).waitFor();
+      assert.equal(await pb(p, REP, t.done).count(), 0, 'only the chosen tasks');
+      assert.equal(await pressed(p, VAT, t.done), true, 'the mark is kept');
+      const [sent] = hostSince(mark, 'work_assign');
+      assert.deepEqual([sent.site, sent.entryId, sent.taskIds], [SY, F[2], ['t1', 't2']]);
+      await p.getByRole('button', { name: t.edit, exact: true }).click();
+      await box(REP).waitFor();
+      assert.deepEqual([await box(INS).isChecked(), await box(VAT).isChecked(), await box(REP).isChecked()], [true, true, false]);
+      await box(INS).uncheck();
+      await box(REP).check();
+      await next.click();
+      await pb(p, REP, t.done).waitFor();
+      assert.equal(await pb(p, INS, t.done).count(), 0);
+      assert.deepEqual((await assignedOf(F)).tasks.map((x) => x.id), ['t2', 't3']);
+      await p.close();
     });
   } finally {
     await ctx.close();

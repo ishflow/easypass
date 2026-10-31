@@ -10,19 +10,19 @@
     en: {
       done: 'Done', partial: 'Not finished', save: 'Save', close: 'Close', retry: 'Try again',
       h2: '2 hours', h5: '5 hours', tomorrow: 'Tomorrow', d2: 'In 2 days', custom: 'Custom reminder', hours: 'hours', days: 'days',
-      remind: 'Reminder:', reminderClosed: 'reminder closed', noTasks: 'Add tasks in EasyPass', update: 'Update EasyPass',
+      remind: 'Reminder:', reminderClosed: 'reminder closed', noTasks: 'Add tasks in EasyPass', ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list', update: 'Update EasyPass',
       locked: 'Vault locked — open EasyPass and enter the master password', noHost: 'Not connected — run the EasyPass setup again', error: 'Error: ',
     },
     ru: {
       done: 'Сделано', partial: 'Не завершено', save: 'Сохранить', close: 'Закрыть', retry: 'Повторить',
       h2: '2 часа', h5: '5 часов', tomorrow: 'Завтра', d2: 'Через 2 дня', custom: 'Своё напоминание', hours: 'часов', days: 'дней',
-      remind: 'Напоминание:', reminderClosed: 'напоминание закрыто', noTasks: 'Добавьте работы в EasyPass', update: 'Обновите EasyPass',
+      remind: 'Напоминание:', reminderClosed: 'напоминание закрыто', noTasks: 'Добавьте работы в EasyPass', ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ', update: 'Обновите EasyPass',
       locked: 'Хранилище заблокировано — откройте EasyPass и введите мастер-пароль', noHost: 'Нет связи — запустите install.ps1', error: 'Ошибка: ',
     },
     tr: {
       done: 'Yapıldı', partial: 'Bitmedi', save: 'Kaydet', close: 'Kapat', retry: 'Yeniden dene',
       h2: '2 saat', h5: '5 saat', tomorrow: 'Yarın', d2: '2 gün sonra', custom: 'Özel hatırlatma', hours: 'saat', days: 'gün',
-      remind: 'Hatırlatma:', reminderClosed: 'hatırlatma kapatıldı', noTasks: "EasyPass'te iş ekleyin", update: "EasyPass'i güncelleyin",
+      remind: 'Hatırlatma:', reminderClosed: 'hatırlatma kapatıldı', noTasks: "EasyPass'te iş ekleyin", ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir', update: "EasyPass'i güncelleyin",
       locked: "Kilitli — EasyPass'i açıp ana şifreyi girin", noHost: 'Bağlantı yok — kurulum betiğini çalıştırın', error: 'Hata: ',
     },
   };
@@ -58,10 +58,14 @@
       .btn[aria-pressed=true],.primary{background:#0E7C6B;border-color:#0E7C6B;color:#fff}
       .btn.orange[aria-pressed=true]{background:#C2410C;border-color:#C2410C}
       .btn:disabled{opacity:.5;cursor:default}
+      .btn.link{height:auto;margin-right:auto;padding:0;border:0;background:none;color:#0E7C6B;font-size:12px;text-decoration:underline}
+      .check{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid #E3E1DC;border-radius:8px;font-weight:600;cursor:pointer}
+      input[type=checkbox]{width:18px;height:18px;padding:0;accent-color:#0E7C6B}
       .custom{display:flex;gap:6px}
       input,select{height:32px;padding:0 8px;border:1px solid #E3E1DC;border-radius:8px;background:#fff;color:#1C1F23;font-size:13px}
       input{width:72px}
       .note{font-size:12px;color:#5B6168}
+      p.note{font-size:13px}
       .note:empty{display:none}
       .err{font-size:13px;color:#B91C1C}
       .err:empty{display:none}
@@ -159,6 +163,45 @@
     root.append(box);
   }
 
+  // Spec §7d: the pool as checkboxes, for a customer without a list yet or to change it. Далее stores the list; Close does not.
+  function showChecklist(w, ticked) {
+    openModal();
+    const chosen = new Set(ticked);
+    const error = el('p', 'err');
+    error.setAttribute('role', 'alert');
+    const next = btn('primary', T.next, async () => {
+      next.disabled = true;
+      error.textContent = '';
+      const r = await send({ cmd: 'work_assign', entryId, taskIds: w.allTasks.map((x) => x.id).filter((id) => chosen.has(id)) });
+      if (r.ok) return pageLoaded(); // the normal panel, now with the chosen tasks only
+      if (r.error === 'not_found') return closeModal(); // answered in another tab
+      error.textContent = message(r.error, false);
+      next.disabled = false;
+    });
+    next.disabled = !chosen.size;
+    const list = el('div', 'rows');
+    list.setAttribute('role', 'group');
+    list.setAttribute('aria-label', T.ask);
+    list.append(...w.allTasks.map((task) => {
+      const label = el('label', 'check');
+      const box = el('input');
+      box.type = 'checkbox';
+      box.checked = chosen.has(task.id);
+      box.addEventListener('change', () => {
+        box.checked ? chosen.add(task.id) : chosen.delete(task.id);
+        next.disabled = !chosen.size;
+      });
+      label.append(box, el('span', '', task.name));
+      return label;
+    }));
+    const actions = el('div', 'actions');
+    actions.append(next, btn('', T.close, closeSession));
+    const title = el('h2', '', [w.name, w.username].filter(Boolean).join(' · '));
+    dialog.setAttribute('aria-label', title.textContent);
+    dialog.append(title, el('p', 'note', T.ask), list, error, actions);
+    dialog.querySelector('input').focus();
+  }
+
   function showPanel(w) {
     openModal();
     const when = (iso) => new Date(iso).toLocaleString(lang, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
@@ -245,6 +288,7 @@
     error.setAttribute('role', 'alert');
     const actions = el('div', 'actions');
     const save = btn('primary', T.save, doSave);
+    if (w.allTasks) actions.append(btn('link', T.edit, () => showChecklist(w, w.tasks.map((x) => x.id))));
     actions.append(save, btn('', T.close, closeSession));
     async function doSave() {
       busy = true;
@@ -288,9 +332,13 @@
     T = TEXT[lang];
     if (r.ok === false) return showError(r.error); // the extension itself could not answer
     if (!r.panel.ok) return showError(r.panel.error);
-    if (r.panel.tasks.length) return showPanel(r.panel);
-    if (dialog) closeModal();
-    showHint();
+    const { assigned = true, allTasks = r.panel.tasks } = r.panel; // a host from before §7d has one list for everybody
+    if (!allTasks.length) {
+      if (dialog) closeModal();
+      return showHint();
+    }
+    if (!assigned) return showChecklist({ ...r.panel, allTasks }, allTasks.filter((x) => r.panel.statuses[x.id]).map((x) => x.id)); // marked ones come ticked
+    showPanel(r.panel);
   }
 
   document.addEventListener('click', (e) => {
