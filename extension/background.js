@@ -168,7 +168,17 @@ async function submitted({ username, password, change, site, fields = [], firstN
   return shown(state.pending);
 }
 
+// The toolbar popup edits this month's work of a tracked-site customer without a session: the entry's site comes from the
+// popup (an extension page, trusted like `all`/`entry`) but must be tracked. The salyk session is neither read nor changed.
+const popupWork = (msg) => {
+  if (!Object.hasOwn(TRACKED, msg.site) || typeof msg.entryId !== 'string') return { ok: false, error: 'bad_request' };
+  const { site, entryId } = msg;
+  return ask(msg.cmd === 'work_get' ? { cmd: 'work_get', site, entryId }
+    : { cmd: 'work_save', site, entryId, month: monthOf(new Date()), statuses: msg.statuses, reminders: msg.reminders });
+};
+
 async function handle(msg, tab, url) {
+  if (url.origin === POPUP_ORIGIN && (msg.cmd === 'work_get' || msg.cmd === 'work_save')) return popupWork(msg);
   const site = url.hostname;
   msg = { ...msg, site }; // the sender's real host, never what the page-side script claims
   if (Object.hasOwn(salyk, msg.cmd)) {

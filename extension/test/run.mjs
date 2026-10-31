@@ -1213,6 +1213,143 @@ async function salykSuite(lang) {
       assert.equal(times.tasks, 3, 'the panel data really came');
       assert.ok(times.none < 50 && times.panel < 50, JSON.stringify(times));
     });
+
+    // --- spec §7c: this month's work from the toolbar popup, without signing in ---
+    const putWork = (statuses, reminders = {}) => sw.evaluate(([s, st, r, m]) => ask({ cmd: 'work_save', site: s, entryId: 'e12', month: m, statuses: st, reminders: r }), [SY, statuses, reminders, thisMonth]);
+    async function popupDetail(who) {
+      const p = await ctx.newPage();
+      await p.goto(`chrome-extension://${ID}/popup.html`);
+      await p.fill('#q', who);
+      await p.locator('#list .opt', { hasText: who }).click();
+      await p.waitForSelector('#detail:not([hidden])');
+      return p;
+    }
+    const pb = (p, task, name) => p.getByRole('button', { name: `${task}: ${name}`, exact: true });
+    const pressed = async (p, task, name) => (await pb(p, task, name).getAttribute('aria-pressed')) === 'true';
+    const saveBtn = (p) => p.getByRole('button', { name: t.save, exact: true });
+    const dueIn = (iso) => (Date.parse(iso) - Date.now()) / 3600_000;
+
+    await scenario('salyk: popup shows this month\'s tasks above login and password; a press toggles green and back to grey, nothing is written until Save', async () => {
+      await putWork({});
+      const mark = hostLog().length;
+      const p = await popupDetail(D[0]);
+      await pb(p, INS, t.done).waitFor();
+      assert.equal(await p.evaluate(() => !!(document.getElementById('work').compareDocumentPosition(document.getElementById('fields')) & Node.DOCUMENT_POSITION_FOLLOWING)), true, 'tasks before login/password');
+      assert.ok((await p.textContent('#fields')).includes(D[0]), 'login still shown');
+      await pb(p, INS, t.done).click();
+      assert.equal(await pressed(p, INS, t.done), true);
+      await pb(p, INS, t.done).click();
+      assert.equal(await pressed(p, INS, t.done), false, 'pressed again = grey');
+      await shot(p, '13-popup-work');
+      assert.equal(hostSince(mark, 'work_save').length, 0, 'a press alone writes nothing');
+      assert.equal(hostSince(mark, 'work_get').length, 1, 'one fetch, when the customer was opened');
+      await p.close();
+    });
+
+    await scenario('salyk: popup change to green + Save reaches the vault; the open session is untouched', async () => {
+      const soon = new Date(Date.now() + 3 * 3600_000).toISOString();
+      await putWork({ t1: 'partial', t2: 'done' }, { t1: soon });
+      const open = { entryId: A[2], month: thisMonth, at: Date.now(), state: 'closed' };
+      await sw.evaluate((s) => chrome.storage.local.set({ salyk: s }), open);
+      const p = await popupDetail(D[0]);
+      await pb(p, INS, t.partial).waitFor();
+      assert.equal(await pressed(p, INS, t.partial), true, 'orange comes back from the vault');
+      assert.equal(await pressed(p, VAT, t.done), true);
+      assert.ok((await p.locator('#work .hint:not(:empty)').first().textContent()).trim(), 'the existing reminder time is shown');
+      assert.equal(await saveBtn(p).isDisabled(), false, 'existing time: no new choice needed');
+      await pb(p, INS, t.done).click();
+      const mark = hostLog().length;
+      await saveBtn(p).click();
+      await waitFor(() => hostSince(mark, 'work_save').length, 'work_save sent');
+      const [sent] = hostSince(mark, 'work_save');
+      assert.deepEqual([sent.site, sent.entryId, sent.month, sent.statuses, sent.reminders], [SY, 'e12', thisMonth, { t1: 'done', t2: 'done' }, {}]);
+      const w = await workGet('e12', thisMonth);
+      assert.deepEqual([w.statuses, w.reminders], [{ t1: 'done', t2: 'done' }, []], 'saved; the old reminder is closed');
+      assert.deepEqual(await state(), open, 'the salyk session is not touched');
+      await sw.evaluate(() => chrome.storage.local.remove('salyk'));
+      await p.close();
+    });
+
+    await scenario('salyk: popup orange needs a reminder time; only a newly chosen time is sent, an existing one is kept', async () => {
+      await putWork({});
+      const p = await popupDetail(D[0]);
+      await pb(p, VAT, t.partial).click();
+      assert.equal(await saveBtn(p).isDisabled(), true, 'orange without a time');
+      await pb(p, VAT, t.h5).click();
+      assert.equal(await saveBtn(p).isDisabled(), false);
+      let mark = hostLog().length;
+      await saveBtn(p).click();
+      await waitFor(() => hostSince(mark, 'work_save').length, 'work_save sent');
+      let [sent] = hostSince(mark, 'work_save');
+      assert.deepEqual(sent.statuses, { t2: 'partial' });
+      assert.deepEqual(Object.keys(sent.reminders), ['t2']);
+      assert.ok(Math.abs(dueIn(sent.reminders.t2) - 5) < 0.1, sent.reminders.t2);
+      await p.close();
+      const q = await popupDetail(D[0]); // reopened: the time is there, no new choice needed
+      await pb(q, VAT, t.partial).waitFor();
+      assert.equal(await pressed(q, VAT, t.partial), true);
+      assert.equal(await saveBtn(q).isDisabled(), false);
+      await pb(q, REP, t.partial).click();
+      assert.equal(await saveBtn(q).isDisabled(), true, 'a second orange row needs its own time');
+      await q.getByRole('group', { name: REP }).locator('select').selectOption('d');
+      await q.getByLabel(`${REP}: ${t.custom}`, { exact: true }).fill('2');
+      assert.equal(await saveBtn(q).isDisabled(), false);
+      mark = hostLog().length;
+      await saveBtn(q).click();
+      await waitFor(() => hostSince(mark, 'work_save').length, 'second work_save sent');
+      [sent] = hostSince(mark, 'work_save');
+      assert.deepEqual(Object.keys(sent.reminders), ['t3'], 'the existing t2 time is not resent');
+      const at = new Date(sent.reminders.t3);
+      assert.equal(at.getHours(), 9, 'days ring at 09:00 local');
+      assert.equal((await workGet('e12', thisMonth)).reminders.length, 2, 'the old time stays');
+      await q.close();
+    });
+
+    await scenario('salyk: popup error shows inline and keeps the toggles', async () => {
+      await putWork({});
+      const p = await popupDetail(D[0]);
+      await pb(p, INS, t.done).click();
+      fs.writeFileSync(lockFile, '');
+      await saveBtn(p).click();
+      await waitFor(async () => (await p.textContent('#work')).includes(t.locked), 'locked message inline');
+      assert.equal(await pressed(p, INS, t.done), true, 'toggle kept');
+      fs.rmSync(lockFile);
+      await p.getByRole('button', { name: t.retry, exact: true }).click();
+      await waitFor(async () => (await workGet('e12', thisMonth)).statuses.t1 === 'done', 'saved on retry');
+      await p.close();
+    });
+
+    await scenario('salyk: popup entry of another site shows no tasks and asks the host nothing', async () => {
+      const mark = hostLog().length;
+      const p = await ctx.newPage();
+      await p.goto(`chrome-extension://${ID}/popup.html`);
+      await p.fill('#q', 'lale');
+      await p.locator('#list .opt', { hasText: 'Lale Host' }).click();
+      await p.waitForSelector('#detail:not([hidden])');
+      assert.ok((await p.textContent('#fields')).includes('portal-y.test'), 'details as before');
+      assert.equal(await p.locator('#work').isVisible(), false);
+      await sleep(150);
+      assert.equal(hostSince(mark, 'work_get').length, 0, 'no work_get for an untracked site');
+      await p.close();
+    });
+
+    await scenario('salyk: a page cannot call the popup path (work_get / work_save with a site)', async () => {
+      await sw.evaluate(() => chrome.storage.local.remove('salyk'));
+      const mark = hostLog().length;
+      const msgs = [
+        { cmd: 'work_get', site: SY, entryId: 'e12' },
+        { cmd: 'work_save', site: SY, entryId: 'e12', statuses: { t1: 'done' }, reminders: {} },
+      ];
+      for (const m of msgs) {
+        assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, 1, new URL(u)), [m, base + '/login']), { ok: false, error: 'bad_request' }, 'untracked page: ' + m.cmd);
+      }
+      assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, 1, new URL(u)), [msgs[0], sp('/')]), { ok: false, error: 'bad_request' }, 'tracked page: work_get');
+      assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, 1, new URL(u)), [msgs[1], sp('/')]), { ok: false, error: 'not_found' }, 'tracked page: work_save is only the panel path, bound to the session');
+      assert.equal(hostSince(mark, 'work_get').length + hostSince(mark, 'work_save').length, 0, 'nothing reached the host');
+      const popup = `chrome-extension://${ID}/popup.html`;
+      assert.deepEqual(await sw.evaluate(([x, u]) => handle(x, undefined, new URL(u)), [{ cmd: 'work_get', site: 'portal-x.test', entryId: 'e1' }, popup]), { ok: false, error: 'bad_request' }, 'popup: untracked site');
+      assert.equal(hostSince(mark, 'work_get').length, 0);
+    });
   } finally {
     await ctx.close();
   }
