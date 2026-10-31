@@ -155,8 +155,13 @@
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
-                                                    <TextBlock Text="{Binding Username, Mode=OneWay}" Style="{StaticResource NumText}" FontSize="12" TextTrimming="CharacterEllipsis"
-                                                               Foreground="{StaticResource TextSecondaryBrush}" />
+                                                    <DockPanel>
+                                                        <!-- aynı müşteri birçok sitede: site satırda görünmeli -->
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Site, Mode=OneWay}" FontSize="12" MaxWidth="120" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                                        <TextBlock Text="{Binding Username, Mode=OneWay}" Style="{StaticResource NumText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" />
+                                                    </DockPanel>
                                                 </StackPanel>
                                             </DockPanel>
                                         </DataTemplate>

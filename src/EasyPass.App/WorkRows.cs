@@ -22,4 +22,3 @@ public sealed record TodoItem(string Id, string Title, string Login, string Grou
 
 public sealed record NotificationItem(string EntryId, string Task, string Customer, string Login, string Time, string State, string Group, bool Planned, bool Resolved);
 
-public sealed record DrawerItem(string EntryId, string Title, string Detail);
