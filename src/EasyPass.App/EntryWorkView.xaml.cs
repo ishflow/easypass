@@ -1,5 +1,8 @@
 using System.Windows;
+using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Documents;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using EasyPass.Core;
@@ -11,6 +14,7 @@ namespace EasyPass.App;
 public partial class EntryWorkView : UserControl
 {
     const int MaxHours = 8760, MaxDays = 364; // the host refuses a reminder over a year away
+    const double RemindInset = 26; // the reminder box's padding and border around its row
 
     // Hours from saving, or the day at 09:00 local (nobody is woken at night)
     readonly record struct Pick(bool Days, int N, bool Custom);
@@ -28,6 +32,7 @@ public partial class EntryWorkView : UserControl
     readonly Dictionary<string, Pick> picks = [];             // a newly chosen time, the only kind passed to Work.Save
     readonly Dictionary<string, string> customText = [];
     readonly HashSet<string> customDays = [];
+    int builtMode;                                            // the RemindMode the rows were built for
 
     readonly DispatcherTimer savedTimer = new() { Interval = TimeSpan.FromSeconds(1) };
 
@@ -35,7 +40,15 @@ public partial class EntryWorkView : UserControl
     {
         InitializeComponent();
         savedTimer.Tick += (_, _) => { savedTimer.Stop(); SavedMark.Visibility = Visibility.Hidden; };
+        Rows.SizeChanged += (_, e) =>
+        {
+            if (e.WidthChanged && entryId != null && RemindMode != builtMode && draft.ContainsValue(Work.Partial))
+                Build((Keyboard.FocusedElement as TextBox)?.Tag as string);
+        };
     }
+
+    // WPF has no container query: the row never wraps, from 540 px it has full labels, below that short ones, below 410 no "Reminder:"
+    int RemindMode => (Rows.ActualWidth - RemindInset) switch { >= 540 => 0, >= 410 => 1, _ => 2 };
 
     void Flash()
     {
@@ -101,15 +114,17 @@ public partial class EntryWorkView : UserControl
         if (!IsDirty) return true;
         if (!Valid || entryId is not { } id) return false;
         var (statuses, m, now) = (new Dictionary<string, string>(draft), month, DateTime.Now);
-        var due = picks.Where(p => statuses.GetValueOrDefault(p.Key) == Work.Partial).ToDictionary(p => p.Key, p => p.Value.Days
-            ? new DateTime(now.Year, now.Month, now.Day, 9, 0, 0, DateTimeKind.Local).AddDays(p.Value.N).ToUniversalTime()
-            : now.ToUniversalTime().AddHours(p.Value.N));
+        var due = picks.Where(p => statuses.GetValueOrDefault(p.Key) == Work.Partial).ToDictionary(p => p.Key, p => DueUtc(p.Value, now));
         if (!Main.Write(d => Work.Save(d, id, m, statuses, due, now.ToUniversalTime()))) return false;
         Discard();
         Refresh(Main.ActiveVault, id);
         Flash();
         return true;
     }
+
+    static DateTime DueUtc(Pick pick, DateTime now) => pick.Days
+        ? new DateTime(now.Year, now.Month, now.Day, 9, 0, 0, DateTimeKind.Local).AddDays(pick.N).ToUniversalTime()
+        : now.ToUniversalTime().AddHours(pick.N);
 
     void Save_Click(object sender, RoutedEventArgs e) => Save();
 
@@ -130,27 +145,24 @@ public partial class EntryWorkView : UserControl
     void Build(string? focusTask = null)
     {
         var picking = Picking;
+        builtMode = RemindMode;
         Heading.Text = picking ? L("WorkPickTitle") : string.Format(L("WorkMonthTitle"), MonthName(month));
         Heading.Visibility = pool.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Progress.Text = string.Format(L("TodoTitleFmt"), tasks.Count(t => draft.GetValueOrDefault(t.Id) == Work.Done), tasks.Count);
+        Progress.Visibility = pool.Count > 0 && !picking ? Visibility.Visible : Visibility.Collapsed;
         EmptyText.Visibility = pool.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
         Actions.Visibility = pool.Count > 0 && !picking ? Visibility.Visible : Visibility.Collapsed;
-        EditLink.Visibility = IsDirty ? Visibility.Collapsed : Visibility.Visible;
+        EditLink.Visibility = pool.Count > 0 && !picking && !IsDirty ? Visibility.Visible : Visibility.Collapsed;
+        AddLink.Visibility = pool.Any(t => !tasks.Contains(t)) ? Visibility.Visible : Visibility.Collapsed;
         Rows.Children.Clear();
         if (pool.Count == 0) return;
         if (picking) { BuildPick(); return; }
         foreach (var task in tasks) Rows.Children.Add(Row(task, focusTask));
-        if (pool.Any(t => !tasks.Contains(t)))
-        {
-            var add = new Button { Height = 26, Padding = new Thickness(10, 0, 10, 0), FontSize = 12, HorizontalAlignment = HorizontalAlignment.Left };
-            add.SetResourceReference(ContentProperty, "TaskAdd");
-            add.Click += (_, _) => AddTasks();
-            Rows.Children.Add(add);
-        }
         SaveButton.IsEnabled = IsDirty && Valid;
     }
 
     // Unsaved buttons stay: the refresh inside Write keeps them (same client, dirty)
-    void AddTasks()
+    void AddTasks_Click(object sender, RoutedEventArgs e)
     {
         if (entryId is not { } id) return;
         var window = new PickTasksWindow(pool.Where(t => !tasks.Contains(t))) { Owner = Window.GetWindow(this) };
@@ -163,12 +175,12 @@ public partial class EntryWorkView : UserControl
 
     void BuildPick()
     {
-        var next = new Button { Style = (Style)FindResource("AccentButton"), Height = 28, Padding = new Thickness(14, 0, 14, 0), IsEnabled = ticks!.Count > 0 };
+        var next = new Button { Style = (Style)FindResource("AccentButton"), IsEnabled = ticks!.Count > 0 };
         next.SetResourceReference(ContentProperty, linkOpen ? "Save" : "WorkNext");
         next.Click += (_, _) => Assign();
         foreach (var task in pool)
         {
-            var box = new CheckBox { Content = task.Name, IsChecked = ticks.Contains(task.Id), Margin = new Thickness(0, 0, 0, 4) };
+            var box = new CheckBox { Content = task.Name, IsChecked = ticks.Contains(task.Id) };
             box.Click += (_, _) =>
             {
                 if (box.IsChecked == true) ticks.Add(task.Id);
@@ -177,39 +189,42 @@ public partial class EntryWorkView : UserControl
             };
             Rows.Children.Add(box);
         }
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
-        buttons.Children.Add(next);
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 6, 0, 0) };
         if (linkOpen)
         {
-            var close = new Button { Height = 28, Padding = new Thickness(14, 0, 14, 0), Margin = new Thickness(8, 0, 0, 0) };
+            var close = new Button { Margin = new Thickness(0, 0, 8, 0) };
             close.SetResourceReference(ContentProperty, "Close");
             close.Click += (_, _) => { linkOpen = false; Refresh(Main.ActiveVault, entryId); };
             buttons.Children.Add(close);
         }
+        buttons.Children.Add(next);
         Rows.Children.Add(buttons);
     }
 
     StackPanel Row(WorkTask task, string? focusTask)
     {
-        var row = new StackPanel { Margin = new Thickness(0, 0, 0, 6) };
-        var line = new DockPanel();
-        var partial = StateButton(task.Id, Work.Partial, "WorkBtnPartial", "WarningBrush");
-        var done = StateButton(task.Id, Work.Done, "WorkBtnDone", "SuccessBrush");
-        DockPanel.SetDock(partial, Dock.Right);
-        DockPanel.SetDock(done, Dock.Right);
-        line.Children.Add(partial);
-        line.Children.Add(done);
-        line.Children.Add(new TextBlock { Text = task.Name, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis });
+        var partial = draft.GetValueOrDefault(task.Id) == Work.Partial;
+        var row = new StackPanel();
+        var line = new DockPanel { MinHeight = 34 };
+        var states = new StackPanel { Orientation = Orientation.Horizontal };
+        states.Children.Add(StateButton(task.Id, Work.Done, "WorkBtnDone", "SegDoneOn"));
+        states.Children.Add(StateButton(task.Id, Work.Partial, "WorkBtnPartial", "SegWarnOn"));
+        var group = new ContentControl { Style = (Style)FindResource("SegGroup"), Content = states, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(12, 0, 0, 0) };
+        DockPanel.SetDock(group, Dock.Right);
+        line.Children.Add(group);
+        line.Children.Add(new TextBlock { Text = task.Name, FontWeight = FontWeights.Medium, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap,
+            Foreground = (Brush)FindResource(partial ? "WarnInkBrush" : "TextBrush") });
         row.Children.Add(line);
-        if (draft.GetValueOrDefault(task.Id) == Work.Partial) row.Children.Add(ReminderChoice(task.Id, focusTask));
+        if (partial) row.Children.Add(ReminderChoice(task.Id, focusTask));
         return row;
     }
 
     // Pressing the lit button again makes it grey
-    Button StateButton(string task, string status, string text, string brush)
+    Button StateButton(string task, string status, string text, string onStyle)
     {
         var on = draft.GetValueOrDefault(task) == status;
-        var button = Small(on, brush, text);
+        var button = new Button { Style = (Style)FindResource(on ? onStyle : "SegButton") };
+        button.SetResourceReference(ContentProperty, text);
         button.Click += (_, _) =>
         {
             if (on) draft.Remove(task);
@@ -220,48 +235,76 @@ public partial class EntryWorkView : UserControl
         return button;
     }
 
-    Button Small(bool on, string brush, string? textKey)
+    // A short label is display only: the full text stays as tooltip and accessible name
+    void Label(Button button, string full, string shortText)
     {
-        var button = new Button { Height = 26, Padding = new Thickness(10, 0, 10, 0), FontSize = 12, Margin = new Thickness(6, 0, 0, 0) };
-        if (textKey != null) button.SetResourceReference(ContentProperty, textKey);
-        if (on)
-        {
-            var fill = (Brush)FindResource(brush);
-            (button.Background, button.BorderBrush, button.Tag, button.Foreground) = (fill, fill, fill, Brushes.White); // Tag = the hover fill
-        }
-        return button;
+        button.SetResourceReference(ContentProperty, builtMode == 0 ? full : shortText);
+        button.SetResourceReference(ToolTipProperty, full);
+        button.SetResourceReference(AutomationProperties.NameProperty, full);
     }
 
-    WrapPanel ReminderChoice(string task, string? focusTask)
+    Border ReminderChoice(string task, string? focusTask)
     {
-        var panel = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
         var chosen = picks.TryGetValue(task, out var current);
-        var info = !chosen && open.TryGetValue(task, out var set)
-            ? set.Dismissed ? L("WorkReminderClosed") : $"{L("WorkRemind")} {set.Due.ToLocalTime().ToString("g", Culture)}"
-            : L("WorkRemind");
-        panel.Children.Add(new TextBlock { Text = info, FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
-            Foreground = (Brush)FindResource("TextSecondaryBrush") });
-        foreach (var (key, pick) in new[] { ("WorkH2", new Pick(false, 2, false)), ("WorkH5", new Pick(false, 5, false)),
-                     ("WorkTomorrow", new Pick(true, 1, false)), ("WorkD2", new Pick(true, 2, false)) })
+        var row = new StackPanel { Orientation = Orientation.Horizontal };
+        if (builtMode < 2)
+            row.Children.Add(new TextBlock { Text = L("WorkRemind"), FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0),
+                Foreground = (Brush)FindResource("TextSecondaryBrush") });
+        foreach (var (key, shortKey, pick) in new[] { ("WorkH2", "WorkH2Short", new Pick(false, 2, false)), ("WorkH5", "WorkH5Short", new Pick(false, 5, false)),
+                     ("WorkTomorrow", "WorkTomorrow", new Pick(true, 1, false)), ("WorkD2", "WorkD2Short", new Pick(true, 2, false)) })
         {
-            var button = Small(chosen && current == pick, "AccentBrush", key);
+            var button = new Button { Style = (Style)FindResource(chosen && current == pick ? "ChipOn" : "Chip"), Margin = new Thickness(0, 0, 6, 0) };
+            Label(button, key, shortKey);
             button.Click += (_, _) => { picks[task] = pick; customText.Remove(task); Build(); };
-            panel.Children.Add(button);
+            row.Children.Add(button);
         }
 
-        var box = new TextBox { Width = 56, Height = 26, FontSize = 12, Padding = new Thickness(6, 0, 6, 0), MaxLength = 4, Margin = new Thickness(6, 0, 0, 0),
-            Text = customText.GetValueOrDefault(task, "") };
+        // Tag: the task, so a rebuild can give the focus back
+        var box = new TextBox { Style = (Style)FindResource("ReminderBox"), MaxLength = 4, Tag = task, Text = customText.GetValueOrDefault(task, "") };
+        box.SetResourceReference(AutomationProperties.NameProperty, "WorkRemind");
         if (chosen && current.Custom) box.BorderBrush = (Brush)FindResource("AccentBrush");
-        var unit = Small(false, "AccentBrush", customDays.Contains(task) ? "WorkDays" : "WorkHours");
         box.TextChanged += (_, _) => { customText[task] = box.Text; SetCustom(task, box.Text); };
-        unit.Click += (_, _) => { if (!customDays.Remove(task)) customDays.Add(task); SetCustom(task, box.Text); };
         if (focusTask == task) box.Loaded += (_, _) => { box.Focus(); box.CaretIndex = box.Text.Length; };
-        // one child, so the number and its unit never part across lines
+        var units = new StackPanel { Orientation = Orientation.Horizontal };
+        foreach (var (days, key, shortKey) in new[] { (false, "WorkHours", "WorkHoursShort"), (true, "WorkDays", "WorkDaysShort") })
+        {
+            var unit = new Button { Style = (Style)FindResource(customDays.Contains(task) == days ? "ReminderUnitOn" : "ReminderUnit") };
+            Label(unit, key, shortKey);
+            unit.Click += (_, _) =>
+            {
+                if (days) customDays.Add(task);
+                else customDays.Remove(task);
+                SetCustom(task, box.Text);
+            };
+            units.Children.Add(unit);
+        }
+        // one child, so the number and its unit stay joined
         var custom = new StackPanel { Orientation = Orientation.Horizontal };
         custom.Children.Add(box);
-        custom.Children.Add(unit);
-        panel.Children.Add(custom);
-        return panel;
+        custom.Children.Add(new ContentControl { Style = (Style)FindResource("ReminderUnitGroup"), Content = units });
+        row.Children.Add(custom);
+
+        var body = new StackPanel();
+        body.Children.Add(row);
+        if (ReminderLine(task, chosen, current) is { } at) body.Children.Add(at);
+        return new Border { Child = body, Background = (Brush)FindResource("SurfaceBrush"), BorderBrush = (Brush)FindResource("WarnLineBrush"), BorderThickness = new Thickness(1),
+            CornerRadius = (CornerRadius)FindResource("Radius"), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 2, 0, 4) };
+    }
+
+    // When it will remind, on its own line: the new choice, else what is already set
+    TextBlock? ReminderLine(string task, bool chosen, Pick current)
+    {
+        var line = new TextBlock { FontSize = 12, Margin = new Thickness(0, 6, 0, 0), TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("TextSecondaryBrush") };
+        DateTime due;
+        if (chosen) due = DueUtc(current, DateTime.Now);
+        else if (!open.TryGetValue(task, out var set)) return null;
+        else if (set.Dismissed) { line.Text = L("WorkReminderClosed"); return line; }
+        else due = set.Due;
+        var parts = L("WorkRemindAt").Split("{0}");
+        line.Inlines.Add(new Run(parts[0]));
+        line.Inlines.Add(new Run(due.ToLocalTime().ToString("d MMMM, HH:mm", Culture)) { FontWeight = FontWeights.Medium, Foreground = (Brush)FindResource("TextBrush") });
+        line.Inlines.Add(new Run(parts[1]));
+        return line;
     }
 
     // A number that fits the unit becomes the choice; anything else leaves a preset alone

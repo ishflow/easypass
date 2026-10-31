@@ -24,7 +24,7 @@ public partial class SettingsWindow : Window
         ExtensionPathBox.Text = extensionDir;
         using var key = Registry.CurrentUser.OpenSubKey(@"Software\Google\Chrome\NativeMessagingHosts\com.easypass.host");
         ChromeStatus.SetResourceReference(TextBlock.TextProperty, key != null ? "ChromeOk" : "ChromeMissing");
-        ChromeStatus.Foreground = (Brush)FindResource(key != null ? "AccentBrush" : "DangerBrush");
+        ChromeStatus.Foreground = (Brush)FindResource(key != null ? "DoneInkBrush" : "DangerBrush");
         MarkLanguage(AppPaths.Lang);
     }
 
