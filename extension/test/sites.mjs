@@ -264,6 +264,7 @@ function handler(sites, states) {
         case 'GET /':
           return me ? html(t.account, home(site, me).replace('href="/logout"', 'href="/account/logout"')) : toLogin();
         case 'GET /account/login': return html(t.signIn, salykLogin(site, url.search, ''));
+        case 'GET /account/forgotpassword': return html(t.signIn, '<h1>Забыли пароль?</h1>'); // public: no password passed yet
         case 'POST /account/login': {
           const f = await body(req);
           const u = st.find(f.Username || '');

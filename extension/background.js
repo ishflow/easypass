@@ -47,7 +47,7 @@ const ATTEMPT_TTL = 2 * 60 * 1000;
 const P = { login: '/account/login', select: '/account/selectorganization' };
 // The .test and .localhost hosts are the look-alike site of extension/test (manifest matches them too); neither exists on the internet.
 const TRACKED = { 'cabinet.salyk.kg': P, 'salykkabinet.test': P, 'salykkabinet.localhost': P };
-// The one customer being worked on (the site's cookie is one per browser): { entryId, month, at, state, readName? }.
+// The one customer being worked on (the site's cookie is one per browser): { entryId, month, at, state, selected?, readName? }.
 // It survives closing Chrome, so the question still comes. No login, name or password in it.
 const session = async () => (await chrome.storage.local.get('salyk')).salyk;
 const keep = (s) => chrome.storage.local.set({ salyk: s });
@@ -83,13 +83,15 @@ const salykPage = (url) => inTurn(async () => {
   const page = pageOf(url);
   if (s.state === 'attempt') {
     if (page === 'login') return null; // wrong password, or back from the organization page
-    if (page === 'other') { // "Войти" was pressed
-      await keep({ ...s, state: 'open' });
+    if (page === 'other') {
+      if (s.selected) await keep({ ...s, state: 'open' }); // "Войти" was pressed; without the organization page it is a public page
       return null;
     }
+    const seen = { ...s, selected: true };
+    await keep(seen);
     const w = await ask({ cmd: 'work_get', site: url.hostname, entryId: s.entryId, month: s.month });
     if (!w.ok || w.name || w.username !== url.searchParams.get('userName')) return null;
-    await keep({ ...s, readName: true });
+    await keep({ ...seen, readName: true });
     return { readName: true, username: w.username };
   }
   if (s.state === 'open') {
@@ -206,7 +208,13 @@ async function handle(msg, tab, url) {
         const state = await load(tab);
         delete state.pending;
         await store(tab, state);
-        if (msg.cmd === 'add' && p.track) await track(r.entryId, pageOf(url) === 'other' ? 'open' : 'attempt'); // saved after "Войти" was pressed: already inside
+        if (msg.cmd === 'add' && p.track) {
+          await track(r.entryId, pageOf(url) === 'other' ? 'open' : 'attempt'); // saved after "Войти" was pressed: already inside
+          if (pageOf(url) === 'select') { // this page's salyk_page came before the entry existed
+            const seen = await salykPage(url);
+            if (seen?.readName) chrome.tabs.sendMessage(tab, seen).catch(() => {}); // no name is fine: spec §8
+          }
+        }
       }
       return r;
     }

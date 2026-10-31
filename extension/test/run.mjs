@@ -774,7 +774,7 @@ async function salykSuite(lang) {
     await scenario('salyk: chrome.storage keeps no login, password or name', async () => {
       const stored = JSON.stringify(await sw.evaluate(() => chrome.storage.local.get(null)));
       for (const s of [A[0], A[1], A[3]]) assert.ok(!stored.includes(s), 'found in storage: ' + s);
-      assert.deepEqual(Object.keys((await state()) || {}).filter((k) => !['entryId', 'month', 'at', 'state', 'readName'].includes(k)), []);
+      assert.deepEqual(Object.keys((await state()) || {}).filter((k) => !['entryId', 'month', 'at', 'state', 'selected', 'readName'].includes(k)), []);
     });
 
     await scenario('salyk: a click made by a page script is not a logout', async () => {
@@ -903,6 +903,17 @@ async function salykSuite(lang) {
       assert.equal(await taskButton(page, INS, t.done), undefined);
     });
 
+    await scenarioFresh('wrong password, then the public forgot-password page and back → session not opened, no panel', async () => {
+      await signIn(page, [A[0], 'wrong-pw']);
+      await page.goto(sp('/account/forgotpassword'));
+      await sleep(300);
+      assert.equal((await state()).state, 'attempt');
+      await page.goto(sp('/account/login'));
+      await opened(page);
+      assert.equal((await state()).state, 'attempt');
+      assert.equal(await taskButton(page, INS, t.done), undefined);
+    });
+
     await scenarioFresh('back from the organization page to the login page → no panel', async () => {
       await signIn(page, A);
       await page.goto(sp('/account/login'));
@@ -1002,6 +1013,23 @@ async function salykSuite(lang) {
       await clickNode(page, await button(page, t.close));
     });
 
+    await scenarioFresh('two tabs with the panel: the second Save, already answered in the first, just closes', async () => {
+      await sw.evaluate(([e, m]) => chrome.storage.local.set({ salyk: { entryId: e, month: m, at: Date.now(), state: 'closed' } }), [B[2], thisMonth]);
+      const [p1, p2] = [await ctx.newPage(), await ctx.newPage()];
+      for (const p of [p1, p2]) {
+        await p.goto(sp('/account/login'));
+        await workPanel(p);
+      }
+      await p1.bringToFront();
+      await clickNode(p1, await button(p1, t.save));
+      await waitFor(async () => (await state()) === null, 'session finished');
+      await p2.bringToFront();
+      await clickNode(p2, await button(p2, t.save));
+      await waitFor(async () => !(await taskButton(p2, INS, t.done)), 'second panel closed');
+      await p1.close();
+      await p2.close();
+    });
+
     await scenarioFresh('session from two months ago is dropped silently: no panel, no update message, no work_get', async () => {
       await sw.evaluate((u) => chrome.storage.local.set({ salyk: { entryId: u, month: '2020-01', at: Date.now(), state: 'closed' } }), A[2]);
       const mark = hostLog().length;
@@ -1071,6 +1099,20 @@ async function salykSuite(lang) {
       assert.ok(row(B).includes(t.dotPartial), row(B));
       assert.ok(!row(C).includes(t.dotDone) && !row(C).includes(t.dotPartial), row(C));
       await shot(page, '10-login-dots');
+    });
+
+    // after the list above: one more customer would push its rows past the panel's five
+    await scenarioFresh('new login saved nameless on the organization page → the name is read from that page, Войти opens', async () => {
+      const login = '95000000000003';
+      sites.states.get('salykkabinet').users.push({ first: 'X', last: 'Y', org: 'Осмонова Гульнара', username: login, password: 'Salyk-new' });
+      const mark = hostLog().length;
+      await signIn(page, [login, 'Salyk-new']);
+      await waitFor(() => hasText(page, t.added), 'save prompt');
+      await clickNode(page, await button(page, t.save));
+      await waitFor(() => hostSince(mark, 'set_name').length, 'set_name sent');
+      assert.equal(hostSince(mark, 'set_name')[0].text, 'Осмонова Гульнара');
+      await load(page, () => page.click('a.btn-light-primary'));
+      await waitFor(async () => (await state())?.state === 'open', 'session open');
     });
 
     await scenario('salyk: popup shows the month line', async () => {

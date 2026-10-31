@@ -254,7 +254,7 @@
       for (const [id, at] of Object.entries(picked)) if (statuses[id] === 'partial') reminders[id] = at;
       const r = await send({ cmd: 'work_save', statuses, reminders });
       busy = false;
-      if (r.ok) return closeModal();
+      if (r.ok || r.error === 'not_found') return closeModal(); // not_found: answered in another tab
       error.textContent = message(r.error, false);
       save.textContent = T.retry;
       refresh();
@@ -295,5 +295,6 @@
   document.addEventListener('click', (e) => {
     if (e.isTrusted && e.target.closest?.(LOGOUT)) send({ cmd: 'salyk_logout' });
   }, true);
+  chrome.runtime.onMessage.addListener((r) => { if (r.readName) readName(r.username); }); // a login saved on this page
   pageLoaded();
 })();
