@@ -108,4 +108,17 @@
     <sys:String x:Key="TrayExit" xml:space="preserve">Выход</sys:String>
     <sys:String x:Key="TrayLocked" xml:space="preserve">EasyPass: хранилище не открыто</sys:String>
     <sys:String x:Key="History" xml:space="preserve">История работ</sys:String>
+    <sys:String x:Key="WorkMonthTitle" xml:space="preserve">Работы за {0}</sys:String>
+    <sys:String x:Key="WorkBtnDone" xml:space="preserve">Сделано</sys:String>
+    <sys:String x:Key="WorkBtnPartial" xml:space="preserve">Не завершено</sys:String>
+    <sys:String x:Key="WorkSave" xml:space="preserve">Сохранить работы</sys:String>
+    <sys:String x:Key="WorkNoTasks" xml:space="preserve">Добавьте работы на вкладке «Работы».</sys:String>
+    <sys:String x:Key="WorkRemind" xml:space="preserve">Напоминание:</sys:String>
+    <sys:String x:Key="WorkReminderClosed" xml:space="preserve">напоминание закрыто</sys:String>
+    <sys:String x:Key="WorkH2" xml:space="preserve">2 часа</sys:String>
+    <sys:String x:Key="WorkH5" xml:space="preserve">5 часов</sys:String>
+    <sys:String x:Key="WorkTomorrow" xml:space="preserve">Завтра</sys:String>
+    <sys:String x:Key="WorkD2" xml:space="preserve">Через 2 дня</sys:String>
+    <sys:String x:Key="WorkHours" xml:space="preserve">часов</sys:String>
+    <sys:String x:Key="WorkDays" xml:space="preserve">дней</sys:String>
 </ResourceDictionary>

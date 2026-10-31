@@ -137,6 +137,7 @@
                             <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
                                 <StackPanel MaxWidth="600" Margin="32,24" HorizontalAlignment="Stretch">
                                     <TextBlock x:Name="EditTitle" Text="{DynamicResource NewEntry}" Style="{StaticResource Title}" />
+                                    <local:EntryWorkView x:Name="WorkPage" />
                                     <TextBlock Text="{DynamicResource Site}" Style="{StaticResource Label}" />
                                     <ComboBox x:Name="SiteBox" IsEditable="True" />
                                     <TextBlock x:Name="SiteError" Style="{StaticResource Error}" Margin="0,4,0,0" />

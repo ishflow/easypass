@@ -1,0 +1,16 @@
+<UserControl x:Class="EasyPass.App.EntryWorkView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Visibility="Collapsed">
+    <!-- This month's work for the open client; rows are built in code (EntryWorkView.xaml.cs) -->
+    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="1"
+            CornerRadius="{StaticResource Radius}" Padding="12,10" Margin="0,0,0,8">
+        <StackPanel TextBlock.FontSize="13">
+            <TextBlock x:Name="Heading" FontWeight="SemiBold" Margin="0,0,0,8" />
+            <TextBlock x:Name="EmptyText" Text="{DynamicResource WorkNoTasks}" Style="{StaticResource Secondary}" FontSize="12" Visibility="Collapsed" />
+            <StackPanel x:Name="Rows" />
+            <Button x:Name="SaveButton" Content="{DynamicResource WorkSave}" Style="{StaticResource AccentButton}" Height="28" Padding="14,0"
+                    HorizontalAlignment="Left" Margin="0,4,0,0" Click="Save_Click" />
+        </StackPanel>
+    </Border>
+</UserControl>

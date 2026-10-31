@@ -108,4 +108,17 @@
     <sys:String x:Key="TrayExit" xml:space="preserve">Exit</sys:String>
     <sys:String x:Key="TrayLocked" xml:space="preserve">EasyPass: vault not open</sys:String>
     <sys:String x:Key="History" xml:space="preserve">Work history</sys:String>
+    <sys:String x:Key="WorkMonthTitle" xml:space="preserve">Work for {0}</sys:String>
+    <sys:String x:Key="WorkBtnDone" xml:space="preserve">Done</sys:String>
+    <sys:String x:Key="WorkBtnPartial" xml:space="preserve">Not finished</sys:String>
+    <sys:String x:Key="WorkSave" xml:space="preserve">Save work</sys:String>
+    <sys:String x:Key="WorkNoTasks" xml:space="preserve">Add tasks on the Tasks tab.</sys:String>
+    <sys:String x:Key="WorkRemind" xml:space="preserve">Reminder:</sys:String>
+    <sys:String x:Key="WorkReminderClosed" xml:space="preserve">reminder closed</sys:String>
+    <sys:String x:Key="WorkH2" xml:space="preserve">2 hours</sys:String>
+    <sys:String x:Key="WorkH5" xml:space="preserve">5 hours</sys:String>
+    <sys:String x:Key="WorkTomorrow" xml:space="preserve">Tomorrow</sys:String>
+    <sys:String x:Key="WorkD2" xml:space="preserve">In 2 days</sys:String>
+    <sys:String x:Key="WorkHours" xml:space="preserve">hours</sys:String>
+    <sys:String x:Key="WorkDays" xml:space="preserve">days</sys:String>
 </ResourceDictionary>

@@ -40,6 +40,7 @@ public partial class MainWindow : Window
         TodoPage.Main = this;
         NotificationsPage.Main = this;
         TasksPage.Main = this;
+        WorkPage.Main = this;
         tray = new TrayIcon(this);
         Application.Current.Exit += (_, _) => tray.Dispose();
         reminders = new ReminderService(this, tray);
@@ -255,7 +256,7 @@ public partial class MainWindow : Window
         catch (VaultPasswordChangedException)
         {
             if (vault != v) return;
-            var dirty = IsDirty();
+            var dirty = Unsaved;
             if (ReopenPasswordless(keepForm: dirty)) return;
             // ana şifre başka bilgisayarda değişti; formda yazılmamış veri varsa kilitleyip silme
             if (dirty) SetStatus(L("ErrKeyChangedDirty"), error: true);
@@ -292,7 +293,7 @@ public partial class MainWindow : Window
     internal bool ReadyToLeave()
     {
         if (asking || !IsEnabled) { ShowFromTray(); return false; }
-        if (vault != null && IsDirty()) ShowFromTray();
+        if (vault != null && Unsaved) ShowFromTray();
         if (!ConfirmLeave()) return false;
         quitting = true;
         return true;
@@ -430,6 +431,7 @@ public partial class MainWindow : Window
             .OfType<MonthMarks>()
             .ToList();
         HistoryList.ItemsSource = rows;
+        WorkPage.Refresh(vault, editingId);
         HistoryPanel.Visibility = rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -488,12 +490,15 @@ public partial class MainWindow : Window
             || UsernameBox.Text != (e?.Username ?? "") || FormPassword != (e?.Password ?? "");
     }
 
+    bool Unsaved => IsDirty() || WorkPage.IsDirty; // form ya da bu ayın iş düğmeleri
+
     /// <summary>Kaydedilmemiş değişiklik varsa sorar. Devam edilebilirse true.</summary>
     bool ConfirmLeave()
     {
-        if (vault == null || !IsDirty()) return true;
+        if (vault == null || !Unsaved) return true;
         var answer = Ask(L("AskSaveChanges"), "EasyPass", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-        return answer == MessageBoxResult.No || (answer == MessageBoxResult.Yes && Save());
+        if (answer == MessageBoxResult.No) WorkPage.Discard();
+        return answer == MessageBoxResult.No || (answer == MessageBoxResult.Yes && (!IsDirty() || Save()) && WorkPage.Save());
     }
 
     void Save_Click(object sender, RoutedEventArgs e) => Save();

@@ -108,4 +108,17 @@
     <sys:String x:Key="TrayExit" xml:space="preserve">Çıkış</sys:String>
     <sys:String x:Key="TrayLocked" xml:space="preserve">EasyPass: kasa açılamadı</sys:String>
     <sys:String x:Key="History" xml:space="preserve">İş geçmişi</sys:String>
+    <sys:String x:Key="WorkMonthTitle" xml:space="preserve">{0} işleri</sys:String>
+    <sys:String x:Key="WorkBtnDone" xml:space="preserve">Yapıldı</sys:String>
+    <sys:String x:Key="WorkBtnPartial" xml:space="preserve">Bitmedi</sys:String>
+    <sys:String x:Key="WorkSave" xml:space="preserve">İşleri kaydet</sys:String>
+    <sys:String x:Key="WorkNoTasks" xml:space="preserve">"İşler" sekmesinden iş ekleyin.</sys:String>
+    <sys:String x:Key="WorkRemind" xml:space="preserve">Hatırlatma:</sys:String>
+    <sys:String x:Key="WorkReminderClosed" xml:space="preserve">hatırlatma kapatıldı</sys:String>
+    <sys:String x:Key="WorkH2" xml:space="preserve">2 saat</sys:String>
+    <sys:String x:Key="WorkH5" xml:space="preserve">5 saat</sys:String>
+    <sys:String x:Key="WorkTomorrow" xml:space="preserve">Yarın</sys:String>
+    <sys:String x:Key="WorkD2" xml:space="preserve">2 gün sonra</sys:String>
+    <sys:String x:Key="WorkHours" xml:space="preserve">saat</sys:String>
+    <sys:String x:Key="WorkDays" xml:space="preserve">gün</sys:String>
 </ResourceDictionary>
