@@ -17,6 +17,8 @@
     <Using Remove="System.Windows.Forms" />
     <Using Remove="System.Drawing" />
     <Resource Include="app.ico" />
+    <Resource Include="Fonts\*.ttf" />
+    <Content Include="Fonts\OFL.txt" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="..\EasyPass.Core\EasyPass.Core.csproj" />
   </ItemGroup>
 

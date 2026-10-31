@@ -71,7 +71,7 @@
 
         <!-- 3. Ana ekran -->
         <Grid x:Name="MainPanel" Visibility="Collapsed">
-            <TabControl x:Name="Tabs" SelectedIndex="0" Padding="116,0,132,0" SelectionChanged="Tabs_SelectionChanged">
+            <TabControl x:Name="Tabs" SelectedIndex="0" Padding="116,0,48,0" SelectionChanged="Tabs_SelectionChanged">
                 <TabItem Header="{DynamicResource TabClients}">
                     <Grid>
                         <Grid.RowDefinitions>
@@ -198,8 +198,8 @@
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{DynamicResource TabNotifications}" />
-                            <Border x:Name="DueBadge" Visibility="Collapsed" Background="{StaticResource WarningBrush}" CornerRadius="9" MinWidth="18" Padding="5,0" Margin="6,0,0,0">
-                                <TextBlock x:Name="DueCount" Foreground="White" FontSize="12" FontWeight="SemiBold" TextAlignment="Center" />
+                            <Border x:Name="DueBadge" Visibility="Collapsed" Style="{StaticResource Badge}" Margin="6,0,0,0">
+                                <TextBlock x:Name="DueCount" Style="{StaticResource BadgeText}" />
                             </Border>
                         </StackPanel>
                     </TabItem.Header>
@@ -209,8 +209,14 @@
                     <local:TasksView x:Name="TasksPage" />
                 </TabItem>
             </TabControl>
-            <TextBlock Text="EasyPass" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,12,0,0" IsHitTestVisible="False" />
-            <Button Content="{DynamicResource Settings}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,16,0" Click="Settings_Click" />
+            <StackPanel Orientation="Horizontal" Height="44" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="14,0,0,0" IsHitTestVisible="False">
+                <Image Source="{StaticResource BrandMark}" Width="18" Height="18" Margin="0,0,8,0" />
+                <TextBlock Text="EasyPass" FontWeight="SemiBold" VerticalAlignment="Center" />
+            </StackPanel>
+            <Button Style="{StaticResource IconButton}" ToolTip="{DynamicResource Settings}" AutomationProperties.Name="{DynamicResource Settings}"
+                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,8,0" Click="Settings_Click">
+                <Path Data="{StaticResource GearIcon}" Width="16" Height="16" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+            </Button>
         </Grid>
 
     </Grid>
