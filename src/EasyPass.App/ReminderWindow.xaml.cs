@@ -18,15 +18,26 @@ public partial class ReminderWindow : Window
     {
         Heading.Text = L("NotifTitle");
         TaskText.Text = task;
+        TaskText.ToolTip = task;
         CustomerText.Text = customer;
+        CustomerText.ToolTip = customer;
         LoginText.Text = login;
+        Fit();
+    }
+
+    // ReminderService stacks the toasts by Height, so a taller one must say so before it is placed
+    void Fit()
+    {
+        var root = (UIElement)Content;
+        root.Measure(new Size(Width, double.PositiveInfinity));
+        Height = Math.Ceiling(root.DesiredSize.Height);
     }
 
     public void SetMore(int count)
     {
-        Height = 46;
         Heading.Text = string.Format(L("NotifMore"), count);
         TopBar.Visibility = CloseButton.Visibility = TaskText.Visibility = CustomerText.Visibility = LoginText.Visibility = Visibility.Collapsed;
+        Fit();
     }
 
     void Clicked(object sender, RoutedEventArgs e) => click();

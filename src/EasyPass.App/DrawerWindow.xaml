@@ -12,7 +12,7 @@
         <Geometry x:Key="ChevronRight">M2.4,1.2 L5.6,4 L2.4,6.8</Geometry>
         <Style x:Key="DrawerRow" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
             <Setter Property="MinHeight" Value="32" />
-            <Setter Property="Padding" Value="10,0" />
+            <Setter Property="Padding" Value="10,6" />
             <EventSetter Event="MouseLeftButtonUp" Handler="Row_Click" />
         </Style>
         <Style x:Key="PendingRow" TargetType="ListBoxItem" BasedOn="{StaticResource DrawerRow}">
@@ -26,9 +26,11 @@
         </Style>
         <DataTemplate x:Key="TodoLineTemplate">
             <DockPanel LastChildFill="True">
-                <Image DockPanel.Dock="Left" Source="{Binding Glyph}" Style="{StaticResource StatusGlyph}" Margin="0,0,10,0"
+                <Image DockPanel.Dock="Left" Source="{Binding Glyph}" Style="{StaticResource StatusGlyph}" Margin="0,2,10,0" VerticalAlignment="Top"
                        AutomationProperties.Name="{Binding GlyphName}" />
-                <TextBlock x:Name="Name" Text="{Binding Name}" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
+                <!-- up to 3 lines, then an ellipsis; the full name is the tooltip -->
+                <TextBlock x:Name="Name" Text="{Binding Name}" FontWeight="Medium" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                           LineHeight="18" LineStackingStrategy="BlockLineHeight" MaxHeight="54" ToolTip="{Binding Name}" />
             </DockPanel>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding Muted}" Value="True">
@@ -44,13 +46,15 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Image Source="{Binding Glyph}" Style="{StaticResource StatusGlyph}" Margin="0,0,10,0" AutomationProperties.Name="{Binding GlyphName}" />
+                <Image Source="{Binding Glyph}" Style="{StaticResource StatusGlyph}" Margin="0,2,10,0" VerticalAlignment="Top" AutomationProperties.Name="{Binding GlyphName}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding Name}" FontWeight="Medium" TextTrimming="CharacterEllipsis" ToolTip="{Binding Name}" />
-                    <TextBlock Text="{Binding Task}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Name}" FontWeight="Medium" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                               LineHeight="18" LineStackingStrategy="BlockLineHeight" MaxHeight="54" ToolTip="{Binding Name}" />
+                    <TextBlock Text="{Binding Task}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                               LineHeight="16" LineStackingStrategy="BlockLineHeight" MaxHeight="48" ToolTip="{Binding Task}" />
                 </StackPanel>
                 <TextBlock x:Name="When" Grid.Column="2" Text="{Binding Time}" ToolTip="{Binding TimeFull}" Style="{StaticResource NumText}" FontSize="12"
-                           Foreground="{StaticResource TextSecondaryBrush}" Margin="10,0,0,0" VerticalAlignment="Center" TextAlignment="Right" />
+                           Foreground="{StaticResource TextSecondaryBrush}" Margin="10,1,0,0" VerticalAlignment="Top" TextAlignment="Right" />
             </Grid>
             <DataTemplate.Triggers>
                 <DataTrigger Binding="{Binding Late}" Value="True">

@@ -5,7 +5,7 @@
         Topmost="True" ShowInTaskbar="False" ShowActivated="False" WindowStyle="None" ResizeMode="NoResize"
         AllowsTransparency="True" Background="Transparent"
         WindowStartupLocation="Manual" Cursor="Hand" MouseLeftButtonUp="Clicked">
-    <!-- D5 toast: title strip, then the work. The window height is fixed (ReminderService stacks by it), so long names end in an ellipsis. -->
+    <!-- D5 toast: title strip, then the work. ReminderService stacks by Height, so Fit() sets it from the content. -->
     <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource Line2Brush}" BorderThickness="1" CornerRadius="8" ClipToBounds="True">
         <Grid>
             <Grid.RowDefinitions>
@@ -33,9 +33,12 @@
                 <Image Source="{StaticResource GlyphPartial}" Width="20" Height="20" VerticalAlignment="Top" Margin="0,0,12,0"
                        AutomationProperties.Name="{DynamicResource TodoUnfinished}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Top">
-                    <TextBlock x:Name="Heading" FontWeight="SemiBold" Foreground="{StaticResource WarnInkBrush}" TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="TaskText" FontSize="15" FontWeight="SemiBold" Margin="0,2,0,0" TextTrimming="CharacterEllipsis" />
-                    <TextBlock x:Name="CustomerText" Margin="0,6,0,0" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="Heading" FontWeight="SemiBold" Foreground="{StaticResource WarnInkBrush}" TextWrapping="Wrap" />
+                    <!-- task and client wrap up to 3 lines, then an ellipsis; the full text is the tooltip (set in code) -->
+                    <TextBlock x:Name="TaskText" FontSize="15" FontWeight="SemiBold" Margin="0,2,0,0" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                               LineHeight="20" LineStackingStrategy="BlockLineHeight" MaxHeight="60" />
+                    <TextBlock x:Name="CustomerText" Margin="0,6,0,0" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                               LineHeight="18" LineStackingStrategy="BlockLineHeight" MaxHeight="54" />
                     <TextBlock x:Name="LoginText" FontSize="12" Style="{StaticResource NumText}" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
                 </StackPanel>
             </Grid>
