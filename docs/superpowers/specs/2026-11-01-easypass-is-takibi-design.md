@@ -30,7 +30,7 @@ Yapılacak:
 - Girişten sonra müşterinin adını siteden yakalayıp kayda yazma.
 - Arka planda çalışma (tepsi simgesi, Windows açılışında başlama).
 
-Yapılmayacak: sunucu/eşitleme servisi; müşteri başına ayrı iş listesi; yapılan işi siteden otomatik anlama; rapor/dışa
+Yapılmayacak: sunucu/eşitleme servisi; yapılan işi siteden otomatik anlama; rapor/dışa
 aktarma; ertele düğmesi; uygulama içinden geçmiş düzeltme (düzeltme için müşteriye yeniden girilir); iki bilgisayarda aynı
 anda yazma birleştirmesi (hep tek kişi, sırayla); ЭЦП/Jacarta/SmartID gibi şifresiz giriş sekmeleri (girişi yakalayamayız).
 
@@ -53,8 +53,7 @@ Uba: her şey mevcut tek kasa dosyasında. Dosya biçimi değişmez (`EZP1`, AES
 ```
 
 - Gri = kayıt yok. Bir ayda hiç yeşil/turuncu kalmadıysa o `work` kaydı silinir.
-- Karar: iş listesi TEK ve ortak; ekranda yazılan her iş tüm müşterilerin panelinde çıkar. Uba'nın anlatımı "tüm
-  kullanıcılara bağlanacak, 5 tane oluşturdu, ekrana 5 tane çıktı".
+- İş tanımları ortak bir havuz; her müşterinin kendi seçili işleri var (§7d). Uba ilk denemeden sonra böyle düzeltti.
 - İş silinince `archived = true`: yeni panelde görünmez, geçmişte adıyla kalır. Yeniden adlandırma geçmişi de günceller.
   Karar: silinen iş §6 gruplarında sayılmaz ve açık hatırlatmaları `resolvedAt` ile kapanır (silinen iş için bildirim çıkmaz).
 - Karar: (müşteri, iş, ay) başına tek hatırlatma. Yeni saat seçilirse saat değişir ve `dismissedAt` temizlenir. Bildirimi
@@ -192,6 +191,20 @@ Uba: müşteri "onları başkasına yaptırdım, bitti" der; siteye girmeden, ek
 - Karar: yalnız içinde bulunulan ay değiştirilir; geçmiş aylar salt okunur. §2'deki "uygulama içinden geçmiş düzeltme yok" bu kadar değişti.
 - Host'a yeni kural yok: `work_get`/`work_save` kaydın kendi sitesiyle çağrılır. Eklentide bu yol yalnız kendi penceresinden (`POPUP_ORIGIN`) ve
   takipli site için açıktır; web sayfası erişemez. Açık bir oturum/panel varsa bozulmaz.
+
+## 7d. Müşteri başına işler (Uba, ilk denemeden sonra)
+
+Uba: havuzda 10-15 iş olabilir, ama her müşteriye hepsi yapılmaz; kimine 1, kimine 8. Müşterinin yapılmayan 14 işi her seferinde karşısına çıkmasın, geçmişinde "yapılmadı" diye kalmasın.
+
+- Veri: `Entry.TaskIds`: `null` = henüz seçilmedi; dolu = bu müşterinin işleri. Havuza eklenen yeni iş mevcut müşterilere kendiliğinden eklenmez.
+- **İlk sefer:** müşterinin `TaskIds`'i `null` iken çıkışta önce havuzun tamamı onay kutularıyla gelir: "Bu müşteriye her ay hangi işler yapılır?". En az bir iş seçilmeden **Далее** pasif.
+  Далее → seçim kaydedilir → bilinen panel yalnız seçilenlerle açılır. **Закрыть** seçimi kaydetmez, sonraki çıkışta yeniden sorulur. Bu ay zaten yeşil/turuncu olan işler kutularda işaretli gelir.
+- **Sonraki seferler:** yalnız seçili işler görünür; iş sayısı ne olursa olsun seçim yeniden sorulmaz.
+- **Değiştirme:** Karar: çıkış panelinde, eklenti penceresinde ve program panelinde küçük **Изменить список работ** bağlantısı aynı onay kutularını açar. Olmazsa müşteriye yeni iş eklenemezdi.
+- Müşterinin `TaskIds`'i `null` ise eklenti penceresi ve program paneli de aynı seçimle başlar.
+- Listeden çıkarılan iş: o ayda ve geçmişte kaydı varsa adıyla kalır, açık hatırlatması `resolvedAt` ile kapanır, panelde görünmez. Havuzdan silinen iş de listeden düşer.
+- **§6 grupları** artık müşterinin kendi işlerine göre. Karar: **Готово** = seçili işlerin hepsi yeşil; **Не завершено** = en az biri yeşil/turuncu ama hepsi yeşil değil; **Не начато** = hiçbiri işaretli değil. Seçimi olmayan müşteride eski kural (yeşil var, turuncu yok = Готово). Eklenti noktası ve özet satırı aynı hesabı kullanır.
+- Yeni host komutu `work_assign {site, entryId, taskIds}`; `work_get` yanıtına `assigned` (bool) ve `allTasks` eklenir, `tasks` seçili işleri verir (`assigned` yanlışsa boş). Yetki kuralları `work_get`/`work_save` ile aynı.
 
 ## 8. Adı yakalama
 
