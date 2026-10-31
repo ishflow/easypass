@@ -24,9 +24,9 @@ public partial class ReminderWindow : Window
 
     public void SetMore(int count)
     {
-        Height = 44;
+        Height = 46;
         Heading.Text = string.Format(L("NotifMore"), count);
-        CloseButton.Visibility = TaskText.Visibility = CustomerText.Visibility = LoginText.Visibility = Visibility.Collapsed;
+        TopBar.Visibility = CloseButton.Visibility = TaskText.Visibility = CustomerText.Visibility = LoginText.Visibility = Visibility.Collapsed;
     }
 
     void Clicked(object sender, RoutedEventArgs e) => click();
