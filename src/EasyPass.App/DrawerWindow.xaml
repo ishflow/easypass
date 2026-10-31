@@ -4,7 +4,7 @@
         Title="EasyPass" Width="24" Height="112" Style="{StaticResource AppWindow}"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False" WindowStyle="None" ResizeMode="NoResize"
         WindowStartupLocation="Manual" Background="{StaticResource SurfaceBrush}"
-        SourceInitialized="Window_SourceInitialized" SizeChanged="Window_SizeChanged" Deactivated="Window_Deactivated">
+        SourceInitialized="Window_SourceInitialized" SizeChanged="Window_SizeChanged">
     <Window.Resources>
         <Style x:Key="DrawerRow" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
             <EventSetter Event="MouseLeftButtonUp" Handler="Row_Click" />

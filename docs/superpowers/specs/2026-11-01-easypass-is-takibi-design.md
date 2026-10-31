@@ -267,7 +267,7 @@ Ekran yerleşimi ayrıntısı (mevcut tema içinde), `Update` API şekli, sını
 
 **Kaydedildi işareti:** Her iş kaydından sonra küçük, rahatsız etmeyen "Сохранено" işareti yaklaşık 1 saniye görünür ve kendi kapanır; tıklama beklemez, odak çalmaz. Çıkış panelinde panel kapandıktan sonra sayfanın köşesinde, eklenti penceresinde ve programda kendi içinde.
 
-**Kenar çekmecesi:** Karar: Uba "ekranın sağ tarafı" dedi, bu yüzden tarayıcıda değil masaüstünde, programın kendi penceresi; Chrome'un üstünde de görünür. Sağ kenarda dar, uzunca bir çıkıntı her zaman üstte durur, odak çalmaz. Tıklayınca sağdan sola kayarak açılır (~200 ms); çıkıntıya tekrar basınca ya da dışarı tıklayınca kapanır.
+**Kenar çekmecesi:** Karar: Uba "ekranın sağ tarafı" dedi, bu yüzden tarayıcıda değil masaüstünde, programın kendi penceresi; Chrome'un üstünde de görünür. Sağ kenarda dar, uzunca bir çıkıntı her zaman üstte durur, odak çalmaz. Tıklayınca sağdan sola kayarak açılır (~200 ms); yalnız çıkıntıya tekrar basınca kapanır (Uba). Program penceresi × ile kapatılsa da çıkıntı durur.
 - Üst bölüm: bu ayın yapılacakları, **müşteri adları** (ad yoksa login) sırayla: önce Не завершено, sonra Не начато; Готово yok. Üstte sayı.
 - Alt bölüm: bekleyenler, yani açık hatırlatması olan yarım işler: müşteri adı, iş adı, saat. Vakti geçenler önce.
 - Satıra tıklayınca program penceresi o müşteriyle açılır. Şifre hiçbir yerde görünmez.

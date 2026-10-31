@@ -42,7 +42,7 @@ public partial class DrawerWindow : Window
     {
         set
         {
-            if (!value) { expanded = false; Glyph.Text = "‹"; SetActivatable(false); }
+            if (!value) { expanded = false; Glyph.Text = "‹"; }
             if (value == IsVisible) return;
             if (value) { Place(Target()); Show(); }
             else Hide();
@@ -55,7 +55,7 @@ public partial class DrawerWindow : Window
         if (expanded) Fill();
     }
 
-    // A window that is never activated keeps the focus where the user has it; it takes it only once opened, to notice a click outside
+    // A window that is never activated keeps the focus where the user has it; only the tab opens and closes it
     void Window_SourceInitialized(object? sender, EventArgs e) => SetActivatable(false, tool: true);
 
     void SetActivatable(bool on, bool tool = false)
@@ -82,23 +82,13 @@ public partial class DrawerWindow : Window
 
     void Tab_Click(object sender, MouseButtonEventArgs e) => Toggle(!expanded);
 
-    void Window_Deactivated(object? sender, EventArgs e)
-    {
-        if (expanded) Toggle(false);
-    }
-
     void Toggle(bool open)
     {
         if (moving || open == expanded) return;
         expanded = open;
         Glyph.Text = open ? "›" : "‹";
-        if (open)
-        {
-            Fill();
-            SetActivatable(true);
-            Slide(Target(), then: () => Activate());
-        }
-        else Slide(Target(), then: () => SetActivatable(false));
+        if (open) Fill();
+        Slide(Target(), then: () => { });
     }
 
     void Slide(Rect to, Action then)
