@@ -121,4 +121,7 @@
     <sys:String x:Key="WorkD2" xml:space="preserve">2 gün sonra</sys:String>
     <sys:String x:Key="WorkHours" xml:space="preserve">saat</sys:String>
     <sys:String x:Key="WorkDays" xml:space="preserve">gün</sys:String>
+    <sys:String x:Key="WorkPickTitle" xml:space="preserve">Bu müşteriye her ay hangi işler yapılır?</sys:String>
+    <sys:String x:Key="WorkNext" xml:space="preserve">İleri</sys:String>
+    <sys:String x:Key="WorkEditList" xml:space="preserve">İş listesini değiştir</sys:String>
 </ResourceDictionary>

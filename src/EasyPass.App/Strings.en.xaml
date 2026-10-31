@@ -121,4 +121,7 @@
     <sys:String x:Key="WorkD2" xml:space="preserve">In 2 days</sys:String>
     <sys:String x:Key="WorkHours" xml:space="preserve">hours</sys:String>
     <sys:String x:Key="WorkDays" xml:space="preserve">days</sys:String>
+    <sys:String x:Key="WorkPickTitle" xml:space="preserve">Which tasks are done for this client every month?</sys:String>
+    <sys:String x:Key="WorkNext" xml:space="preserve">Next</sys:String>
+    <sys:String x:Key="WorkEditList" xml:space="preserve">Edit task list</sys:String>
 </ResourceDictionary>

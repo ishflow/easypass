@@ -17,7 +17,10 @@ public partial class EntryWorkView : UserControl
     internal MainWindow Main = null!;
     string? entryId;
     string month = "";
-    List<WorkTask> tasks = [];
+    List<WorkTask> tasks = [];                                // the client's own active tasks
+    List<WorkTask> pool = [];                                 // every active task
+    bool linkOpen;                                            // "edit the list" was pressed
+    HashSet<string>? ticks;                                   // the open selection; null while it is closed
     Dictionary<string, string> baseline = [];                 // what the vault holds
     Dictionary<string, string> draft = [];                    // what the buttons show
     Dictionary<string, (DateTime Due, bool Dismissed)> open = []; // reminders already set: kept unless a new time is picked
@@ -29,6 +32,8 @@ public partial class EntryWorkView : UserControl
 
     internal bool IsDirty => draft.Count != baseline.Count || draft.Any(d => baseline.GetValueOrDefault(d.Key) != d.Value) || picks.Count > 0;
 
+    bool Picking => tasks.Count == 0 || linkOpen;
+
     bool Valid => draft.Where(d => d.Value == Work.Partial).All(d => picks.ContainsKey(d.Key) || open.ContainsKey(d.Key));
 
     /// <summary>Shows the client's month. Unsaved buttons of the same client survive a reload.</summary>
@@ -36,15 +41,18 @@ public partial class EntryWorkView : UserControl
     {
         if (vault == null || id == null || !vault.Data.Entries.Any(e => e.Id == id))
         {
-            (entryId, draft, baseline) = (null, [], []);
+            (entryId, draft, baseline, linkOpen, ticks) = (null, [], [], false, null);
             picks.Clear();
             Visibility = Visibility.Collapsed;
             return;
         }
-        var keep = id == entryId && IsDirty;
+        var same = id == entryId;
+        var keep = same && IsDirty;
+        if (!same) (linkOpen, ticks) = (false, null);
         entryId = id;
         var data = vault.Data;
-        tasks = [.. data.Tasks.Where(t => !t.Archived)];
+        pool = [.. data.Tasks.Where(t => !t.Archived)];
+        tasks = [.. Work.TasksOf(data, data.Entries.First(e => e.Id == id))];
         if (!keep) month = Work.MonthOf(DateTime.Now);
         var active = tasks.Select(t => t.Id).ToHashSet();
         baseline = data.Work.FirstOrDefault(w => w.EntryId == id && w.Month == month)?.Tasks.Where(t => active.Contains(t.Key)).ToDictionary() ?? [];
@@ -56,8 +64,12 @@ public partial class EntryWorkView : UserControl
             foreach (var gone in picks.Keys.Where(k => !active.Contains(k)).ToList()) picks.Remove(gone);
         }
         else Discard();
+        ticks = Picking ? ticks ?? [.. (tasks.Count > 0 ? tasks.Select(t => t.Id) : pool.Select(t => t.Id).Where(hasStatus))] : null;
         Visibility = Visibility.Visible;
         Build();
+
+        // first time: what already has a status this month comes ticked
+        bool hasStatus(string t) => data.Work.Any(w => w.EntryId == id && w.Month == month && w.Tasks.ContainsKey(t));
     }
 
     /// <summary>Forget the unsaved buttons.</summary>
@@ -86,14 +98,61 @@ public partial class EntryWorkView : UserControl
 
     void Save_Click(object sender, RoutedEventArgs e) => Save();
 
+    // Not offered while buttons are unsaved: the selection hides them
+    void EditList_Click(object sender, RoutedEventArgs e) { linkOpen = true; Refresh(Main.ActiveVault, entryId); }
+
+    void Assign()
+    {
+        if (entryId is not { } id || ticks is not { Count: > 0 }) return;
+        var chosen = pool.Where(t => ticks.Contains(t.Id)).Select(t => t.Id).ToList();
+        var (was, wasLink) = (ticks, linkOpen);
+        linkOpen = false; // the refresh inside Write shows the new list
+        if (Main.Write(d => Work.Assign(d, id, chosen, DateTime.UtcNow))) return;
+        (ticks, linkOpen) = (was, wasLink);
+        Refresh(Main.ActiveVault, id);
+    }
+
     void Build(string? focusTask = null)
     {
-        Heading.Text = string.Format(L("WorkMonthTitle"), MonthName(month));
-        Heading.Visibility = SaveButton.Visibility = tasks.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        EmptyText.Visibility = tasks.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+        var picking = Picking;
+        Heading.Text = picking ? L("WorkPickTitle") : string.Format(L("WorkMonthTitle"), MonthName(month));
+        Heading.Visibility = pool.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyText.Visibility = pool.Count > 0 ? Visibility.Collapsed : Visibility.Visible;
+        Actions.Visibility = pool.Count > 0 && !picking ? Visibility.Visible : Visibility.Collapsed;
+        EditLink.Visibility = IsDirty ? Visibility.Collapsed : Visibility.Visible;
         Rows.Children.Clear();
+        if (pool.Count == 0) return;
+        if (picking) { BuildPick(); return; }
         foreach (var task in tasks) Rows.Children.Add(Row(task, focusTask));
         SaveButton.IsEnabled = IsDirty && Valid;
+    }
+
+    void BuildPick()
+    {
+        var next = new Button { Style = (Style)FindResource("AccentButton"), Height = 28, Padding = new Thickness(14, 0, 14, 0), IsEnabled = ticks!.Count > 0 };
+        next.SetResourceReference(ContentProperty, linkOpen ? "Save" : "WorkNext");
+        next.Click += (_, _) => Assign();
+        foreach (var task in pool)
+        {
+            var box = new CheckBox { Content = task.Name, IsChecked = ticks.Contains(task.Id), Margin = new Thickness(0, 0, 0, 4) };
+            box.Click += (_, _) =>
+            {
+                if (box.IsChecked == true) ticks.Add(task.Id);
+                else ticks.Remove(task.Id);
+                next.IsEnabled = ticks.Count > 0;
+            };
+            Rows.Children.Add(box);
+        }
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 6, 0, 0) };
+        buttons.Children.Add(next);
+        if (linkOpen)
+        {
+            var close = new Button { Height = 28, Padding = new Thickness(14, 0, 14, 0), Margin = new Thickness(8, 0, 0, 0) };
+            close.SetResourceReference(ContentProperty, "Close");
+            close.Click += (_, _) => { linkOpen = false; Refresh(Main.ActiveVault, entryId); };
+            buttons.Children.Add(close);
+        }
+        Rows.Children.Add(buttons);
     }
 
     StackPanel Row(WorkTask task, string? focusTask)
@@ -163,8 +222,11 @@ public partial class EntryWorkView : UserControl
         box.TextChanged += (_, _) => { customText[task] = box.Text; SetCustom(task, box.Text); };
         unit.Click += (_, _) => { if (!customDays.Remove(task)) customDays.Add(task); SetCustom(task, box.Text); };
         if (focusTask == task) box.Loaded += (_, _) => { box.Focus(); box.CaretIndex = box.Text.Length; };
-        panel.Children.Add(box);
-        panel.Children.Add(unit);
+        // one child, so the number and its unit never part across lines
+        var custom = new StackPanel { Orientation = Orientation.Horizontal };
+        custom.Children.Add(box);
+        custom.Children.Add(unit);
+        panel.Children.Add(custom);
         return panel;
     }
 

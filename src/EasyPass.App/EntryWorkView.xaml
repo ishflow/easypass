@@ -9,8 +9,13 @@
             <TextBlock x:Name="Heading" FontWeight="SemiBold" Margin="0,0,0,8" />
             <TextBlock x:Name="EmptyText" Text="{DynamicResource WorkNoTasks}" Style="{StaticResource Secondary}" FontSize="12" Visibility="Collapsed" />
             <StackPanel x:Name="Rows" />
-            <Button x:Name="SaveButton" Content="{DynamicResource WorkSave}" Style="{StaticResource AccentButton}" Height="28" Padding="14,0"
-                    HorizontalAlignment="Left" Margin="0,4,0,0" Click="Save_Click" />
+            <DockPanel x:Name="Actions" Margin="0,4,0,0">
+                <TextBlock x:Name="EditLink" DockPanel.Dock="Right" FontSize="12" VerticalAlignment="Center">
+                    <Hyperlink Foreground="{StaticResource AccentBrush}" Click="EditList_Click"><Run Text="{DynamicResource WorkEditList}" /></Hyperlink>
+                </TextBlock>
+                <Button x:Name="SaveButton" Content="{DynamicResource WorkSave}" Style="{StaticResource AccentButton}" Height="28" Padding="14,0"
+                        HorizontalAlignment="Left" Click="Save_Click" />
+            </DockPanel>
         </StackPanel>
     </Border>
 </UserControl>

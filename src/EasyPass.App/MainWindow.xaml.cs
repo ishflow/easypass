@@ -549,6 +549,7 @@ public partial class MainWindow : Window
                     Password = Pick(form.password, e => e.Password, password),
                     Fields = now?.Fields ?? was?.Fields ?? [], // sitedeki bilgiler formda düzenlenmez: olduğu gibi kalır
                     TodoHidden = now?.TodoHidden ?? false,
+                    TaskIds = now?.TaskIds ?? was?.TaskIds, // the list of work is not on the form: it stays as it is
                 };
                 if (index < 0) list.Add(entry); // yeni ya da bu arada başka yerde silinmiş
                 else list[index] = entry;
