@@ -144,6 +144,36 @@ async function ax(page) {
     value: n.value?.value,
   }));
 }
+// Layout probe: a box and whether anything inside it spills out of it (content taller or wider than the box, scroll containers aside).
+// Source text, so it runs in the page, in a closed shadow root (by CDP) and under the popup's CSP alike.
+const MEASURE = `(e) => {
+  const r = e.getBoundingClientRect();
+  const cut = [e, ...e.querySelectorAll('*')].some((x) => {
+    const o = getComputedStyle(x);
+    const spill = (axis, size) => o['overflow' + axis] !== 'auto' && o['overflow' + axis] !== 'scroll' && x['scroll' + size] > x['client' + size] + 1;
+    return spill('X', 'Width') || spill('Y', 'Height');
+  });
+  return { top: r.top, bottom: r.bottom, left: r.left, right: r.right, cut };
+}`;
+// A node of the accessibility tree (a closed shadow root), or its closest ancestor `up`.
+async function probe(page, node, up = null) {
+  const { object } = await page.cdp.send('DOM.resolveNode', { backendNodeId: node.node });
+  const { result } = await page.cdp.send('Runtime.callFunctionOn', {
+    objectId: object.objectId, returnByValue: true,
+    functionDeclaration: `function(up) { return (${MEASURE})(up ? this.closest(up) || this : this); }`, arguments: [{ value: up }],
+  });
+  return result.value;
+}
+const probeAll = (page, selector) => page.evaluate(`[...document.querySelectorAll(${JSON.stringify(selector)})].map(${MEASURE})`);
+// Boxes in reading order: nothing cut off, and each one ends before the next begins.
+function assertStacked(boxes, what) {
+  assert.ok(boxes.length, what + ': found');
+  boxes.sort((a, b) => a.top - b.top);
+  boxes.forEach((b, i) => {
+    assert.ok(!b.cut, `${what} ${i}: text spills out of its box`);
+    if (i) assert.ok(boxes[i - 1].bottom <= b.top + 0.5, `${what} ${i}: overlaps the one above`);
+  });
+}
 const options = async (page) => (await ax(page)).filter((n) => n.role === 'option');
 const hasText = async (page, s) => (await ax(page)).some((n) => n.name.includes(s));
 async function clickNode(page, node) {
@@ -1280,6 +1310,7 @@ async function salykSuite(lang) {
       const p = await popupDetail(D[0]);
       await pb(p, VAT, t.partial).click();
       assert.equal(await saveBtn(p).isDisabled(), true, 'orange without a time');
+      await shot(p, '19-popup-orange');
       await pb(p, VAT, t.h5).click();
       assert.equal(await saveBtn(p).isDisabled(), false);
       let mark = hostLog().length;
@@ -1582,6 +1613,94 @@ async function salykSuite(lang) {
       await c.close();
     }
     sites.states.get('salykkabinet').sessions.clear();
+  });
+
+  await scenario('salyk: long task and client names wrap everywhere: nothing cut off, rows grow and never overlap, buttons stay clickable', async () => {
+    const [c, w] = await browser('long', { EP_LONG_TASK: 1 });
+    const LONG = ['Подготовка и сдача годового отчёта по налогу на добавленную стоимость с проверкой всех входящих счетов-фактур за год',
+      'Страхование ответственности сотрудников и контроль выплат по социальным отчислениям за весь квартал и прошлый год'];
+    assert.ok(LONG.every((x) => x.length >= 80 && x.length <= 120));
+    const users = sites.states.get('salykkabinet').users;
+    if (!users.some((u) => u.username === D[0])) users.push({ first: 'X', last: 'Y', org: D[3], username: D[0], password: D[1] });
+    sites.states.get('salykkabinet').sessions.clear();
+    try {
+      const p = await c.newPage();
+      await p.goto(sp('/account/login'));
+      // the login panel's rows: long client names
+      await waitFor(async () => (await options(p)).length > 1, 'login search rows');
+      const rows = await Promise.all((await options(p)).filter((n) => n.name.includes('Гульнара')).map((n) => probe(p, n)));
+      assertStacked(rows, 'login search');
+      assert.ok(rows.every((r) => r.bottom - r.top > 44), 'the long name made the rows taller');
+
+      // exit panel: customer with t1 + the long t2; the long t3 is addable
+      await signIn(p, A);
+      await load(p, () => p.click('a.btn-light-primary'));
+      await load(p, () => p.click('#logout'));
+      const group = (name) => waitFor(async () => (await ax(p)).find((n) => n.role === 'group' && n.name === name), name.slice(0, 20));
+      const [short, long] = [await group(INS), await group(LONG[0])];
+      const [boxShort, boxLong] = [await probe(p, short), await probe(p, long)];
+      assertStacked([boxShort, boxLong].map((b) => ({ ...b })), 'exit panel rows');
+      assert.ok(boxLong.bottom - boxLong.top > boxShort.bottom - boxShort.top + 10, 'the long name takes more lines, the row grew');
+      const dialog = (await ax(p)).find((n) => n.role === 'dialog' && n.name.includes('Гульнара'));
+      const heading = (await ax(p)).find((n) => n.role === 'heading' && n.name.includes('Гульнара'));
+      assert.ok(!(await probe(p, heading)).cut, 'client name in the title is whole');
+      assert.ok((await probe(p, dialog)).bottom <= (await p.evaluate(() => innerHeight)), 'the modal fits the window');
+      await press(p, LONG[0], t.done);
+      assert.equal((await taskButton(p, LONG[0], t.done)).pressed, true, 'the status button of the long row works');
+      await shot(p, '20-long-names-panel');
+      await clickNode(p, await button(p, t.add));
+      const overlayBox = await waitFor(async () => (await ax(p)).find((n) => n.role === 'checkbox' && n.name === LONG[1]), 'add overlay');
+      const overlayRow = await probe(p, overlayBox, 'label');
+      assert.ok(!overlayRow.cut && overlayRow.bottom - overlayRow.top > 40, 'add overlay: the long task wraps inside its row');
+      await shot(p, '21-long-names-add');
+      await clickNode(p, (await ax(p)).filter((n) => n.role === 'button' && n.name === t.close).at(-1));
+      await clickNode(p, await button(p, t.close));
+      await waitFor(async () => (await stateIn(w)) === null, 'session finished');
+
+      // checklist of a customer without a list
+      sites.states.get('salykkabinet').sessions.clear();
+      await signIn(p, D);
+      await load(p, () => p.click('a.btn-light-primary'));
+      await load(p, () => p.click('#logout'));
+      await waitFor(() => hasText(p, t.ask), 'checklist');
+      const checks = (await ax(p)).filter((n) => n.role === 'checkbox');
+      assert.equal(checks.length, 3);
+      assertStacked(await Promise.all(checks.map((n) => probe(p, n, 'label'))), 'checklist rows');
+      await shot(p, '22-long-names-checklist');
+      await clickNode(p, await button(p, t.close));
+
+      // the toolbar popup
+      const pop = await c.newPage();
+      await pop.goto(`chrome-extension://${ID}/popup.html`);
+      await pop.fill('#q', 'Абдыкадырова');
+      await pop.locator('#list .opt').first().waitFor();
+      assertStacked(await probeAll(pop, '#list .opt'), 'popup list');
+      await pop.fill('#q', A[0]);
+      await pop.locator('#list .opt', { hasText: A[0] }).click();
+      await pop.waitForSelector('#detail:not([hidden])');
+      const pbtn = (page, task, name) => page.getByRole('button', { name: `${task}: ${name}`, exact: true });
+      await pbtn(pop, LONG[0], t.done).waitFor();
+      assertStacked(await probeAll(pop, '#name'), 'popup title');
+      assertStacked(await probeAll(pop, '.wrow'), 'popup task rows');
+      await pbtn(pop, LONG[0], t.done).click();
+      assert.equal(await pbtn(pop, LONG[0], t.done).getAttribute('aria-pressed'), 'true', "popup: the long row's button works");
+      await shot(pop, '23-long-names-popup');
+      await pop.getByRole('button', { name: t.add, exact: true }).click();
+      await pop.locator('.over .check').first().waitFor();
+      assertStacked(await probeAll(pop, '.over .check'), 'popup add overlay');
+      assert.ok((await probeAll(pop, '.obox'))[0].bottom <= (await pop.evaluate(() => innerHeight)), 'the popup overlay fits the window');
+      await pop.close();
+      const pop2 = await c.newPage();
+      await pop2.goto(`chrome-extension://${ID}/popup.html`);
+      await pop2.fill('#q', D[0]);
+      await pop2.locator('#list .opt', { hasText: D[0] }).click();
+      await pop2.locator('.checks .check').first().waitFor();
+      assertStacked(await probeAll(pop2, '.checks .check'), 'popup checklist rows');
+      await shot(pop2, '24-long-names-popup-checklist');
+    } finally {
+      await c.close();
+      sites.states.get('salykkabinet').sessions.clear();
+    }
   });
 
   await scenario('salyk: old host → "update EasyPass" in the panel, the name page stays silent', async () => {
