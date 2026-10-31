@@ -490,6 +490,27 @@ public class SearchTests : IDisposable
     }
 
     [Fact]
+    public void Search_sees_a_change_made_after_an_earlier_search()
+    {
+        Assert.Equal(["Şükrü Çelik"], Names(_v.Search("sukru")));
+        _v.Update(l => l.Single(e => e.Username == "sc04").FirstName = "Kemal");
+        Assert.Empty(_v.Search("sukru"));
+        Assert.Equal(["Kemal Çelik"], Names(_v.Search("kemal")));
+        Assert.Equal(["Kemal Çelik"], Names(Vault.Open(_v.Path, _v.Key).Search("kemal")));
+    }
+
+    [Fact]
+    public void Failed_update_does_not_change_what_search_finds()
+    {
+        _v.Search("sukru");
+        Directory.CreateDirectory(_v.Path + ".tmp"); // the save will fail
+        Assert.ThrowsAny<Exception>(() => _v.Update(l => l.Single(e => e.Username == "sc04").FirstName = "Kemal"));
+        Directory.Delete(_v.Path + ".tmp");
+        Assert.Equal(["Şükrü Çelik"], Names(_v.Search("sukru")));
+        Assert.Empty(_v.Search("kemal"));
+    }
+
+    [Fact]
     public void Prefix_matches_first_then_alphabetical()
     {
         Assert.Equal(["Ahmet Kaya", "Ahmet Yılmaz", "Mehmet Ahmetoğlu", "Zeynep Demir"], Names(_v.Search("ahmet")));

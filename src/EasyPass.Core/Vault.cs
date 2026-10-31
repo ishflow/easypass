@@ -21,7 +21,13 @@ public sealed class Entry
     /// <summary>"Remove from the list" in the to-do view; new work brings the customer back.</summary>
     public bool TodoHidden { get; set; }
     [JsonIgnore] public string FullName => $"{FirstName} {LastName}".Trim();
-    internal Entry Clone() => (Entry)MemberwiseClone(); // Fields is shared: it is replaced, never changed in place
+    internal string? SearchText; // folded once per version of the entry: searches run on every keystroke
+    internal Entry Clone() // Fields is shared: it is replaced, never changed in place
+    {
+        var copy = (Entry)MemberwiseClone();
+        copy.SearchText = null; // the copy is the one about to change
+        return copy;
+    }
 }
 
 /// <summary>One sign-up form field. Secret ones (ID numbers, card data…) are shown only on request.</summary>
@@ -71,6 +77,10 @@ public sealed class VaultData
     public List<WorkTask> Tasks { get; set; } = [];
     public List<WorkRecord> Work { get; set; } = [];
     public List<Reminder> Reminders { get; set; } = [];
+
+    ILookup<string, WorkRecord>? _byMonth;
+    // safe to keep: once in the vault this instance never changes, Update works on a copy
+    internal IEnumerable<WorkRecord> WorkIn(string month) => (_byMonth ??= Work.ToLookup(w => w.Month))[month];
 
     internal VaultData Clone() => new()
     {
@@ -206,7 +216,7 @@ public sealed class Vault
         var first = words[0];
         return pool
             // site text only in the app's search: on a page every candidate shares it (spec §5)
-            .Select(e => (e, text: TextFold.Fold($"{e.FirstName} {e.LastName} {e.Username} {e.Extra1} {e.Extra2} {OpenFields(e)} {(site is null ? e.Site : "")}")))
+            .Select(e => (e, text: site is null ? $"{SearchText(e)} {TextFold.Fold(e.Site)}" : SearchText(e)))
             .Where(x => words.All(w => x.text.Contains(w, StringComparison.Ordinal)))
             .OrderBy(x => TextFold.Fold(x.e.FirstName).StartsWith(first, StringComparison.Ordinal)
                        || TextFold.Fold(x.e.LastName).StartsWith(first, StringComparison.Ordinal) ? 0 : 1)
@@ -215,6 +225,9 @@ public sealed class Vault
             .Select(x => x.e)
             .ToList();
     }
+
+    static string SearchText(Entry e) =>
+        e.SearchText ??= TextFold.Fold($"{e.FirstName} {e.LastName} {e.Username} {e.Extra1} {e.Extra2} {OpenFields(e)}");
 
     // sign-up details are searchable too (phone, e-mail…), except the secret ones
     static string OpenFields(Entry e) => string.Join(' ', e.Fields.Where(f => !f.Secret).Select(f => f.Value));

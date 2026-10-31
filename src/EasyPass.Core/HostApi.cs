@@ -70,7 +70,7 @@ public static class HostApi
     {
         var month = Work.MonthOf(DateTime.Now);
         var active = Work.ActiveTasks(v.Data);
-        var thisMonth = v.Data.Work.Where(w => w.Month == month).ToList(); // once, not per item: 5,000 customers × 24 months
+        var thisMonth = v.Data.WorkIn(month);
         return Ok(res, new()
         {
             ["items"] = new JsonArray([.. v.Search(Str(req, "q") ?? "", site: site).Select(e => (JsonNode)new JsonObject

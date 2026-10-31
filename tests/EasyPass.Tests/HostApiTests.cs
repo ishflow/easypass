@@ -406,6 +406,9 @@ public class HostApiTests : IDisposable
         Assert.Equal("partial", Of("x.com", ali));
         Assert.Null(Of("x.com", veli));
         Assert.Null(Of("y.com", _ahmetYId)); // a deleted task does not count, as in the to-do groups
+
+        SaveWork(ThisMonth, $$"""{"{{t1}}":"done"}""", entryId: ali); // the next search sees the write
+        Assert.Equal("done", Of("x.com", ali));
     }
 
     [Fact]
