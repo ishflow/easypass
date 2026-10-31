@@ -395,6 +395,28 @@ public class WorkTests
     }
 
     [Fact]
+    public void Todo_lists_a_customer_with_a_list_and_no_record_as_not_started()
+    {
+        var hidden = new Entry { Username = "h" };
+        var gone = new Entry { Username = "g" };
+        var deleted = new WorkTask { Name = "x" };
+        _d.Tasks.Add(deleted);
+        _d.Entries.AddRange([hidden, gone]);
+        Work.Assign(_d, _a.Id, [_t1.Id], Now);
+        Work.Assign(_d, hidden.Id, [_t1.Id], Now);
+        hidden.TodoHidden = true;
+        Work.Assign(_d, gone.Id, [deleted.Id], Now);
+        Work.ArchiveTask(_d, deleted.Id, Now); // no active task left on the list: not chosen, no record, not listed
+
+        var t = Work.Todo(_d, M);
+        var row = Assert.Single(t.Rows); // _b has neither a list nor a record
+        Assert.Equal((_a, TodoGroup.NotStarted, (string?)null), (row.Entry, row.Group, row.LastMonth));
+        Assert.Empty(row.ThisTasks);
+        Assert.Empty(row.LastTasks);
+        Assert.Equal((0, 0, 1), (t.Done, t.Unfinished, t.NotStarted));
+    }
+
+    [Fact]
     public void Todo_ignores_removed_and_archived_tasks_of_a_list()
     {
         Save(_a, M, S((_t2.Id, "done")));                      // removed afterwards: only t1 is left and it is grey

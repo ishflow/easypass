@@ -109,7 +109,7 @@ Uba: tarayıcıdan değil programdan; telefonla uğraşırken bile ekranda gör�
 
 Uba: yaptıkça yakalanır; bu ay iş yapılan müşteri gelecek ay listeye girer. Bildirim çıkarmaz, yalnız listedir.
 
-- Ay M'nin listesi = M'den önce en az bir `work` kaydı olan ya da M'de kaydı olan, `todoHidden` olmayan müşteriler.
+- Ay M'nin listesi = M'den önce en az bir `work` kaydı olan, M'de kaydı olan ya da en az bir etkin seçili işi olan (§7d; kaydı yoksa **Не начато**), `todoHidden` olmayan müşteriler.
 - Karar: bir ay atlanan müşteri listeden düşmez, çünkü düşerse sessizce unutulur. Artık bakılmayan müşteri için satırda
   "Убрать из списка" düğmesi (`todoHidden`); yeniden iş kaydedilirse otomatik geri gelir.
 - Gruplar: **Не начато** (M'de kayıt yok) · **Не завершено** (M'de turuncu var) · **Готово** (M'de yeşil var, turuncu yok).

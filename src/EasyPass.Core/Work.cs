@@ -164,9 +164,10 @@ public static class Work
         var rows = new List<TodoRow>();
         foreach (var e in d.Entries)
         {
-            if (e.TodoHidden || !byEntry.TryGetValue(e.Id, out var seen)) continue;
-            IReadOnlyDictionary<string, string> thisTasks = seen.This?.Tasks ?? [];
             var chosen = Chosen(e, active);
+            // a customer who chose tasks and marked nothing yet must not be forgotten next month
+            if (e.TodoHidden || (!byEntry.TryGetValue(e.Id, out var seen) && chosen is null)) continue;
+            IReadOnlyDictionary<string, string> thisTasks = seen.This?.Tasks ?? [];
             var group = GroupOf(chosen, thisTasks, active);
             if (chosen is not null) thisTasks = thisTasks.Where(t => chosen.Contains(t.Key)).ToDictionary(); // what the group counted
             rows.Add(new TodoRow(e, group, seen.Last?.Month, seen.Last?.Tasks ?? [], thisTasks));
