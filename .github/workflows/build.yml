@@ -41,20 +41,23 @@ jobs:
               $win = $A::RootElement.FindFirst('Children', (New-Object Windows.Automation.PropertyCondition($A::ProcessIdProperty, $p.Id)))
               if (-not $win) { throw "EasyPass is running but has no window" }
               $names = $win.FindAll('Children', [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name }
-              if (-not $win.FindFirst('Descendants', (New-Object Windows.Automation.PropertyCondition($A::AutomationIdProperty, $field)))) {
-                throw "window '$($win.Current.Name)' does not show $field (top-level children: $($names -join ', '))"
+              foreach ($f in $field) {
+                if (-not $win.FindFirst('Descendants', (New-Object Windows.Automation.PropertyCondition($A::AutomationIdProperty, $f)))) {
+                  throw "window '$($win.Current.Name)' does not show $f (top-level children: $($names -join ', '))"
+                }
               }
               Write-Host "SMOKE OK: EasyPass.exe still running after 8 s, window '$($win.Current.Name)' shows $field (EASYPASS_HOME=$dir)"
             } finally {
               if (-not $p.HasExited) {
-                $p.CloseMainWindow() | Out-Null
+                # closing the window only hides it to the tray
+                Start-Process -FilePath publish\EasyPass.exe -ArgumentList '--quit' -Wait
                 if (-not $p.WaitForExit(10000)) { Stop-Process -Id $p.Id -Force }
               }
             }
           }
           New-Item -ItemType Directory -Force $env:EMPTY_HOME | Out-Null
           Test-Start $env:EMPTY_HOME 'NewPathBox'   # no settings → setup screen
-          Test-Start $env:SMOKE_HOME 'SearchBox'    # vault + DPAPI key cache → main screen
+          Test-Start $env:SMOKE_HOME 'SearchBox','Tabs'    # vault + DPAPI key cache → main screen
       # Kurulum dosyası (Inno Setup): publish\ + extension\ → dist\EasyPass-Setup-<sürüm>.exe
       - name: Installer
         shell: powershell
