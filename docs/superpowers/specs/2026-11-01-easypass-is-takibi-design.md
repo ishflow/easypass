@@ -260,3 +260,15 @@ Disk klasöründe durur, senkronu o yapar. Yeni bir eşitleme ya da birleştirme
 ## 12. Kurucuya kalanlar
 
 Ekran yerleşimi ayrıntısı (mevcut tema içinde), `Update` API şekli, sınıf/dosya bölümü, tepsi menüsü simgesi, bildirim sesi.
+
+## 13. İlk denemeden sonra eklenenler (Uba)
+
+**Panelden iş ekleme:** Bir ay müşteriye listede olmayan bir iş yapılır. Çıkış panelinin, eklenti penceresinin ve program panelinin altında **+ Добавить работу** düğmesi. Basınca açık ekranın önünde kaydırılabilir bir küçük ekran açılır: havuzdaki, bu müşterinin listesinde olmayan işler onay kutularıyla. **Сохранить** seçilenleri müşterinin listesine ekler, ekran kapanır, yeni işler panelde hemen görünür ve aynı düğmelerle işaretlenir. O ana kadar basılmış düğmeler kaybolmaz. Eklenecek iş kalmadıysa düğme görünmez.
+
+**Kaydedildi işareti:** Her iş kaydından sonra küçük, rahatsız etmeyen "Сохранено" işareti yaklaşık 1 saniye görünür ve kendi kapanır; tıklama beklemez, odak çalmaz. Çıkış panelinde panel kapandıktan sonra sayfanın köşesinde, eklenti penceresinde ve programda kendi içinde.
+
+**Kenar çekmecesi:** Karar: Uba "ekranın sağ tarafı" dedi, bu yüzden tarayıcıda değil masaüstünde, programın kendi penceresi; Chrome'un üstünde de görünür. Sağ kenarda dar, uzunca bir çıkıntı her zaman üstte durur, odak çalmaz. Tıklayınca sağdan sola kayarak açılır (~200 ms); çıkıntıya tekrar basınca ya da dışarı tıklayınca kapanır.
+- Üst bölüm: bu ayın yapılacakları, **müşteri adları** (ad yoksa login) sırayla: önce Не завершено, sonra Не начато; Готово yok. Üstte sayı.
+- Alt bölüm: bekleyenler, yani açık hatırlatması olan yarım işler: müşteri adı, iş adı, saat. Vakti geçenler önce.
+- Satıra tıklayınca program penceresi o müşteriyle açılır. Şifre hiçbir yerde görünmez.
+- Veri açıkken hesaplanır, kapalıyken iş yapmaz (§7a). Kasa açık değilse çıkıntı görünmez. Liste sanallaştırılmış.
