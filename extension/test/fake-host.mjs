@@ -22,9 +22,10 @@ const entries = [
 ];
 if (process.env.EP_SALYK) {
   for (const [login, password] of [['91000000000123', 'Salyk-111'], ['92000000000456', 'Salyk-222'], ['93000000000789123', 'Salyk-333']]) {
-    entries.push({ ...entry('salykkabinet.test', '', '', login, password), taskIds: ['t1', 't2', 't3'] });
+    entries.push({ ...entry('salykkabinet.test', '', '', login, password), taskIds: process.env.EP_LONG_TASK ? ['t1', 't2'] : ['t1', 't2', 't3'] });
   }
   entries.push(entry('salykkabinet.test', '', '', '96000000000001', 'Salyk-444'));
+  if (process.env.EP_LONG_TASK) for (const e of entries.filter((x) => x.site === 'salykkabinet.test')) [e.firstName, e.lastName] = ['Гульнара-Айгерим Асанбековна', 'Абдыкадырова-Жолдошбекова-Кыдырмышева'];
 }
 const matches = (entrySite, site) => site === entrySite || site.endsWith('.' + entrySite); // spec §3a
 
@@ -39,7 +40,11 @@ function searchIn(pool, q, withSite) {
     .sort((a, b) => first(a) - first(b) || fold(a.firstName + ' ' + a.lastName).localeCompare(fold(b.firstName + ' ' + b.lastName)));
 }
 
-const tasks = process.env.EP_NO_TASKS ? [] : [{ id: 't1', name: 'Страховка' }, { id: 't2', name: 'НДС' }, { id: 't3', name: 'Отчёт' }];
+// $EP_LONG_TASK: two tasks and the salyk customers with names of 80-120 characters (the layout test); the first three customers have t1 and t2
+const LONG = ['Подготовка и сдача годового отчёта по налогу на добавленную стоимость с проверкой всех входящих счетов-фактур за год',
+  'Страхование ответственности сотрудников и контроль выплат по социальным отчислениям за весь квартал и прошлый год'];
+const tasks = process.env.EP_NO_TASKS ? [] : process.env.EP_LONG_TASK ? [{ id: 't1', name: 'Страховка' }, { id: 't2', name: LONG[0] }, { id: 't3', name: LONG[1] }]
+  : [{ id: 't1', name: 'Страховка' }, { id: 't2', name: 'НДС' }, { id: 't3', name: 'Отчёт' }];
 const work = []; // { entryId, month, tasks }
 const reminders = []; // { entryId, taskId, month, dueAt, dismissedAt, resolvedAt }
 const WORK_CMDS = ['work_get', 'work_save', 'work_assign', 'set_name', 'summary'];

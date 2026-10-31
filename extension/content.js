@@ -60,6 +60,13 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  // Onest is loaded only by salyk.js (the one site the manifest lets fetch it); elsewhere this stays the Segoe UI fallback.
+  const STACK = `'EasyPass Onest','Segoe UI Variable','Segoe UI',system-ui,sans-serif`;
+  // Status shapes of the design (inline svg, so a page's img-src rule can't hide them).
+  const DOT = {
+    done: '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6.5" fill="#0F7A3C"/><path d="M4 7.2l2 2 4-4.4" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+    partial: '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6" fill="#fff" stroke="#D9720E" stroke-width="1.6"/><path d="M7 1.8A5.2 5.2 0 0 0 7 12.2z" fill="#F08A1D"/></svg>',
+  };
   const ICON = 20; // px, the round buttons inside the field's right edge
   const GAP = 4; // px between two of our buttons, or ours and the site's own control
   const MIN_FIELD = 80; // px, narrower fields get no icon (it would cover the text)
@@ -81,46 +88,50 @@
     host.style.cssText = `all:initial;position:absolute;top:0;left:0;z-index:2147483647;display:${workPanel ? 'none' : 'block'}`;
     root = host.attachShadow({ mode: 'closed' }); // page scripts can't read the panel's DOM (customer names)
     root.innerHTML = `<style>
-      :host{all:initial}
-      *{box-sizing:border-box;margin:0;font-family:"Segoe UI Variable","Segoe UI",system-ui,sans-serif}
+      :host{all:initial;--ink:#16191F;--ink2:#5A6372;--line:#E3E6EC;--line2:#D3D8E1;--s2:#F7F8FA;--accent:#3449C8;--accent2:#2A3CAE;--tint:#EEF0FB;--aline:#C7CDF2}
+      *{box-sizing:border-box;margin:0;font-family:${STACK}}
       [hidden]{display:none!important}
-      .box{background:#fff;color:#1C1F23;border:1px solid #E3E1DC;border-radius:8px;box-shadow:0 8px 24px rgba(28,31,35,.14);font-size:14px}
-      .panel{position:absolute;z-index:1;width:320px;padding:8px} /* above the field icons */
-      .site{padding:0 2px 6px;font-size:12px;font-weight:600;color:#0E7C6B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      input{width:100%;height:36px;padding:0 10px;border:1px solid #E3E1DC;border-radius:8px;background:#fff;color:#1C1F23;font-size:14px;outline:none}
-      input:focus{border-color:#0E7C6B;box-shadow:0 0 0 2px #E3F1EE}
-      #list{max-height:308px;overflow:auto}
+      .box{background:#fff;color:var(--ink);border:1px solid var(--line2);border-radius:8px;font-size:13px;line-height:18px;
+        box-shadow:0 1px 2px rgba(22,25,31,.05),0 8px 24px -8px rgba(22,25,31,.18)}
+      .panel{position:absolute;z-index:1;width:320px;padding:0;overflow:hidden} /* above the field icons */
+      .site{padding:10px 12px 8px;font-size:12px;line-height:16px;font-weight:600;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      input{width:100%;height:32px;padding:0 10px;border:1px solid var(--line2);border-radius:6px;background:#fff;color:var(--ink);font-size:13px;outline:none}
+      input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--tint)}
+      .panel input{width:calc(100% - 20px);margin:0 10px}
+      #list{max-height:308px;overflow:auto;padding:0 4px}
       #list:not(:empty){margin-top:6px}
-      .opt{display:flex;flex-direction:column;justify-content:center;width:100%;height:44px;padding:0 10px;border:0;border-radius:8px;background:none;color:#1C1F23;text-align:left;cursor:pointer}
-      .opt:hover{background:#F6F5F2}
-      .opt[aria-selected=true]{background:#E3F1EE}
-      .n,.s{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .n{font-size:14px;font-weight:600}
-      .s{font-size:12px;color:#5B6168}
-      .dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;vertical-align:middle}
-      .dot.done{background:#15803D}
-      .dot.partial{background:#C2410C}
-      .status{padding:6px 10px 2px;font-size:12px;color:#5B6168}
+      .opt{display:flex;flex-direction:column;justify-content:center;width:100%;min-height:44px;padding:6px 10px;border:0;border-radius:6px;background:none;color:var(--ink);text-align:left;cursor:pointer}
+      .opt:hover{background:var(--s2)}
+      .opt[aria-selected=true]{background:var(--tint);box-shadow:inset 0 0 0 1px var(--aline)}
+      .n,.s{display:block;width:100%;overflow-wrap:anywhere}
+      .n{font-weight:500}
+      .s{font-size:12px;line-height:16px;color:var(--ink2);font-variant-numeric:tabular-nums}
+      .dot{display:inline-block;width:14px;height:14px;margin-right:6px;vertical-align:-2px}
+      .dot svg{display:block}
+      .status{padding:6px 12px 2px;font-size:12px;color:var(--ink2)}
       .status:empty{display:none}
-      .hint{padding:6px 10px 0;font-size:12px;color:#5B6168}
-      .toast{position:fixed;z-index:1;top:16px;right:16px;width:360px;padding:14px;display:grid;gap:10px}
+      .hint{margin-top:6px;padding:8px 12px;border-top:1px solid var(--line);background:var(--s2);font-size:11px;line-height:16px;color:var(--ink2)}
+      .toast{position:fixed;z-index:1;top:16px;right:16px;width:360px;padding:14px;display:grid;gap:10px;
+        box-shadow:0 1px 2px rgba(22,25,31,.06),0 16px 40px -12px rgba(22,25,31,.22)}
       .toast .t{font-weight:600}
       .toast .s:empty{display:none}
-      .fields{display:grid;gap:4px;max-height:260px;overflow:auto;padding:8px 10px;border:1px solid #E3E1DC;border-radius:8px;background:#F6F5F2}
+      .fields{display:grid;gap:4px;max-height:260px;overflow:auto;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--s2)}
       .fields:empty{display:none}
-      .f{display:grid;grid-template-columns:120px 1fr auto;gap:8px;align-items:center;min-height:22px;font-size:12px}
-      .fl{color:#5B6168;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .fv{color:#1C1F23;overflow-wrap:anywhere}
-      .feye{display:grid;place-items:center;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:#0E7C6B;cursor:pointer}
-      .feye[aria-pressed=true]{background:#0A5F52}
+      .f{display:grid;grid-template-columns:120px 1fr auto;gap:8px;align-items:start;min-height:22px;font-size:12px}
+      .fl{color:var(--ink2);overflow-wrap:anywhere}
+      .fv{color:var(--ink);overflow-wrap:anywhere}
+      .feye{display:grid;place-items:center;width:22px;height:22px;padding:0;border:0;border-radius:50%;background:var(--accent);cursor:pointer}
+      .feye[aria-pressed=true]{background:var(--accent2)}
       .row{display:flex;gap:8px}
-      label{display:grid;gap:4px;font-size:12px;color:#5B6168;flex:1}
-      .btn{height:36px;padding:0 14px;border:1px solid #E3E1DC;border-radius:8px;background:#fff;color:#1C1F23;font-size:14px;font-weight:600;cursor:pointer}
-      .primary{background:#0E7C6B;border-color:#0E7C6B;color:#fff}
-      :focus-visible{outline:2px solid #0E7C6B;outline-offset:2px}
+      label{display:grid;gap:4px;font-size:12px;color:var(--ink2);flex:1}
+      .btn{height:30px;padding:0 12px;border:1px solid var(--line2);border-radius:6px;background:#fff;color:var(--ink);font-size:13px;font-weight:500;cursor:pointer}
+      .btn:hover{background:var(--s2)}
+      .primary,.primary:hover{background:var(--accent);border-color:var(--accent2);color:#fff;box-shadow:inset 0 1px 0 rgba(255,255,255,.14)}
+      .primary:hover{background:var(--accent2)}
+      :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
       .icon{position:absolute;display:grid;place-items:center;width:${ICON}px;height:${ICON}px;padding:0;border:0;border-radius:50%;
-        background:#0E7C6B;box-shadow:0 1px 3px rgba(28,31,35,.3);cursor:pointer}
-      .icon:hover,.icon[aria-expanded=true],.icon[aria-pressed=true]{background:#0A5F52}
+        background:var(--accent);box-shadow:0 1px 3px rgba(22,25,31,.3);cursor:pointer}
+      .icon:hover,.icon[aria-expanded=true],.icon[aria-pressed=true]{background:var(--accent2)}
     </style>`;
     // Keep our keystrokes away from page shortcuts. Page capture listeners on window/document still see the keys
     // (and so the search text) before this; accepted for v1, a browser-side popup would hide them (v2).
@@ -228,6 +239,7 @@
       if (it.monthStatus) {
         const dot = document.createElement('span');
         dot.className = 'dot ' + it.monthStatus;
+        dot.innerHTML = DOT[it.monthStatus];
         dot.setAttribute('role', 'img');
         dot.setAttribute('aria-label', it.monthStatus === 'done' ? T.dotDone : T.dotPartial);
         dot.title = dot.getAttribute('aria-label');

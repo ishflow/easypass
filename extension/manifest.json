@@ -11,7 +11,7 @@
     { "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_idle" },
     { "matches": ["https://cabinet.salyk.kg/*", "https://salykkabinet.test/*", "http://salykkabinet.localhost/*"], "js": ["salyk.js"], "run_at": "document_idle" }
   ],
-  "web_accessible_resources": [{ "resources": ["fonts/*.woff2"], "matches": ["<all_urls>"] }],
+  "web_accessible_resources": [{ "resources": ["fonts/*.woff2"], "matches": ["https://cabinet.salyk.kg/*"] }],
   "action": {
     "default_popup": "popup.html",
     "default_icon": { "16": "icons/16.png", "48": "icons/48.png", "128": "icons/128.png" }

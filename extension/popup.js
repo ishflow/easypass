@@ -9,8 +9,9 @@ const TEXT = {
     back: '← Back', site: 'Site', username: 'Username', password: 'Password', extra1: 'Note 1', extra2: 'Note 2',
     show: 'Show', hide: 'Hide', copy: 'Copy', copied: 'Copied', error: 'Error: ',
     summary: (r) => `This month: done ${r.done} · not finished ${r.partial} · not started ${r.notStarted}`,
-    done: 'Done', partial: 'Not finished', save: 'Save', saved: 'Saved', retry: 'Try again', noTasks: 'Add tasks in EasyPass', add: '+ Add a task', ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list',
+    done: 'Done', partial: 'Not finished', close: 'Close', save: 'Save', saved: 'Saved', retry: 'Try again', noTasks: 'Add tasks in EasyPass', add: '+ Add a task', ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list',
     h2: '2 hours', h5: '5 hours', tomorrow: 'Tomorrow', d2: 'In 2 days', custom: 'Custom reminder', hours: 'hours', days: 'days',
+    h2s: '2 h', h5s: '5 h', d2s: '2 days', hoursS: 'h', daysS: 'd', willRemind: 'Will remind',
     remind: 'Reminder:', reminderClosed: 'reminder closed',
   },
   ru: {
@@ -21,8 +22,9 @@ const TEXT = {
     back: '← Назад', site: 'Сайт', username: 'Логин', password: 'Пароль', extra1: 'Доп. информация 1', extra2: 'Доп. информация 2',
     show: 'Показать', hide: 'Скрыть', copy: 'Копировать', copied: 'Скопировано', error: 'Ошибка: ',
     summary: (r) => `Этот месяц: готово ${r.done} · не завершено ${r.partial} · не начато ${r.notStarted}`,
-    done: 'Сделано', partial: 'Не завершено', save: 'Сохранить', saved: 'Сохранено', retry: 'Повторить', noTasks: 'Добавьте работы в EasyPass', add: '+ Добавить работу', ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ',
+    done: 'Сделано', partial: 'Не завершено', close: 'Закрыть', save: 'Сохранить', saved: 'Сохранено', retry: 'Повторить', noTasks: 'Добавьте работы в EasyPass', add: '+ Добавить работу', ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ',
     h2: '2 часа', h5: '5 часов', tomorrow: 'Завтра', d2: 'Через 2 дня', custom: 'Своё напоминание', hours: 'часов', days: 'дней',
+    h2s: '2 ч', h5s: '5 ч', d2s: '2 дня', hoursS: 'ч', daysS: 'дн', willRemind: 'Напомнит',
     remind: 'Напоминание:', reminderClosed: 'напоминание закрыто',
   },
   tr: {
@@ -33,8 +35,9 @@ const TEXT = {
     back: '← Geri', site: 'Site', username: 'Kullanıcı adı', password: 'Şifre', extra1: 'Ek bilgi 1', extra2: 'Ek bilgi 2',
     show: 'Göster', hide: 'Gizle', copy: 'Kopyala', copied: 'Kopyalandı', error: 'Hata: ',
     summary: (r) => `Bu ay: bitti ${r.done} · yarım ${r.partial} · başlanmadı ${r.notStarted}`,
-    done: 'Yapıldı', partial: 'Bitmedi', save: 'Kaydet', saved: 'Kaydedildi', retry: 'Yeniden dene', noTasks: "EasyPass'te iş ekleyin", add: '+ İş ekle', ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir',
+    done: 'Yapıldı', partial: 'Bitmedi', close: 'Kapat', save: 'Kaydet', saved: 'Kaydedildi', retry: 'Yeniden dene', noTasks: "EasyPass'te iş ekleyin", add: '+ İş ekle', ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir',
     h2: '2 saat', h5: '5 saat', tomorrow: 'Yarın', d2: '2 gün sonra', custom: 'Özel hatırlatma', hours: 'saat', days: 'gün',
+    h2s: '2 sa', h5s: '5 sa', d2s: '2 gün', hoursS: 'sa', daysS: 'gün', willRemind: 'Hatırlatılacak',
     remind: 'Hatırlatma:', reminderClosed: 'hatırlatma kapatıldı',
   },
 };
@@ -158,6 +161,9 @@ const btn = (cls, text, click) => {
   b.addEventListener('click', click);
   return b;
 };
+// Status shapes of the design; shown only while a toggle is pressed.
+const CHECK = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 6.4l2.2 2.2 4.8-5" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const HALF = '<svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 1.4A4.6 4.6 0 0 0 6 10.6z" fill="currentColor"/></svg>';
 const fail = (error) => ({ locked: t.locked, no_host: t.noHost })[error] ?? t.error + error;
 
 // Spec §7d: the pool as checkboxes, for a customer without a list yet or to change it.
@@ -166,7 +172,7 @@ function showChecklist(item, w, ticked) {
   const error = el('p', 'err');
   error.setAttribute('role', 'alert');
   const mine = opened;
-  const next = btn('green', t.next, async () => {
+  const next = btn('primary', t.next, async () => {
     next.disabled = true;
     error.textContent = '';
     const r = await send({ cmd: 'work_assign', site: item.site, entryId: item.id, taskIds: w.allTasks.map((x) => x.id).filter((id) => chosen.has(id)) });
@@ -192,7 +198,7 @@ function showChecklist(item, w, ticked) {
     return label;
   }));
   const actions = el('div', 'actions');
-  actions.append(next);
+  actions.append(el('span', 'spacer'), next);
   $('work').replaceChildren(el('p', 'ask', t.ask), list, error, actions);
 }
 
@@ -207,7 +213,7 @@ function showAdd(item, w, addable, back, remember) {
   };
   const error = el('p', 'err');
   error.setAttribute('role', 'alert');
-  const save = btn('green', t.save, async () => {
+  const save = btn('primary', t.save, async () => {
     save.disabled = true;
     error.textContent = '';
     const keep = new Set([...w.tasks.map((x) => x.id), ...chosen]);
@@ -237,7 +243,7 @@ function showAdd(item, w, addable, back, remember) {
     return label;
   }));
   const actions = el('div', 'actions');
-  actions.append(save, btn('', t.close, close));
+  actions.append(el('span', 'spacer'), btn('', t.close, close), save);
   const box = el('div', 'obox');
   box.setAttribute('role', 'dialog');
   box.setAttribute('aria-modal', 'true');
@@ -279,23 +285,27 @@ function showWork(item, w, saved = false) {
     const row = el('div', 'wrow');
     row.setAttribute('role', 'group');
     row.setAttribute('aria-label', task.name);
-    const toggle = (status, cls, text) => {
+    const toggle = (status, cls, text, icon) => {
       const b = btn(cls, text, () => {
         if (statuses[task.id] === status) delete statuses[task.id];
         else statuses[task.id] = status;
         refresh();
       });
+      b.insertAdjacentHTML('afterbegin', icon);
       b.setAttribute('aria-label', `${task.name}: ${text}`);
       refreshers.push(() => b.setAttribute('aria-pressed', statuses[task.id] === status));
       return b;
     };
     const top = el('div', 'top');
-    const pair = el('div', 'pair');
-    pair.append(toggle('done', 'green', t.done), toggle('partial', 'orange', t.partial));
+    const pair = el('div', 'seg');
+    pair.append(toggle('done', 'done', t.done, CHECK), toggle('partial', 'partial', t.partial, HALF));
     top.append(el('span', 'task', task.name), pair);
 
+    // One line, never wrapped: the box is a rectangle with its unit beside it, apart from the pill-shaped choices.
+    const remind = el('div', 'remind');
     const below = el('div', 'when');
     const hint = el('p', 'hint');
+    below.append(el('span', 'rlabel', t.remind));
     const number = el('input');
     const unit = el('select');
     const pick = (value, chosen) => {
@@ -304,11 +314,13 @@ function showWork(item, w, saved = false) {
       for (const [b, name] of presets) b.setAttribute('aria-pressed', name === chosen);
       refresh();
     };
-    const presets = [[t.h2, () => inHours(2)], [t.h5, () => inHours(5)], [t.tomorrow, () => inDays(1)], [t.d2, () => inDays(2)]].map(([text, at]) => {
-      const b = btn('', text, () => {
+    const presets = [[t.h2, t.h2s, () => inHours(2)], [t.h5, t.h5s, () => inHours(5)], [t.tomorrow, t.tomorrow, () => inDays(1)], [t.d2, t.d2s, () => inDays(2)]].map(([text, short, at]) => {
+      const b = btn('chip', '', () => {
         number.value = '';
         pick(at(), text);
       });
+      b.append(el('span', 'lg', text), el('span', 'sh', short));
+      b.title = text;
       b.setAttribute('aria-label', `${task.name}: ${text}`);
       b.setAttribute('aria-pressed', 'false');
       below.append(b);
@@ -318,6 +330,7 @@ function showWork(item, w, saved = false) {
     number.min = 1;
     number.step = 1;
     number.setAttribute('aria-label', `${task.name}: ${t.custom}`);
+    number.title = t.custom;
     unit.setAttribute('aria-label', `${task.name}: ${t.hours} / ${t.days}`);
     unit.append(new Option(t.hours, 'h'), new Option(t.days, 'd'));
     const typed = () => {
@@ -326,22 +339,41 @@ function showWork(item, w, saved = false) {
     };
     number.addEventListener('input', typed);
     unit.addEventListener('change', typed);
-    below.append(number, unit);
+    const custom = el('div', 'custom');
+    custom.append(number, unit);
+    below.append(custom);
+    // Full words while they fit; then short ones; only then the row's own label goes. Measured, so any font does.
+    const fit = () => {
+      if (!below.clientWidth) return; // hidden
+      below.classList.remove('short', 'bare');
+      unit.options[0].text = t.hours;
+      unit.options[1].text = t.days;
+      const over = () => below.scrollWidth > below.clientWidth;
+      if (!over()) return;
+      below.classList.add('short');
+      unit.options[0].text = t.hoursS;
+      unit.options[1].text = t.daysS;
+      if (over()) below.classList.add('bare');
+    };
+    const watch = new ResizeObserver(fit); // the box, and a font arriving late
+    for (const e of [below, ...below.children]) watch.observe(e);
+    remind.append(below, hint);
 
     refreshers.push(() => {
       const orange = statuses[task.id] === 'partial';
-      below.hidden = hint.hidden = !orange;
+      remind.hidden = !orange;
+      row.classList.toggle('warn', orange);
       const r = existing[task.id];
-      hint.textContent = picked[task.id] ? `${t.remind} ${when(picked[task.id])}`
-        : r?.dismissed ? t.reminderClosed : r ? `${t.remind} ${when(r.dueAt)}` : '';
+      hint.textContent = picked[task.id] ? `${t.willRemind} ${when(picked[task.id])}`
+        : r?.dismissed ? t.reminderClosed : r ? `${t.willRemind} ${when(r.dueAt)}` : '';
     });
-    row.append(top, below, hint);
+    row.append(top, remind);
     return row;
   });
 
   const error = el('p', 'err');
   error.setAttribute('role', 'alert');
-  const save = btn('green', t.save, async () => {
+  const save = btn('primary', t.save, async () => {
     busy = true;
     error.textContent = '';
     refresh();
@@ -357,16 +389,18 @@ function showWork(item, w, saved = false) {
   });
   const mine = opened;
   const actions = el('div', 'actions');
-  if (w.allTasks) actions.append(btn('link', t.edit, () => (remember(), showChecklist(item, w, w.tasks.map((x) => x.id)))));
-  actions.append(save);
-  box.replaceChildren(...rows, error, actions);
   const addable = (w.allTasks || []).filter((x) => !w.tasks.some((y) => y.id === x.id));
   if (addable.length) {
-    const add = btn('add', t.add, () => showAdd(item, w, addable, add, remember));
-    box.append(add);
+    const add = btn('link', t.add, () => showAdd(item, w, addable, add, remember));
+    actions.append(add);
   }
+  if (w.allTasks) actions.append(btn('link', t.edit, () => (remember(), showChecklist(item, w, w.tasks.map((x) => x.id)))));
+  actions.append(el('span', 'spacer'), save);
+  box.replaceChildren(...rows, error, actions);
   if (saved) { // a mark that closes itself: no click, no focus
-    const mark = el('p', 'ok', t.saved);
+    const mark = el('p', 'saved');
+    mark.innerHTML = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6.5" fill="#0F7A3C"/><path d="M4 7.2l2 2 4-4.4" stroke="#fff" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    mark.append(t.saved);
     mark.setAttribute('role', 'status');
     box.append(mark);
     setTimeout(() => mark.remove(), 1000);
