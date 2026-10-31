@@ -239,7 +239,7 @@
       if (it.monthStatus) {
         const dot = document.createElement('span');
         dot.className = 'dot ' + it.monthStatus;
-        dot.innerHTML = DOT[it.monthStatus];
+        dot.innerHTML = Object.hasOwn(DOT, it.monthStatus) ? DOT[it.monthStatus] : '';
         dot.setAttribute('role', 'img');
         dot.setAttribute('aria-label', it.monthStatus === 'done' ? T.dotDone : T.dotPartial);
         dot.title = dot.getAttribute('aria-label');

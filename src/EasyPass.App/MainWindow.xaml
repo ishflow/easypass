@@ -19,6 +19,23 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <!-- eklentinin adsız eklediği kayıtta kullanıcı adı görünsün -->
+        <Style x:Key="EntryName" TargetType="TextBlock">
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Text" Value="{Binding FullName, Mode=OneWay}" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding FullName, Mode=OneWay}" Value="">
+                    <Setter Property="Text" Value="{Binding Username, Mode=OneWay}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <!-- A long name wraps and the box grows, it is never cut -->
+        <Style x:Key="NameBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
+            <Setter Property="Height" Value="Auto" />
+            <Setter Property="MinHeight" Value="30" />
+            <Setter Property="Padding" Value="9,5" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
     </Window.Resources>
     <Grid>
 
@@ -121,10 +138,13 @@
                                         <DataTemplate>
                                             <DockPanel Background="Transparent">
                                                 <DockPanel.ToolTip>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <TextBlock Text="{Binding Site, Mode=OneWay}" Margin="0,0,12,0" />
-                                                        <TextBlock Text="{Binding Extra1, Mode=OneWay}" Margin="0,0,12,0" />
-                                                        <TextBlock Text="{Binding Extra2, Mode=OneWay}" />
+                                                    <StackPanel>
+                                                        <TextBlock Style="{StaticResource EntryName}" MaxWidth="360" HorizontalAlignment="Left" />
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="{Binding Site, Mode=OneWay}" Margin="0,0,12,0" />
+                                                            <TextBlock Text="{Binding Extra1, Mode=OneWay}" Margin="0,0,12,0" />
+                                                            <TextBlock Text="{Binding Extra2, Mode=OneWay}" />
+                                                        </StackPanel>
                                                     </StackPanel>
                                                 </DockPanel.ToolTip>
                                                 <ItemsControl DockPanel.Dock="Right" Margin="12,0,0,0" VerticalAlignment="Center" Focusable="False"
@@ -142,24 +162,23 @@
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
                                                 <StackPanel VerticalAlignment="Center">
-                                                    <TextBlock FontWeight="Medium" TextTrimming="CharacterEllipsis">
-                                                        <TextBlock.Style>
-                                                            <!-- eklentinin adsız eklediği kayıtta kullanıcı adı görünsün -->
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Text" Value="{Binding FullName, Mode=OneWay}" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding FullName, Mode=OneWay}" Value="">
-                                                                        <Setter Property="Text" Value="{Binding Username, Mode=OneWay}" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
+                                                    <TextBlock Style="{StaticResource EntryName}" FontWeight="Medium" />
                                                     <DockPanel>
-                                                        <!-- aynı müşteri birçok sitede: site satırda görünmeli -->
-                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding Site, Mode=OneWay}" FontSize="12" MaxWidth="120" Margin="8,0,0,0" TextTrimming="CharacterEllipsis"
+                                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Username, Mode=OneWay}" Style="{StaticResource NumText}" FontSize="12" TextTrimming="CharacterEllipsis"
                                                                    Foreground="{StaticResource TextSecondaryBrush}" />
-                                                        <TextBlock Text="{Binding Username, Mode=OneWay}" Style="{StaticResource NumText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                        <TextBlock DockPanel.Dock="Left" Text="·" FontSize="12" Margin="6,0" Foreground="{StaticResource TextSecondaryBrush}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Site, Mode=OneWay}" Value="">
+                                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <!-- aynı müşteri birçok sitede: site satırda görünmeli -->
+                                                        <TextBlock Text="{Binding Site, Mode=OneWay}" FontSize="12" TextTrimming="CharacterEllipsis"
                                                                    Foreground="{StaticResource TextSecondaryBrush}" />
                                                     </DockPanel>
                                                 </StackPanel>
@@ -182,7 +201,7 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Border>
-                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ScrollViewer x:Name="EditScroll" VerticalScrollBarVisibility="Auto">
                                     <StackPanel>
                                         <local:EntryWorkView x:Name="WorkPage" />
                                         <StackPanel Margin="20,14">
@@ -204,11 +223,11 @@
                                                 </Grid.RowDefinitions>
                                                 <StackPanel Margin="0,0,0,10">
                                                     <TextBlock Text="{DynamicResource LastName}" Style="{StaticResource FieldLabel}" />
-                                                    <TextBox x:Name="LastNameBox" />
+                                                    <TextBox x:Name="LastNameBox" Style="{StaticResource NameBox}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="2" Margin="0,0,0,10">
                                                     <TextBlock Text="{DynamicResource FirstName}" Style="{StaticResource FieldLabel}" />
-                                                    <TextBox x:Name="FirstNameBox" />
+                                                    <TextBox x:Name="FirstNameBox" Style="{StaticResource NameBox}" />
                                                 </StackPanel>
                                                 <StackPanel Grid.Column="4" Margin="0,0,0,10">
                                                     <TextBlock Text="{DynamicResource Site}" Style="{StaticResource FieldLabel}" />
@@ -273,7 +292,8 @@
                     <TabItem.Header>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{DynamicResource TabNotifications}" />
-                            <Border x:Name="DueBadge" Visibility="Collapsed" Style="{StaticResource Badge}" Margin="6,0,0,0">
+                            <!-- negative margins: the badge must not make this header taller, or its label sits off the other tabs' baseline -->
+                            <Border x:Name="DueBadge" Visibility="Collapsed" Style="{StaticResource Badge}" Margin="6,-2,0,-2" VerticalAlignment="Center">
                                 <TextBlock x:Name="DueCount" Style="{StaticResource BadgeText}" />
                             </Border>
                         </StackPanel>

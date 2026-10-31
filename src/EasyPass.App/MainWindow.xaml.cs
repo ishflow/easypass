@@ -463,6 +463,7 @@ public partial class MainWindow : Window
 
     void Edit(string? id)
     {
+        if (id != editingId) EditScroll.ScrollToTop();
         editingId = id;
         if (Current == null) editingId = null; // başka yerde silinmiş olabilir
         FillForm(Current);

@@ -147,9 +147,9 @@
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style x:Key="PillBase" TargetType="Border">
-        <Setter Property="Height" Value="22" />
+        <Setter Property="MinHeight" Value="22" />
         <Setter Property="CornerRadius" Value="11" />
-        <Setter Property="Padding" Value="6,0,8,0" />
+        <Setter Property="Padding" Value="6,3,8,3" />
     </Style>
     <Style x:Key="PillDone" TargetType="Border" BasedOn="{StaticResource PillBase}">
         <Setter Property="Background" Value="{StaticResource DoneTintBrush}" />
@@ -263,7 +263,8 @@
             <Border x:Name="Ring" Margin="-3" BorderBrush="{StaticResource AccentLightBrush}" BorderThickness="3" CornerRadius="9" Visibility="Hidden" />
             <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{StaticResource Radius1}">
-                <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                <!-- No Padding margin here: TextBox and PasswordBox hand their Padding to this ScrollViewer themselves -->
+                <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
             </Border>
         </Grid>
         <ControlTemplate.Triggers>
@@ -321,7 +322,7 @@
                                 </ControlTemplate>
                             </ToggleButton.Template>
                         </ToggleButton>
-                        <TextBox x:Name="PART_EditableTextBox" Style="{x:Null}" Margin="1,1,28,1" Padding="7,0"
+                        <TextBox x:Name="PART_EditableTextBox" Style="{x:Null}" Margin="1,1,28,1" Padding="9,0"
                                  Background="Transparent" BorderThickness="0" VerticalContentAlignment="Center"
                                  Foreground="{TemplateBinding Foreground}" SelectionBrush="{StaticResource AccentBrush}" />
                         <Popup x:Name="PART_Popup" IsOpen="{TemplateBinding IsDropDownOpen}" Placement="Bottom"
@@ -377,12 +378,19 @@
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
                     <DockPanel Background="Transparent">
-                        <Border x:Name="Box" DockPanel.Dock="Left" Width="18" Height="18" CornerRadius="5" Margin="0,0,10,0" VerticalAlignment="Center"
+                        <Border x:Name="Box" DockPanel.Dock="Left" Width="18" Height="18" CornerRadius="5" Margin="0,9,10,0" VerticalAlignment="Top"
                                 Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource Line2Brush}" BorderThickness="1.5">
                             <Path x:Name="Tick" Data="M3.5,8 L6.5,11 L12,5" Stroke="White" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                   StrokeLineJoin="Round" Margin="-1" Visibility="Hidden" />
                         </Border>
-                        <ContentPresenter VerticalAlignment="Center" />
+                        <!-- a long task name wraps; the box stays on its first line -->
+                        <ContentPresenter VerticalAlignment="Center" Margin="0,9">
+                            <ContentPresenter.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextWrapping" Value="Wrap" />
+                                </Style>
+                            </ContentPresenter.Resources>
+                        </ContentPresenter>
                     </DockPanel>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
@@ -545,7 +553,7 @@
                         <Border x:Name="Ring" Margin="-3" BorderBrush="{StaticResource AccentLightBrush}" BorderThickness="3" CornerRadius="7,0,0,7" Visibility="Hidden" />
                         <Border x:Name="Frame" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="4,0,0,4">
-                            <ScrollViewer x:Name="PART_ContentHost" Margin="{TemplateBinding Padding}" VerticalAlignment="Center" />
+                            <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center" />
                         </Border>
                     </Grid>
                     <ControlTemplate.Triggers>
@@ -833,11 +841,11 @@
     <!-- Month line: the month, then a pill per task with its status glyph -->
     <DataTemplate x:Key="TaskMarkTemplate">
         <Border x:Name="Pill" Style="{StaticResource PillWarn}" Margin="0,0,6,4">
-            <StackPanel Orientation="Horizontal">
-                <Image x:Name="Mark" Source="{StaticResource GlyphPartial}" Style="{StaticResource StatusGlyphSmall}" Margin="0,0,5,0"
+            <DockPanel>
+                <Image x:Name="Mark" DockPanel.Dock="Left" Source="{StaticResource GlyphPartial}" Style="{StaticResource StatusGlyphSmall}" Margin="0,2,5,0" VerticalAlignment="Top"
                        AutomationProperties.Name="{Binding Glyph}" />
-                <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="Medium" VerticalAlignment="Center" />
-            </StackPanel>
+                <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="Medium" TextWrapping="Wrap" VerticalAlignment="Center" />
+            </DockPanel>
         </Border>
         <DataTemplate.Triggers>
             <DataTrigger Binding="{Binding Done}" Value="True">

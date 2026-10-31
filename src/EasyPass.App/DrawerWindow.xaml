@@ -75,8 +75,8 @@
                 AutomationProperties.Name="{DynamicResource DrawerTitle}" ToolTip="{DynamicResource DrawerTitle}"
                 MouseLeftButtonUp="Tab_Click" MouseEnter="Tab_MouseEnter">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <Border x:Name="CountBadge" Style="{StaticResource Badge}" Height="16" MinWidth="16" CornerRadius="8" Padding="2,0" Margin="0,0,0,6" HorizontalAlignment="Center">
-                    <TextBlock x:Name="CountText" Style="{StaticResource BadgeText}" />
+                <Border x:Name="CountBadge" Style="{StaticResource Badge}" Height="14" MinWidth="14" CornerRadius="7" Padding="1,0" Margin="0,0,0,6" HorizontalAlignment="Center">
+                    <TextBlock x:Name="CountText" Style="{StaticResource BadgeText}" FontSize="10" />
                 </Border>
                 <Path x:Name="Glyph" Width="8" Height="8" Data="{StaticResource ChevronLeft}" Stroke="White" StrokeThickness="1.2"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" HorizontalAlignment="Center" />
