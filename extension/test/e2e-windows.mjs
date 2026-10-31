@@ -46,7 +46,8 @@ const NEWCOMERS = {
 };
 
 // no master password and no key cache: the host has to open the vault from the file alone
-const vault = prepareHome(home, SITES, '', 'tr');
+const TASKS = [{ id: 'task-insurance', name: 'Страховка', archived: false }, { id: 'task-vat', name: 'НДС', archived: false }];
+const vault = prepareHome(home, SITES, '', 'tr', home, TASKS);
 const sites = await startSites({ certDir: home });
 const hostEntries = (host) => vault.readEntries().filter((e) => e.site === host);
 
@@ -329,6 +330,69 @@ try {
     assert.ok((await p.textContent('#fields')).includes('Kargo-111'), 'password shown');
     await p.locator('body').screenshot({ path: path.join(out, '7b-pencere-detay.png') });
     await p.close();
+  });
+
+  // The monthly work flow against the real host: the /account/* pages of the salyk look-alike (the loop above used its plain pages).
+  const salykSite = SITES.find((s) => s.flow === 'salyk');
+  const salykUser = salykSite.users[1];
+  const salykEntry = () => hostEntries(salykSite.host).find((e) => e.username === salykUser.username);
+  const button = (page, name) => find(page, 'button', name);
+  async function salykSignIn(page, password) {
+    await page.goto(sites.url(salykSite.host, '/account/login'));
+    await opened(page);
+    await page.fill('#user', salykUser.username);
+    await page.fill('#pass', password);
+    await Promise.all([page.waitForEvent('load'), page.click('#go')]);
+  }
+  async function salykVisit(page) {
+    await salykSignIn(page, salykUser.password);
+    assert.match(page.url(), /\/account\/selectorganization/);
+    await Promise.all([page.waitForEvent('load'), page.click('a.btn-light-primary')]);
+    await Promise.all([page.waitForEvent('load'), page.click('#logout')]);
+    await waitFor(() => button(page, 'Страховка: Yapıldı'), 'work panel');
+  }
+
+  await scenario('salyk: çıkıştan sonra panel, Yapıldı + Bitmedi + 2 gün sonra → Kaydet → kasada iş ve hatırlatma, şifre panelde yok', async () => {
+    const page = ctx.pages()[0];
+    await salykVisit(page);
+    assert.ok(await hasText(page, salykUser.username), 'login in the title');
+    assert.ok(!(await hasText(page, salykUser.password)), 'no password');
+    await clickNode(page, await button(page, 'Страховка: Yapıldı'));
+    await clickNode(page, await button(page, 'НДС: Bitmedi'));
+    await clickNode(page, await waitFor(() => button(page, 'НДС: 2 gün sonra'), 'reminder choices'));
+    await shot(page, '8-salyk-panel');
+    await clickNode(page, await button(page, 'Kaydet'));
+    await waitFor(async () => !(await button(page, 'Kaydet')), 'panel closed');
+    const data = vault.readData();
+    const id = salykEntry().id;
+    const record = data.work.find((w) => w.entryId === id);
+    assert.deepEqual(record.tasks, { 'task-insurance': 'done', 'task-vat': 'partial' });
+    const reminder = data.reminders.find((r) => r.entryId === id);
+    assert.equal(reminder.taskId, 'task-vat');
+    assert.equal(new Date(reminder.dueAt).getHours(), 9, 'the day choice rings at 09:00 local');
+  });
+
+  await scenario('salyk: aynı ay ikinci giriş → durumlar dolu; turuncu yeşil olunca hatırlatma kapanır; listede yeşil nokta', async () => {
+    const page = ctx.pages()[0];
+    await salykVisit(page);
+    assert.ok((await button(page, 'НДС: Bitmedi')).pressed, 'state filled');
+    await clickNode(page, await button(page, 'НДС: Yapıldı'));
+    await clickNode(page, await button(page, 'Kaydet'));
+    await waitFor(async () => !(await button(page, 'Kaydet')), 'panel closed');
+    const id = salykEntry().id;
+    assert.ok(vault.readData().reminders.find((r) => r.entryId === id).resolvedAt, 'reminder resolved');
+    await page.reload();
+    await waitFor(async () => (await options(page)).some((o) => o.name.includes(salykUser.username) && o.name.includes('Bu ay bitti')), 'green dot');
+  });
+
+  await scenario('salyk: hatalı şifre → panel yok, kasada yeni iş yok', async () => {
+    const page = ctx.pages()[0];
+    const before = vault.readData().work.length;
+    await salykSignIn(page, 'yanlis-sifre');
+    assert.ok(await page.isVisible('#error'));
+    await opened(page);
+    assert.equal(await button(page, 'Страховка: Yapıldı'), undefined);
+    assert.equal(vault.readData().work.length, before);
   });
 
   await scenario(`kasa sonu: ${total + SITES.length} kayıt, her sitede tek yeni üye`, async () => {

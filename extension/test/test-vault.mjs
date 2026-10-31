@@ -16,26 +16,27 @@ const entry = (site, u) => ({
   username: u.username, password: u.password, updatedAt: new Date().toISOString(),
 });
 
-function encrypt(key, salt, iterations, entries) {
+function encrypt(key, salt, iterations, data) {
   const header = Buffer.alloc(HEADER);
   header.write('EZP1', 0, 'ascii');
   header.writeInt32LE(iterations, 4);
   salt.copy(header, 8);
   const nonce = crypto.randomBytes(NONCE);
   const c = crypto.createCipheriv('aes-256-gcm', key, nonce, { authTagLength: TAG }).setAAD(header);
-  const cipher = Buffer.concat([c.update(JSON.stringify({ entries })), c.final()]);
+  const cipher = Buffer.concat([c.update(JSON.stringify(data)), c.final()]);
   return Buffer.concat([header, nonce, c.getAuthTag(), cipher]);
 }
 
-// The entries of a vault file; the key is derived from the salt and rounds in its header.
-export function readVault(vaultPath, password) {
+// A vault file's content; the key is derived from the salt and rounds in its header.
+function readData(vaultPath, password) {
   const data = fs.readFileSync(vaultPath);
   const key = crypto.pbkdf2Sync(password, data.subarray(8, HEADER), data.readInt32LE(4), 32, 'sha256');
   const d = crypto.createDecipheriv('aes-256-gcm', key, data.subarray(HEADER, HEADER + NONCE), { authTagLength: TAG })
     .setAAD(data.subarray(0, HEADER))
     .setAuthTag(data.subarray(HEADER + NONCE, HEADER + NONCE + TAG));
-  return JSON.parse(Buffer.concat([d.update(data.subarray(HEADER + NONCE + TAG)), d.final()]).toString('utf8')).entries;
+  return JSON.parse(Buffer.concat([d.update(data.subarray(HEADER + NONCE + TAG)), d.final()]).toString('utf8'));
 }
+export const readVault = (vaultPath, password) => readData(vaultPath, password).entries;
 
 // key.bin = DPAPI(CurrentUser)(salt + key): what the app writes when unlocked, so the host can open the vault.
 function saveKeyCache(file, salt, key) {
@@ -46,25 +47,26 @@ function saveKeyCache(file, salt, key) {
 }
 
 // A vault file holding each site's users. sites: [{ host, users: [{ first, last, username, password }] }].
-// Empty masterPassword (the default) = no master password. Returns readEntries() for assertions, plus salt and key.
-export function writeVault(vaultPath, sites, masterPassword = '') {
+// Empty masterPassword (the default) = no master password. tasks: the monthly work list ([{ id, name, archived }]).
+// Returns readEntries() and readData() for assertions, plus salt and key.
+export function writeVault(vaultPath, sites, masterPassword = '', tasks = []) {
   const salt = crypto.randomBytes(16);
   const iterations = iterationsFor(masterPassword);
   const key = crypto.pbkdf2Sync(masterPassword, salt, iterations, 32, 'sha256');
-  fs.writeFileSync(vaultPath, encrypt(key, salt, iterations, sites.flatMap((s) => s.users.map((u) => entry(s.host, u)))));
-  return { salt, key, readEntries: () => readVault(vaultPath, masterPassword) };
+  fs.writeFileSync(vaultPath, encrypt(key, salt, iterations, { entries: sites.flatMap((s) => s.users.map((u) => entry(s.host, u))), tasks }));
+  return { salt, key, readEntries: () => readVault(vaultPath, masterPassword), readData: () => readData(vaultPath, masterPassword) };
 }
 
 // A whole EASYPASS_HOME: that vault and settings pointing at it. A vault with a master password also gets the key
 // cache, as if the app had just unlocked it; one without needs none (app and host open it from the file alone).
 // vaultDir: where the vault file goes (default: in home), e.g. a folder whose path may show in a screenshot.
-export function prepareHome(home, sites, masterPassword = '', lang = 'tr', vaultDir = home) {
+export function prepareHome(home, sites, masterPassword = '', lang = 'tr', vaultDir = home, tasks = []) {
   fs.rmSync(home, { recursive: true, force: true });
   fs.mkdirSync(home, { recursive: true });
   fs.mkdirSync(vaultDir, { recursive: true });
   const vaultPath = path.join(vaultDir, 'vault.ezp');
-  const { salt, key, readEntries } = writeVault(vaultPath, sites, masterPassword);
+  const { salt, key, readEntries, readData: read } = writeVault(vaultPath, sites, masterPassword, tasks);
   fs.writeFileSync(path.join(home, 'settings.json'), JSON.stringify({ vaultPath, lang }));
   if (masterPassword) saveKeyCache(path.join(home, 'key.bin'), salt, key);
-  return { vaultPath, readEntries };
+  return { vaultPath, readEntries, readData: read };
 }

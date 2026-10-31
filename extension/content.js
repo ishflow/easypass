@@ -13,7 +13,7 @@
       insecure: 'Insecure page (http) — EasyPass does not fill here',
       changed: 'Password changed. Update it in EasyPass?', update: 'Update', no: 'No',
       added: 'This login is not in EasyPass. Save it?', first: 'First name', last: 'Last name', save: 'Save',
-      showPw: 'Show password', fromSite: 'Details entered on the site',
+      showPw: 'Show password', fromSite: 'Details entered on the site', dotDone: 'Done this month', dotPartial: 'Not finished this month',
     },
     ru: {
       search: 'Найти клиента…', searchLabel: 'Поиск клиента', list: 'Клиенты', none: 'Ничего не найдено',
@@ -23,7 +23,7 @@
       insecure: 'Небезопасная страница (http) — EasyPass здесь не заполняет',
       changed: 'Пароль изменён. Обновить в EasyPass?', update: 'Обновить', no: 'Нет',
       added: 'Этого входа нет в EasyPass. Сохранить?', first: 'Имя', last: 'Фамилия', save: 'Сохранить',
-      showPw: 'Показать пароль', fromSite: 'Данные, введённые на сайте',
+      showPw: 'Показать пароль', fromSite: 'Данные, введённые на сайте', dotDone: 'Готово в этом месяце', dotPartial: 'Не завершено в этом месяце',
     },
     tr: {
       search: 'Müşteri ara…', searchLabel: 'Müşteri ara', list: 'Müşteriler', none: 'Sonuç yok',
@@ -33,7 +33,7 @@
       insecure: 'Güvensiz sayfa (http) — EasyPass burada doldurmaz',
       changed: "Şifre değişti. EasyPass'te güncellensin mi?", update: 'Güncelle', no: 'Hayır',
       added: "Bu giriş EasyPass'te yok. Kaydedilsin mi?", first: 'Ad', last: 'Soyad', save: 'Kaydet',
-      showPw: 'Şifreyi göster', fromSite: 'Sitede girilen bilgiler',
+      showPw: 'Şifreyi göster', fromSite: 'Sitede girilen bilgiler', dotDone: 'Bu ay bitti', dotPartial: 'Bu ay yarım',
     },
   };
   // Asked once per page, only when a page has password fields (so idle pages never start the host).
@@ -78,7 +78,7 @@
   function shell() {
     if (host) return;
     host = document.createElement('easypass-ui');
-    host.style.cssText = 'all:initial;position:absolute;top:0;left:0;z-index:2147483647';
+    host.style.cssText = `all:initial;position:absolute;top:0;left:0;z-index:2147483647;display:${workPanel ? 'none' : 'block'}`;
     root = host.attachShadow({ mode: 'closed' }); // page scripts can't read the panel's DOM (customer names)
     root.innerHTML = `<style>
       :host{all:initial}
@@ -97,6 +97,9 @@
       .n,.s{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .n{font-size:14px;font-weight:600}
       .s{font-size:12px;color:#5B6168}
+      .dot{display:inline-block;width:8px;height:8px;margin-right:6px;border-radius:50%;vertical-align:middle}
+      .dot.done{background:#15803D}
+      .dot.partial{background:#C2410C}
       .status{padding:6px 10px 2px;font-size:12px;color:#5B6168}
       .status:empty{display:none}
       .hint{padding:6px 10px 0;font-size:12px;color:#5B6168}
@@ -174,6 +177,7 @@
 
   async function open(f, p) {
     await texts();
+    if (workPanel) return;
     ui();
     expand(false); // the panel may have been open for another field
     field = f;
@@ -221,6 +225,14 @@
       const n = document.createElement('span');
       n.className = 'n';
       n.textContent = `${it.firstName} ${it.lastName}`.trim() || it.username;
+      if (it.monthStatus) {
+        const dot = document.createElement('span');
+        dot.className = 'dot ' + it.monthStatus;
+        dot.setAttribute('role', 'img');
+        dot.setAttribute('aria-label', it.monthStatus === 'done' ? T.dotDone : T.dotPartial);
+        dot.title = dot.getAttribute('aria-label');
+        n.prepend(dot);
+      }
       const s = document.createElement('span');
       s.className = 's';
       s.textContent = [it.username, it.extra1, it.extra2].filter(Boolean).join(' · ');
@@ -493,7 +505,7 @@
   // A login form (nothing typed yet) opens the panel by itself, once per form.
   const autoOpened = new WeakSet(); // password fields whose form already had its turn
   function autoOpen() {
-    if (panel && !panel.hidden) return;
+    if (workPanel || (panel && !panel.hidden)) return;
     for (const [f, have] of icons) {
       const p = have.key && pairFor(f);
       if (!p || autoOpened.has(p.pass)) continue;
@@ -566,6 +578,17 @@
   document.addEventListener('keydown', (e) => {
     if (e.isTrusted && e.key === 'Enter' && e.target instanceof HTMLInputElement && isPassword(e.target)) captured(e.target.form || document);
   }, true);
+
+  // salyk.js's monthly work panel is modal: no search panel while it is open, and the form gets its turn when it closes.
+  let workPanel = false;
+  document.addEventListener('easypass:work-panel', (e) => {
+    workPanel = !!e.detail?.open;
+    if (host) host.style.display = workPanel ? 'none' : 'block'; // our icons have the same z-index: they'd show over the panel
+    if (workPanel) {
+      if (panel && !panel.hidden) autoOpened.delete(pair.pass);
+      close(false);
+    } else schedule();
+  });
 
   schedule();
   send({ cmd: 'pending' }).then(prompt);

@@ -42,7 +42,98 @@ const LOCAL = new Set(['localhost', '127.0.0.1', '[::1]']);
 // Chrome resolves *.localhost to this machine itself (never DNS), so plain http there is as safe as on localhost.
 const isLocal = (host) => LOCAL.has(host) || host.endsWith('.localhost');
 
-async function submitted({ username, password, change, site, fields = [], firstName = '', lastName = '' }, tab) {
+// --- Monthly work on the tracked sites (spec §7) ---
+const ATTEMPT_TTL = 2 * 60 * 1000;
+const P = { login: '/account/login', select: '/account/selectorganization' };
+// The .test and .localhost hosts are the look-alike site of extension/test (manifest matches them too); neither exists on the internet.
+const TRACKED = { 'cabinet.salyk.kg': P, 'salykkabinet.test': P, 'salykkabinet.localhost': P };
+// The one customer being worked on (the site's cookie is one per browser): { entryId, month, at, state, readName? }.
+// It survives closing Chrome, so the question still comes. No login, name or password in it.
+const session = async () => (await chrome.storage.local.get('salyk')).salyk;
+const keep = (s) => chrome.storage.local.set({ salyk: s });
+const drop = () => chrome.storage.local.remove('salyk');
+const monthOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+// Older than last month: the host would refuse the save, so asking would only waste the user's clicks.
+const stale = (s) => {
+  const now = new Date();
+  return s.month < monthOf(new Date(now.getFullYear(), now.getMonth() - 1, 1));
+};
+const pageOf = (url) => {
+  const paths = TRACKED[url.hostname];
+  const path = url.pathname.toLowerCase().replace(/\/+$/, '');
+  return !paths ? null : path === paths.login ? 'login' : path === paths.select ? 'select' : 'other';
+};
+// One at a time, in arrival order: a logout click's message must be applied before the next page's question is answered.
+let turn = Promise.resolve();
+const inTurn = (fn) => (turn = turn.then(fn, fn));
+
+// A question not answered yet (open or closed) stays: the next customer must not wipe the previous one's.
+const track = (entryId, state) => inTurn(async () => {
+  const s = await session();
+  if (!s || s.state === 'attempt' || stale(s)) await keep({ entryId, month: monthOf(new Date()), at: Date.now(), state });
+});
+
+const salykPage = (url) => inTurn(async () => {
+  const s = await session();
+  if (!s) return null;
+  if (stale(s) || (s.state === 'attempt' && Date.now() - s.at > ATTEMPT_TTL)) {
+    await drop();
+    return null;
+  }
+  const page = pageOf(url);
+  if (s.state === 'attempt') {
+    if (page === 'login') return null; // wrong password, or back from the organization page
+    if (page === 'other') { // "Войти" was pressed
+      await keep({ ...s, state: 'open' });
+      return null;
+    }
+    const w = await ask({ cmd: 'work_get', site: url.hostname, entryId: s.entryId, month: s.month });
+    if (!w.ok || w.name || w.username !== url.searchParams.get('userName')) return null;
+    await keep({ ...s, readName: true });
+    return { readName: true, username: w.username };
+  }
+  if (s.state === 'open') {
+    if (page !== 'login') return null;
+    await keep({ ...s, state: 'closed' }); // the site's session timed out, or the user came back
+  }
+  const panel = await ask({ cmd: 'work_get', site: url.hostname, entryId: s.entryId, month: s.month });
+  if (panel.error !== 'not_found') return { panel };
+  await drop(); // the customer was deleted meanwhile
+  return null;
+});
+
+const salyk = {
+  salyk_page: (msg, url) => salykPage(url),
+  salyk_logout: () => inTurn(async () => {
+    const s = await session();
+    if (s?.state === 'open') await keep({ ...s, state: 'closed' });
+    return { ok: true };
+  }),
+  salyk_name: (msg) => inTurn(async () => {
+    const s = await session();
+    if (!s?.readName) return { ok: false, error: 'bad_request' };
+    const { readName, ...rest } = s;
+    await keep(rest); // one look per visit
+    return ask({ cmd: 'set_name', site: msg.site, entryId: s.entryId, text: msg.text });
+  }),
+  work_save: (msg) => inTurn(async () => {
+    const s = await session();
+    if (!s) return { ok: false, error: 'not_found' };
+    if (stale(s)) {
+      await drop();
+      return { ok: true };
+    }
+    const r = await ask({ cmd: 'work_save', site: msg.site, entryId: s.entryId, month: s.month, statuses: msg.statuses, reminders: msg.reminders });
+    if (r.ok) await drop();
+    return r;
+  }),
+  work_close: () => inTurn(async () => {
+    await drop();
+    return { ok: true };
+  }),
+};
+
+async function submitted({ username, password, change, site, fields = [], firstName = '', lastName = '' }, tab, url) {
   const state = await load(tab);
   let filled = state.lastFilled?.site === site ? state.lastFilled : null;
   const same = filled?.username.toLowerCase() === username.toLowerCase();
@@ -57,11 +148,13 @@ async function submitted({ username, password, change, site, fields = [], firstN
   if (filled && (change || same)) Object.assign(req, { username: filled.username, entryId: filled.entryId });
   if (!req.username || !password) return null;
   const r = await ask(req);
+  const onLogin = pageOf(url) === 'login';
+  if (onLogin && r.ok && r.entryId) await track(r.entryId, 'attempt'); // above the next line: "same" is the usual case. "ambiguous" has no entry
   if (!r.ok || (r.result !== 'changed' && r.result !== 'new')) return null;
   state.pending = {
     result: r.result, entryId: r.entryId ?? req.entryId, name: r.name,
     username: req.username, password, site, at: Date.now(),
-    ...(r.result === 'new' && { fields, firstName, lastName }),
+    ...(r.result === 'new' && { fields, firstName, lastName, track: onLogin }),
   };
   await store(tab, state);
   return shown(state.pending);
@@ -70,6 +163,11 @@ async function submitted({ username, password, change, site, fields = [], firstN
 async function handle(msg, tab, url) {
   const site = url.hostname;
   msg = { ...msg, site }; // the sender's real host, never what the page-side script claims
+  if (Object.hasOwn(salyk, msg.cmd)) {
+    if (!TRACKED[site]) return { ok: false, error: 'bad_request' };
+    await checking.get(tab); // the login just submitted is known before the page after it is judged
+    return salyk[msg.cmd](msg, url);
+  }
   switch (msg.cmd) {
     case 'search':
     case 'get': {
@@ -80,7 +178,7 @@ async function handle(msg, tab, url) {
       return r;
     }
     case 'submitted': {
-      const p = submitted(msg, tab);
+      const p = submitted(msg, tab, url);
       checking.set(tab, p);
       return p;
     }
@@ -108,17 +206,21 @@ async function handle(msg, tab, url) {
         const state = await load(tab);
         delete state.pending;
         await store(tab, state);
+        if (msg.cmd === 'add' && p.track) await track(r.entryId, pageOf(url) === 'other' ? 'open' : 'attempt'); // saved after "Войти" was pressed: already inside
       }
       return r;
     }
     case 'all':
     case 'entry':
+    case 'summary':
       if (url.origin !== POPUP_ORIGIN) return { ok: false, error: 'bad_request' }; // a page asking for other sites' logins
       return ask(msg);
     case 'lang': // asked again each time, so a language switch in the app shows on the next page
       return (await ask({ cmd: 'status' })).lang || 'ru';
-    default: // status
+    case 'status':
       return ask(msg);
+    default: // work_get and set_name stay inside the background: a page's script side names no entry itself
+      return { ok: false, error: 'bad_request' };
   }
 }
 

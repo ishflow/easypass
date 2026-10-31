@@ -9,6 +9,7 @@ import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { startSites } from './sites.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ext = path.resolve(here, '..');
@@ -26,14 +27,26 @@ const T = {
   en: {
     connected: 'Connected · 8 clients', noHost: 'Not connected', insecure: 'Insecure page', none: 'No matches', changed: 'Update it in EasyPass?',
     update: 'Update', no: 'No', added: 'Save it?', first: 'First name', last: 'Last name', save: 'Save', search: 'Find a client', eye: 'Show password', show: 'Show',
+    done: 'Done', partial: 'Not finished', close: 'Close', h2: '2 hours', h5: '5 hours', tomorrow: 'Tomorrow', d2: 'In 2 days', custom: 'Custom reminder',
+    reminderClosed: 'reminder closed', update2: 'Update EasyPass', noTasks: 'Add tasks in EasyPass', locked: 'Vault locked', retry: 'Try again',
+    dotDone: 'Done this month', dotPartial: 'Not finished this month',
+    summary: (d, p, n) => `This month: done ${d} · not finished ${p} · not started ${n}`,
   },
   ru: {
     connected: 'Подключено · 8 клиентов', noHost: 'Нет связи', insecure: 'Небезопасная страница', none: 'Ничего не найдено', changed: 'Обновить в EasyPass?',
     update: 'Обновить', no: 'Нет', added: 'Сохранить?', first: 'Имя', last: 'Фамилия', save: 'Сохранить', search: 'Поиск клиента', eye: 'Показать пароль', show: 'Показать',
+    done: 'Сделано', partial: 'Не завершено', close: 'Закрыть', h2: '2 часа', h5: '5 часов', tomorrow: 'Завтра', d2: 'Через 2 дня', custom: 'Своё напоминание',
+    reminderClosed: 'напоминание закрыто', update2: 'Обновите EasyPass', noTasks: 'Добавьте работы в EasyPass', locked: 'Хранилище заблокировано', retry: 'Повторить',
+    dotDone: 'Готово в этом месяце', dotPartial: 'Не завершено в этом месяце',
+    summary: (d, p, n) => `Этот месяц: готово ${d} · не завершено ${p} · не начато ${n}`,
   },
   tr: {
     connected: 'Bağlı · 8 müşteri', noHost: 'Bağlantı yok', insecure: 'Güvensiz sayfa', none: 'Sonuç yok', changed: 'güncellensin mi?',
     update: 'Güncelle', no: 'Hayır', added: 'Kaydedilsin mi?', first: 'Ad', last: 'Soyad', save: 'Kaydet', search: 'Müşteri ara', eye: 'Şifreyi göster', show: 'Göster',
+    done: 'Yapıldı', partial: 'Bitmedi', close: 'Kapat', h2: '2 saat', h5: '5 saat', tomorrow: 'Yarın', d2: '2 gün sonra', custom: 'Özel hatırlatma',
+    reminderClosed: 'hatırlatma kapatıldı', update2: "EasyPass'i güncelleyin", noTasks: "EasyPass'te iş ekleyin", locked: 'Kilitli', retry: 'Yeniden dene',
+    dotDone: 'Bu ay bitti', dotPartial: 'Bu ay yarım',
+    summary: (d, p, n) => `Bu ay: bitti ${d} · yarım ${p} · başlanmadı ${n}`,
   },
 };
 
@@ -74,6 +87,7 @@ const tls = { key: fs.readFileSync(path.join(tmp, 'key.pem')), cert: fs.readFile
 const server = https.createServer(tls, serve).listen(0, '127.0.0.1');
 const plain = http.createServer(serve).listen(0, '127.0.0.1');
 await Promise.all([server, plain].map((s) => new Promise((r) => s.once('listening', r))));
+const sites = await startSites({ certDir: tmp }); // the salyk flow's pages
 // Sites with different host names, all resolved to the local servers by --host-resolver-rules.
 const at = (host, s = server) => `${s === server ? 'https' : 'http'}://${host}:${s.address().port}`;
 const base = at('portal-x.test');
@@ -83,11 +97,12 @@ const baseY = at('portal-y.test');
 // so the fake host manifest lives in the throwaway profile and nothing global is touched.
 const log = path.join(tmp, 'host.log');
 const external = path.join(tmp, 'external.json');
-function profile(name, lang) {
+function profile(name, lang, env = {}) {
   const dir = path.join(tmp, name);
   if (lang) {
-    const wrapper = path.join(tmp, `host-${lang}.sh`);
-    fs.writeFileSync(wrapper, `#!/bin/sh\nEP_LANG=${lang} EP_LOG='${log}' EP_EXTERNAL='${external}' exec '${process.execPath}' '${path.join(here, 'fake-host.mjs')}' "$@"\n`, { mode: 0o755 });
+    const wrapper = path.join(tmp, `host-${name}.sh`);
+    const vars = Object.entries(env).map(([k, v]) => `${k}='${v}' `).join('');
+    fs.writeFileSync(wrapper, `#!/bin/sh\n${vars}EP_LANG=${lang} EP_LOG='${log}' EP_EXTERNAL='${external}' exec '${process.execPath}' '${path.join(here, 'fake-host.mjs')}' "$@"\n`, { mode: 0o755 });
     fs.mkdirSync(path.join(dir, 'NativeMessagingHosts'), { recursive: true });
     fs.writeFileSync(path.join(dir, 'NativeMessagingHosts/com.easypass.host.json'), JSON.stringify({
       name: 'com.easypass.host', description: 'EasyPass test host', path: wrapper, type: 'stdio',
@@ -120,6 +135,7 @@ async function ax(page) {
     role: n.role?.value, name: n.name?.value || '', node: n.backendDOMNodeId,
     focused: !!n.properties?.find((p) => p.name === 'focused')?.value.value,
     expanded: !!n.properties?.find((p) => p.name === 'expanded')?.value.value,
+    disabled: !!n.properties?.find((p) => p.name === 'disabled')?.value.value,
     pressed: n.properties?.find((p) => p.name === 'pressed')?.value.value === 'true',
     value: n.value?.value,
   }));
@@ -680,11 +696,494 @@ async function suite(lang) {
   });
 }
 
+// The monthly work flow on the salyk look-alike (spec §7, §8), in its own profile: the fake host has its customers there.
+async function salykSuite(lang) {
+  const t = T[lang];
+  const shot = (page, name) => page.screenshot({ path: path.join(out, `${lang}-${name}.png`) });
+  const SY = 'salykkabinet.test';
+  const sp = (p) => sites.url(SY, p);
+  const A = ['91000000000123', 'Salyk-111', 'e9', 'Токтогулов Айбек Маратович'];
+  const B = ['92000000000456', 'Salyk-222', 'e10', 'Асанова Нургуль Бакытовна'];
+  const C = ['93000000000789123', 'Salyk-333', 'e11', 'ОсОО "Ак-Жол"'];
+  const D = ['96000000000001', 'Salyk-444', 'e12', 'Жумабеков Улан']; // only in the fake host until a scenario adds it to the site
+  // the host's full name is "first last", and the site's text is surname first
+  const stored = ([, , , text]) => { const [last, ...first] = text.split(' '); return [...first, last].join(' '); };
+  const INS = 'Страховка', VAT = 'НДС', REP = 'Отчёт';
+  const pad = (n) => String(n).padStart(2, '0');
+  const monthOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+  const thisMonth = monthOf(new Date());
+  const lastMonth = monthOf(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1));
+  fs.rmSync(log, { force: true });
+  results.push(`--- ${lang} salyk ---`);
+
+  // one browser with its own host process, for the variants a host is started with
+  const browser = async (name, env) => {
+    const c = await profile(`salyk-${name}-${lang}`, lang, { EP_SALYK: 1, ...env });
+    c.setDefaultTimeout(5000);
+    return [c, c.serviceWorkers()[0] || await c.waitForEvent('serviceworker')];
+  };
+  const stateIn = (w) => w.evaluate(() => chrome.storage.local.get('salyk').then((r) => r.salyk ?? null));
+  const hostSince = (mark, cmd) => hostLog().slice(mark).filter((r) => r.cmd === cmd);
+  const load = (page, action) => Promise.all([page.waitForEvent('load'), action()]);
+  async function signIn(page, [login, password], query = '') {
+    await page.goto(sp('/account/login' + query));
+    await page.fill('#user', login);
+    await page.fill('#pass', password);
+    await load(page, () => page.click('#go'));
+  }
+  const taskButton = async (page, task, name) => button(page, `${task}: ${name}`);
+  const workPanel = (page, task = INS) => waitFor(() => taskButton(page, task, t.done), 'work panel');
+  // password → organization → inside → logout click → the panel on the next page
+  async function fullVisit(page, who) {
+    await signIn(page, who);
+    await waitFor(async () => (await workGet(who[2], thisMonth)).name, 'name read before "Войти", as at human speed');
+    await load(page, () => page.click('a.btn-light-primary'));
+    await load(page, () => page.click('#logout'));
+    await workPanel(page);
+  }
+  const press = async (page, task, name) => clickNode(page, await waitFor(() => taskButton(page, task, name), `${task}: ${name}`));
+
+  const [ctx, sw] = await browser('main', { EP_LOCK: path.join(tmp, 'locked-' + lang) });
+  const lockFile = path.join(tmp, 'locked-' + lang);
+  const state = () => stateIn(sw);
+  const reset = async () => {
+    await sw.evaluate(() => chrome.storage.local.remove('salyk'));
+    sites.states.get('salykkabinet').sessions.clear();
+    sites.states.get('salykkabinet').half.clear();
+  };
+  const scenarioFresh = (name, fn) => scenario('salyk: ' + name, async () => { await reset(); await fn(); });
+  const workGet = (entryId, month) => sw.evaluate(([e, m, s]) => ask({ cmd: 'work_get', site: s, entryId: e, month: m }), [entryId, month, SY]);
+
+  try {
+    const page = await ctx.newPage();
+
+    await scenarioFresh('right password → the organization page gives the name (set_name) → Войти → session open, no panel', async () => {
+      const mark = hostLog().length;
+      await signIn(page, A);
+      assert.match(page.url(), /\/account\/selectorganization\?userName=91000000000123/);
+      await waitFor(() => hostSince(mark, 'set_name').length, 'set_name sent');
+      const [sent] = hostSince(mark, 'set_name');
+      assert.deepEqual([sent.site, sent.entryId, sent.text], [SY, A[2], A[3]]);
+      assert.equal((await state()).state, 'attempt');
+      await load(page, () => page.click('a.btn-light-primary'));
+      await waitFor(async () => (await state())?.state === 'open', 'session open');
+      await sleep(200);
+      assert.equal(await taskButton(page, INS, t.done), undefined, 'no panel inside the account');
+    });
+
+    await scenario('salyk: chrome.storage keeps no login, password or name', async () => {
+      const stored = JSON.stringify(await sw.evaluate(() => chrome.storage.local.get(null)));
+      for (const s of [A[0], A[1], A[3]]) assert.ok(!stored.includes(s), 'found in storage: ' + s);
+      assert.deepEqual(Object.keys((await state()) || {}).filter((k) => !['entryId', 'month', 'at', 'state', 'readName'].includes(k)), []);
+    });
+
+    await scenario('salyk: a click made by a page script is not a logout', async () => {
+      await page.evaluate(() => {
+        const a = document.getElementById('logout');
+        a.addEventListener('click', (e) => e.preventDefault());
+        a.click();
+      });
+      await sleep(200);
+      assert.equal((await state()).state, 'open');
+      await page.reload(); // drops the listener above
+    });
+
+    await scenario('salyk: logout click → panel on the next page, title name · login, login search stays closed', async () => {
+      await load(page, () => page.click('#logout'));
+      await workPanel(page);
+      assert.ok(await hasText(page, `${stored(A)} · ${A[0]}`), 'title');
+      assert.equal((await options(page)).length, 0, 'no search panel under the work panel');
+      assert.ok(!(await ax(page)).some((n) => n.role === 'combobox'), 'no search box');
+      await waitFor(async () => !(await iconIn(page, '#user')), 'the field icons do not show over the modal panel');
+      await shot(page, '8-work-panel');
+    });
+
+    await scenario('salyk: Done + Not finished → reminder required → In 2 days 09:00 → Save → host gets the right shape', async () => {
+      await press(page, INS, t.done);
+      assert.ok((await taskButton(page, INS, t.done)).pressed, 'done pressed');
+      await press(page, VAT, t.partial);
+      await waitFor(() => taskButton(page, VAT, t.d2), 'reminder choices under the orange row');
+      for (const label of [t.h2, t.h5, t.tomorrow, t.d2]) assert.ok(await taskButton(page, VAT, label), label);
+      assert.equal(await taskButton(page, INS, t.d2), undefined, 'no choices under the green row');
+      assert.ok((await button(page, t.save)).disabled, 'Save waits for a reminder');
+      await shot(page, '9-work-panel-orange');
+      await press(page, VAT, t.d2);
+      await waitFor(async () => !(await button(page, t.save)).disabled, 'Save enabled');
+      const mark = hostLog().length;
+      const now = new Date();
+      await clickNode(page, await button(page, t.save));
+      await waitFor(() => hostSince(mark, 'work_save').length, 'work_save');
+      const [s] = hostSince(mark, 'work_save');
+      const nine = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2, 9).toISOString();
+      assert.deepEqual({ site: s.site, entryId: s.entryId, month: s.month, statuses: s.statuses, reminders: s.reminders },
+        { site: SY, entryId: A[2], month: thisMonth, statuses: { t1: 'done', t2: 'partial' }, reminders: { t2: nine } });
+      await waitFor(async () => !(await taskButton(page, INS, t.done)), 'panel closed');
+      assert.equal(await state(), null, 'session finished');
+    });
+
+    await scenario('salyk: after the panel the login search opens by itself for the next customer', async () => {
+      await waitFor(async () => (await options(page)).length, 'search panel');
+      await waitFor(async () => (await active(page)) === 'user', 'caret in the username field');
+      assert.ok(await iconIn(page, '#user'), 'field icons back');
+    });
+
+    await scenarioFresh('second login, same month: states filled, name not read again, current reminder not sent back', async () => {
+      const mark = hostLog().length;
+      await fullVisit(page, A);
+      assert.equal(hostSince(mark, 'set_name').length, 0, 'name already there');
+      assert.ok((await taskButton(page, INS, t.done)).pressed);
+      assert.ok((await taskButton(page, VAT, t.partial)).pressed);
+      assert.ok(!(await taskButton(page, REP, t.done)).pressed && !(await taskButton(page, REP, t.partial)).pressed, 'grey');
+      assert.ok(!(await button(page, t.save)).disabled, 'no new reminder needed');
+      const due = (await workGet(A[2], thisMonth)).reminders[0].dueAt;
+      assert.ok(await hasText(page, new Date(due).toLocaleString(lang, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })), 'current time shown');
+      await clickNode(page, await button(page, t.save));
+      await waitFor(() => hostSince(mark, 'work_save').length, 'work_save');
+      assert.deepEqual(hostSince(mark, 'work_save')[0].reminders, {});
+      assert.equal((await workGet(A[2], thisMonth)).reminders[0].dueAt, due, 'reminder kept');
+    });
+
+    await scenarioFresh('a closed reminder reads so, and a new choice is optional', async () => {
+      await sw.evaluate(() => ask({ cmd: '__dismiss' }));
+      await fullVisit(page, A);
+      await waitFor(() => hasText(page, t.reminderClosed), 'reminder closed text');
+      assert.ok(!(await button(page, t.save)).disabled);
+      await clickNode(page, await button(page, t.close));
+      await waitFor(async () => !(await taskButton(page, INS, t.done)), 'closed');
+    });
+
+    await scenarioFresh('orange → green closes the old reminder; pressing a pressed button makes it grey again', async () => {
+      await fullVisit(page, A);
+      await press(page, VAT, t.done);
+      await press(page, INS, t.done); // pressed: back to grey
+      assert.ok(!(await taskButton(page, INS, t.done)).pressed, 'grey');
+      const mark = hostLog().length;
+      await clickNode(page, await button(page, t.save));
+      await waitFor(() => hostSince(mark, 'work_save').length, 'work_save');
+      assert.deepEqual(hostSince(mark, 'work_save')[0].statuses, { t2: 'done' });
+      assert.deepEqual((await workGet(A[2], thisMonth)).reminders, []);
+    });
+
+    await scenarioFresh('free reminder: number + hours is now + N hours; empty number asks again', async () => {
+      await fullVisit(page, A);
+      await press(page, REP, t.partial);
+      await clickNode(page, (await ax(page)).find((n) => n.name === `${REP}: ${t.custom}`));
+      await page.keyboard.type('3');
+      await waitFor(async () => !(await button(page, t.save)).disabled, 'Save enabled');
+      await page.keyboard.press('Backspace');
+      await waitFor(async () => (await button(page, t.save)).disabled, 'Save disabled again');
+      await page.keyboard.type('3');
+      await waitFor(async () => !(await button(page, t.save)).disabled, 'Save enabled');
+      const mark = hostLog().length;
+      const t0 = Date.now();
+      await clickNode(page, await button(page, t.save));
+      await waitFor(() => hostSince(mark, 'work_save').length, 'work_save');
+      const at = +new Date(hostSince(mark, 'work_save')[0].reminders.t3);
+      assert.ok(Math.abs(at - t0 - 3 * 3600_000) < 60_000, 'three hours from now');
+    });
+
+    await scenarioFresh('Esc closes without saving and ends the session', async () => {
+      await fullVisit(page, B);
+      const mark = hostLog().length;
+      await page.keyboard.press('Escape');
+      await waitFor(async () => !(await taskButton(page, INS, t.done)), 'panel closed');
+      await waitFor(async () => (await state()) === null, 'session gone');
+      assert.equal(hostSince(mark, 'work_save').length, 0);
+      await page.reload();
+      await opened(page);
+      assert.equal(await taskButton(page, INS, t.done), undefined, 'no panel after reload');
+    });
+
+    await scenarioFresh('wrong password → stays on the login path, no panel, no session opened', async () => {
+      await signIn(page, [A[0], 'wrong-pw']);
+      assert.equal(new URL(page.url()).pathname, '/account/login');
+      assert.ok(await page.isVisible('#error'));
+      await opened(page);
+      assert.equal((await state()).state, 'attempt');
+      assert.equal(await taskButton(page, INS, t.done), undefined);
+    });
+
+    await scenarioFresh('back from the organization page to the login page → no panel', async () => {
+      await signIn(page, A);
+      await page.goto(sp('/account/login'));
+      await opened(page);
+      assert.equal(await taskButton(page, INS, t.done), undefined);
+    });
+
+    await scenarioFresh('an attempt older than 2 minutes opens nothing and is dropped', async () => {
+      await signIn(page, A);
+      await sw.evaluate(() => chrome.storage.local.get('salyk').then(({ salyk }) => chrome.storage.local.set({ salyk: { ...salyk, at: Date.now() - 3 * 60_000 } })));
+      await load(page, () => page.click('a.btn-light-primary'));
+      await waitFor(async () => (await state()) === null, 'attempt dropped');
+    });
+
+    await scenarioFresh('site session times out (/__expire) → next page lands on login → panel', async () => {
+      await signIn(page, B);
+      await load(page, () => page.click('a.btn-light-primary'));
+      await waitFor(async () => (await state())?.state === 'open', 'open');
+      await page.goto(sp('/__expire'));
+      await page.goto(sp('/'));
+      assert.equal(new URL(page.url()).pathname, '/account/login');
+      await workPanel(page);
+      await clickNode(page, await button(page, t.close));
+    });
+
+    await scenarioFresh('tab closed while inside → the next login page asks about the previous customer', async () => {
+      const p1 = await ctx.newPage();
+      await signIn(p1, B);
+      await load(p1, () => p1.click('a.btn-light-primary'));
+      await waitFor(async () => (await state())?.state === 'open', 'open');
+      await p1.close();
+      const p2 = await ctx.newPage();
+      await p2.goto(sp('/account/login'));
+      await workPanel(p2);
+      assert.ok(await hasText(p2, `${stored(B)} · ${B[0]}`), 'previous customer in the title');
+      await clickNode(p2, await button(p2, t.close));
+      await p2.close();
+    });
+
+    await scenarioFresh('many rows: the row whose number starts the login gives the name', async () => {
+      const mark = hostLog().length;
+      await signIn(page, C, '?multi=1');
+      await waitFor(() => hostSince(mark, 'set_name').length, 'set_name');
+      assert.equal(hostSince(mark, 'set_name')[0].text, C[3]);
+    });
+
+    await scenarioFresh('many rows, none starts the login: no name is written', async () => {
+      if (!sites.states.get('salykkabinet').find(D[0])) {
+        sites.states.get('salykkabinet').users.push({ first: 'X', last: 'Y', org: D[3], username: D[0], password: D[1] });
+      }
+      const mark = hostLog().length;
+      await signIn(page, D, '?multi=1');
+      await sleep(300);
+      assert.ok((await state()).readName, 'the page was allowed to read');
+      assert.equal(hostSince(mark, 'set_name').length, 0);
+    });
+
+    await scenarioFresh('organization page of another login than the one tried: name is not read', async () => {
+      const mark = hostLog().length;
+      await signIn(page, D, '?multi=1');
+      await page.goto(sp(`/account/selectorganization?userName=${A[0]}`));
+      await sleep(300);
+      assert.equal(hostSince(mark, 'set_name').length, 0);
+    });
+
+    await scenarioFresh('the same nameless login on a one-row page does get its name', async () => {
+      const mark = hostLog().length;
+      await signIn(page, D);
+      await waitFor(() => hostSince(mark, 'set_name').length, 'set_name');
+      assert.equal(hostSince(mark, 'set_name')[0].text, D[3]);
+    });
+
+    await scenarioFresh('host locked at save: panel says so, states stay, Try again saves', async () => {
+      await fullVisit(page, A);
+      await press(page, REP, t.done);
+      fs.writeFileSync(lockFile, '');
+      await clickNode(page, await button(page, t.save));
+      await waitFor(() => hasText(page, t.locked), 'locked message');
+      assert.ok((await taskButton(page, REP, t.done)).pressed, 'state kept');
+      assert.notEqual(await state(), null, 'session kept');
+      fs.rmSync(lockFile);
+      const mark = hostLog().length;
+      await clickNode(page, await button(page, t.retry));
+      await waitFor(() => hostSince(mark, 'work_save').length, 'work_save on retry');
+      await waitFor(async () => !(await taskButton(page, REP, t.done)), 'panel closed');
+    });
+
+    await scenarioFresh('host locked when the panel opens: message, Try again loads the tasks', async () => {
+      await signIn(page, A);
+      await load(page, () => page.click('a.btn-light-primary'));
+      fs.writeFileSync(lockFile, '');
+      await load(page, () => page.click('#logout'));
+      await waitFor(() => hasText(page, t.locked), 'locked message');
+      fs.rmSync(lockFile);
+      await clickNode(page, await button(page, t.retry));
+      await workPanel(page);
+      await clickNode(page, await button(page, t.close));
+    });
+
+    await scenarioFresh('session from two months ago is dropped silently: no panel, no update message, no work_get', async () => {
+      await sw.evaluate((u) => chrome.storage.local.set({ salyk: { entryId: u, month: '2020-01', at: Date.now(), state: 'closed' } }), A[2]);
+      const mark = hostLog().length;
+      await page.goto(sp('/account/login'));
+      await opened(page);
+      assert.equal(await state(), null);
+      assert.equal(hostSince(mark, 'work_get').length, 0);
+      assert.ok(!(await hasText(page, t.update2)));
+    });
+
+    await scenarioFresh('session from last month still asks, and is saved to that month', async () => {
+      await sw.evaluate(([e, m]) => chrome.storage.local.set({ salyk: { entryId: e, month: m, at: Date.now(), state: 'closed' } }), [B[2], lastMonth]);
+      await page.goto(sp('/account/login'));
+      await workPanel(page);
+      await press(page, INS, t.done);
+      const mark = hostLog().length;
+      await clickNode(page, await button(page, t.save));
+      await waitFor(() => hostSince(mark, 'work_save').length, 'work_save');
+      assert.equal(hostSince(mark, 'work_save')[0].month, lastMonth);
+      await waitFor(async () => (await state()) === null, 'session finished');
+    });
+
+    await scenarioFresh('customer deleted while the session waited: dropped silently', async () => {
+      await sw.evaluate(() => chrome.storage.local.set({ salyk: { entryId: 'gone', month: '2099-01', at: Date.now(), state: 'closed' } }));
+      await page.goto(sp('/account/login'));
+      await opened(page);
+      assert.equal(await state(), null);
+      assert.equal(await taskButton(page, INS, t.done), undefined);
+    });
+
+    await scenarioFresh('new login: saved from the prompt → tracked, typed name in the title; "No" → not tracked', async () => {
+      const users = sites.states.get('salykkabinet').users;
+      const fresh = (n) => users.push({ first: 'X', last: 'Y', org: 'Осмонова Гульнара', username: '9500000000000' + n, password: 'Salyk-new' });
+      fresh(1);
+      fresh(2);
+      await signIn(page, ['95000000000001', 'Salyk-new']);
+      await waitFor(() => hasText(page, t.added), 'save prompt');
+      assert.equal(await state(), null, 'no entry yet');
+      await clickNode(page, (await ax(page)).find((n) => n.role === 'textbox' && n.name === t.first));
+      await page.keyboard.type('Zamira');
+      await clickNode(page, await button(page, t.save));
+      await waitFor(async () => (await state())?.state === 'attempt', 'attempt bound to the new entry');
+      await load(page, () => page.click('a.btn-light-primary'));
+      await load(page, () => page.click('#logout'));
+      await workPanel(page);
+      assert.ok(await hasText(page, 'Zamira · 95000000000001'), 'title');
+      await clickNode(page, await button(page, t.close));
+      await waitFor(async () => (await state()) === null, 'finished');
+
+      await signIn(page, ['95000000000002', 'Salyk-new']);
+      await waitFor(() => hasText(page, t.added), 'save prompt');
+      await clickNode(page, await button(page, t.no));
+      await load(page, () => page.click('a.btn-light-primary'));
+      await sleep(200);
+      assert.equal(await state(), null, 'not tracked');
+    });
+
+    await scenarioFresh('login list: green and orange dot with a name for screen readers; none when not started', async () => {
+      const save = (entryId, statuses, month = thisMonth) => sw.evaluate(([s, e, m, st]) => ask({ cmd: 'work_save', site: s, entryId: e, month: m, statuses: st, reminders: {} }), [SY, entryId, month, statuses]);
+      assert.ok((await save(A[2], { t1: 'done' })).ok);
+      assert.ok((await save(B[2], { t1: 'done', t2: 'partial' })).ok);
+      assert.ok((await save(C[2], { t1: 'done' }, lastMonth)).ok); // on the list, not started this month
+      await page.goto(sp('/account/login'));
+      const rows = await waitFor(async () => { const o = await options(page); return o.length >= 3 && o; }, 'list');
+      const row = (who) => rows.find((o) => o.name.includes(who[0])).name;
+      assert.ok(row(A).includes(t.dotDone), row(A));
+      assert.ok(row(B).includes(t.dotPartial), row(B));
+      assert.ok(!row(C).includes(t.dotDone) && !row(C).includes(t.dotPartial), row(C));
+      await shot(page, '10-login-dots');
+    });
+
+    await scenario('salyk: popup shows the month line', async () => {
+      const p = await ctx.newPage();
+      await p.goto(`chrome-extension://${ID}/popup.html`);
+      await waitFor(async () => (await p.textContent('#summary')) === t.summary(1, 1, 1), 'summary: ' + t.summary(1, 1, 1));
+      await p.close();
+    });
+
+    await scenario('salyk: summary only from the popup; web pages get bad_request', async () => {
+      assert.deepEqual(await sw.evaluate((u) => handle({ cmd: 'summary' }, 1, new URL(u)), sp('/')), { ok: false, error: 'bad_request' });
+    });
+
+    await scenario('salyk: untracked site has no salyk.js and every work command is refused', async () => {
+      const seen = async (url) => {
+        const p = await ctx.newPage();
+        const cdp = await ctx.newCDPSession(p);
+        const scripts = [];
+        cdp.on('Debugger.scriptParsed', (e) => scripts.push(e.url));
+        await cdp.send('Debugger.enable');
+        await p.goto(url);
+        await waitFor(() => scripts.some((u) => u.endsWith('/content.js')), 'content.js loaded');
+        await sleep(200);
+        await p.close();
+        return scripts;
+      };
+      assert.ok(!(await seen(base + '/login')).some((u) => u.endsWith('/salyk.js')), 'salyk.js on an untracked site');
+      assert.ok((await seen(sp('/account/login'))).some((u) => u.endsWith('/salyk.js')), 'salyk.js on the tracked site');
+      for (const cmd of ['salyk_page', 'salyk_name', 'salyk_logout', 'work_save', 'work_close', 'work_get', 'set_name']) {
+        const mark = hostLog().length;
+        assert.deepEqual(await sw.evaluate(([c, u]) => handle({ cmd: c, entryId: 'e1', text: 'Ad Soyad' }, 1, new URL(u)), [cmd, base + '/login']), { ok: false, error: 'bad_request' }, cmd);
+        assert.equal(hostSince(mark, cmd).length, 0, 'reached the host: ' + cmd);
+      }
+    });
+
+    await scenario('salyk: a tracked page cannot call the host commands directly either', async () => {
+      for (const cmd of ['work_get', 'set_name']) {
+        assert.deepEqual(await sw.evaluate(([c, u]) => handle({ cmd: c, entryId: 'e9', text: 'Ad Soyad' }, 1, new URL(u)), [cmd, sp('/')]), { ok: false, error: 'bad_request' }, cmd);
+      }
+    });
+
+    await scenario('salyk: speed: session read and panel reply under 50 ms', async () => {
+      const times = await sw.evaluate(async ([u, e, m]) => {
+        let reply;
+        const best = async (setup) => {
+          let ms = Infinity;
+          for (let i = 0; i < 5; i++) {
+            await setup();
+            const t0 = performance.now();
+            reply = await handle({ cmd: 'salyk_page' }, 1, new URL(u));
+            ms = Math.min(ms, performance.now() - t0);
+          }
+          return ms;
+        };
+        return {
+          none: await best(() => chrome.storage.local.remove('salyk')),
+          panel: await best(() => chrome.storage.local.set({ salyk: { entryId: e, month: m, at: Date.now(), state: 'closed' } })),
+          tasks: reply.panel.tasks.length,
+        };
+      }, [sp('/account/login'), A[2], thisMonth]);
+      await sw.evaluate(() => chrome.storage.local.remove('salyk'));
+      results.push(`      salyk_page: no session ${times.none.toFixed(1)} ms, panel ${times.panel.toFixed(1)} ms`);
+      assert.equal(times.tasks, 3, 'the panel data really came');
+      assert.ok(times.none < 50 && times.panel < 50, JSON.stringify(times));
+    });
+  } finally {
+    await ctx.close();
+  }
+
+  await scenario('salyk: no tasks defined → a small hint instead of the panel, session finished', async () => {
+    const [c, w] = await browser('notasks', { EP_NO_TASKS: 1 });
+    try {
+      const p = await c.newPage();
+      await signIn(p, A);
+      await load(p, () => p.click('a.btn-light-primary'));
+      await load(p, () => p.click('#logout'));
+      await waitFor(() => hasText(p, t.noTasks), 'hint');
+      await waitFor(async () => (await stateIn(w)) === null, 'session finished');
+      await waitFor(async () => (await options(p)).length, 'login search not blocked by the hint');
+      await shot(p, '11-no-tasks');
+      await p.click('h1', { timeout: 2000 }); // the hint must not cover the page
+    } finally {
+      await c.close();
+    }
+    sites.states.get('salykkabinet').sessions.clear();
+  });
+
+  await scenario('salyk: old host → "update EasyPass" in the panel, the name page stays silent', async () => {
+    const [c] = await browser('old', { EP_OLD_HOST: 1 });
+    try {
+      const p = await c.newPage();
+      await signIn(p, A);
+      await load(p, () => p.click('a.btn-light-primary'));
+      await load(p, () => p.click('#logout'));
+      await waitFor(() => hasText(p, t.update2), 'update message');
+      await shot(p, '12-old-host');
+      await clickNode(p, await button(p, t.close));
+      await waitFor(async () => !(await hasText(p, t.update2)), 'closed');
+    } finally {
+      await c.close();
+    }
+  });
+}
+
 try {
-  for (const lang of process.argv.slice(2).length ? process.argv.slice(2) : ['ru', 'tr', 'en']) await suite(lang);
+  for (const lang of process.argv.slice(2).length ? process.argv.slice(2) : ['ru', 'tr', 'en']) {
+    await suite(lang);
+    await salykSuite(lang);
+  }
 } finally {
   server.close();
   plain.close();
+  sites.server.close();
   fs.rmSync(tmp, { recursive: true, force: true });
 }
 console.log(results.join('\n'));

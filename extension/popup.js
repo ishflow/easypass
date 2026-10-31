@@ -8,6 +8,7 @@ const TEXT = {
     search: 'Find a client or site…', searchLabel: 'Find a client', list: 'Clients', none: 'No matches',
     back: '← Back', site: 'Site', username: 'Username', password: 'Password', extra1: 'Note 1', extra2: 'Note 2',
     show: 'Show', hide: 'Hide', copy: 'Copy', copied: 'Copied', error: 'Error: ',
+    summary: (r) => `This month: done ${r.done} · not finished ${r.partial} · not started ${r.notStarted}`,
   },
   ru: {
     ok: (n) => `Подключено · ${n} ${{ one: 'клиент', few: 'клиента' }[new Intl.PluralRules('ru').select(n)] || 'клиентов'}`,
@@ -16,6 +17,7 @@ const TEXT = {
     search: 'Найти клиента или сайт…', searchLabel: 'Поиск клиента', list: 'Клиенты', none: 'Ничего не найдено',
     back: '← Назад', site: 'Сайт', username: 'Логин', password: 'Пароль', extra1: 'Доп. информация 1', extra2: 'Доп. информация 2',
     show: 'Показать', hide: 'Скрыть', copy: 'Копировать', copied: 'Скопировано', error: 'Ошибка: ',
+    summary: (r) => `Этот месяц: готово ${r.done} · не завершено ${r.partial} · не начато ${r.notStarted}`,
   },
   tr: {
     ok: (n) => `Bağlı · ${n} müşteri`,
@@ -24,6 +26,7 @@ const TEXT = {
     search: 'Müşteri ya da site ara…', searchLabel: 'Müşteri ara', list: 'Müşteriler', none: 'Sonuç yok',
     back: '← Geri', site: 'Site', username: 'Kullanıcı adı', password: 'Şifre', extra1: 'Ek bilgi 1', extra2: 'Ek bilgi 2',
     show: 'Göster', hide: 'Gizle', copy: 'Kopyala', copied: 'Kopyalandı', error: 'Hata: ',
+    summary: (r) => `Bu ay: bitti ${r.done} · yarım ${r.partial} · başlanmadı ${r.notStarted}`,
   },
 };
 const $ = (id) => document.getElementById(id);
@@ -174,4 +177,10 @@ send({ cmd: 'status' }).then((r) => {
   $('browse').hidden = false;
   $('q').focus();
   search('');
+  // an older host doesn't know it: then there is simply no such line
+  send({ cmd: 'summary' }).then((s) => {
+    if (!s.ok) return;
+    $('summary').textContent = t.summary(s);
+    $('summary').hidden = false;
+  });
 });

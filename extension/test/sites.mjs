@@ -82,14 +82,15 @@ export const SITES = [
   },
   {
     // like cabinet.salyk.kg: the login (INN, 14 or 17 digits) is an <input type="number">; made-up numbers (no INN starts with 9)
-    host: 'salykkabinet.test', name: 'Кабинет налогоплательщика', color: '#1E40AF', userLabel: 'Логин', userType: 'number',
+    // flow: its /account/* pages (spec §8) are served too, next to the plain portal pages the Windows run walks through
+    host: 'salykkabinet.test', name: 'Кабинет налогоплательщика', color: '#1E40AF', userLabel: 'Логин', userType: 'number', flow: 'salyk',
     signup: [
       { id: 'phone', label: 'Телефон', type: 'tel', value: '0555 123 456' },
     ],
     users: [
-      { first: 'Aibek', last: 'Toktogulov', username: '91000000000123', password: 'Salyk-111' },
-      { first: 'Nurgul', last: 'Asanova', username: '92000000000456', password: 'Salyk-222' },
-      { first: 'Bakyt', last: 'Osmonov', username: '93000000000789123', password: 'Salyk-333' },
+      { first: 'Aibek', last: 'Toktogulov', username: '91000000000123', password: 'Salyk-111', org: 'Токтогулов Айбек Маратович' },
+      { first: 'Nurgul', last: 'Asanova', username: '92000000000456', password: 'Salyk-222', org: 'Асанова Нургуль Бакытовна' },
+      { first: 'Bakyt', last: 'Osmonov', username: '93000000000789123', password: 'Salyk-333', org: 'ОсОО "Ак-Жол"' },
     ],
   },
 ];
@@ -199,10 +200,23 @@ const accountForm = (site, msg, t = say(site)) => `<h1>${t.changePw}</h1>${msg}
   <button id="save">${t.change}</button>
 </form>`;
 
+// salyk flow: the login page keeps its query string in the form, like the real ASP.NET page keeps ReturnUrl.
+const salykLogin = (site, search, msg) => loginForm(site, msg)
+  .replace('action="/login"', `action="/account/login${esc(search)}"`).replace('name="username"', 'name="Username"');
+// The organization page. ?multi=1: two rows, of which only a login starting with 93000000000789 finds its own.
+function salykSelect(u, multi) {
+  const rows = multi ? [['ОсОО "Ак-Жол"', '93000000000789'], ['Осмонов Бакыт Эркинович', '93000000000111']]
+    : [[u.org || `${u.first} ${u.last}`, u.username.slice(0, 14)]];
+  return `<h1>Войти через</h1><table>${rows.map(([name, number]) => `<tr>
+    <td><span class="text-gray-800">${esc(name)}</span><br><span class="text-gray-600">${number}</span></td>
+    <td><a class="btn-light-primary" href="/account/setorganization?organizationId=${number}">Войти</a></td></tr>`).join('')}</table>`;
+}
+
 function createState(site) {
   return {
     users: site.users.map((u) => ({ ...u })),
     sessions: new Map(), // sid → username
+    half: new Map(), // salyk flow: sid → username, password accepted but no organization chosen yet
     find(username) { return this.users.find((u) => u.username.toLowerCase() === username.toLowerCase()); },
   };
 }
@@ -238,6 +252,44 @@ function handler(sites, states) {
       st.sessions.set(id, u.username);
       return { 'set-cookie': `sid=${id}; Path=/; HttpOnly${secure}; SameSite=Lax` };
     };
+
+    if (site.flow === 'salyk') {
+      const cookie = (u) => {
+        const id = crypto.randomUUID();
+        st.half.set(id, u.username);
+        return { 'set-cookie': `sid=${id}; Path=/; HttpOnly${secure}; SameSite=Lax` };
+      };
+      const toLogin = () => res.writeHead(302, { location: '/account/login?ReturnUrl=%2F' }).end();
+      switch (`${req.method} ${url.pathname}`) {
+        case 'GET /':
+          return me ? html(t.account, home(site, me).replace('href="/logout"', 'href="/account/logout"')) : toLogin();
+        case 'GET /account/login': return html(t.signIn, salykLogin(site, url.search, ''));
+        case 'POST /account/login': {
+          const f = await body(req);
+          const u = st.find(f.Username || '');
+          if (!u || u.password !== f.password) return html(t.signIn, salykLogin(site, url.search, `<p class="err" id="error">${t.badLogin}</p>`));
+          const multi = url.searchParams.has('multi') ? '&multi=1' : '';
+          return res.writeHead(302, { location: `/account/selectorganization?userName=${encodeURIComponent(u.username)}${multi}`, ...cookie(u) }).end();
+        }
+        case 'GET /account/selectorganization': {
+          const u = st.half.has(sid) && st.find(url.searchParams.get('userName') || '');
+          return u ? html('Войти через', salykSelect(u, url.searchParams.has('multi'))) : toLogin();
+        }
+        case 'GET /account/setorganization': {
+          if (!st.half.has(sid)) return toLogin();
+          st.sessions.set(sid, st.half.get(sid));
+          st.half.delete(sid);
+          return res.writeHead(302, { location: '/' }).end();
+        }
+        case 'GET /account/logout':
+          st.sessions.delete(sid);
+          return res.writeHead(302, { location: '/account/login', 'set-cookie': 'sid=; Path=/; Max-Age=0' }).end();
+        case 'GET /__expire': // test hook: the site's session times out
+          st.sessions.clear();
+          st.half.clear();
+          return res.writeHead(200, { 'content-type': 'text/plain' }).end('expired');
+      }
+    }
 
     if (req.method === 'GET') {
       switch (url.pathname) {
