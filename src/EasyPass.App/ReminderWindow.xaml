@@ -1,0 +1,18 @@
+<Window x:Class="EasyPass.App.ReminderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="EasyPass" Width="340" Height="112" Style="{StaticResource AppWindow}"
+        Topmost="True" ShowInTaskbar="False" ShowActivated="False" WindowStyle="None" ResizeMode="NoResize"
+        WindowStartupLocation="Manual" Background="{StaticResource SurfaceBrush}" Cursor="Hand"
+        BorderBrush="{StaticResource WarningBrush}" BorderThickness="4,1,1,1" MouseLeftButtonUp="Clicked">
+    <Grid Margin="12,8,8,8">
+        <StackPanel Margin="0,0,28,0" VerticalAlignment="Center">
+            <TextBlock x:Name="Heading" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="TaskText" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="CustomerText" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="LoginText" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <Button x:Name="CloseButton" Content="×" HorizontalAlignment="Right" VerticalAlignment="Top" Width="24" Height="24" Padding="0"
+                BorderThickness="0" AutomationProperties.Name="{DynamicResource Close}" Click="Clicked" />
+    </Grid>
+</Window>

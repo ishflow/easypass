@@ -12,6 +12,8 @@
     <SolidColorBrush x:Key="AccentLightBrush" Color="#E3F1EE" />
     <SolidColorBrush x:Key="DangerBrush" Color="#B42318" />
     <SolidColorBrush x:Key="DangerLightBrush" Color="#FDECEA" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="#15803D" />
+    <SolidColorBrush x:Key="WarningBrush" Color="#B45309" />
 
     <FontFamily x:Key="UiFont">Segoe UI Variable Text, Segoe UI</FontFamily>
     <CornerRadius x:Key="Radius">8</CornerRadius>
@@ -239,5 +241,79 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <!-- Sekmeler: üst şerit; seçili sekmenin altında renkli çizgi -->
+    <Style TargetType="TabControl">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabControl">
+                    <DockPanel>
+                        <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}"
+                                BorderThickness="0,0,0,1" Padding="{TemplateBinding Padding}">
+                            <TabPanel IsItemsHost="True" />
+                        </Border>
+                        <ContentPresenter x:Name="PART_SelectedContentHost" ContentSource="SelectedContent" />
+                    </DockPanel>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+    <Style TargetType="TabItem">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TabItem">
+                    <Border x:Name="Tab" Background="Transparent" BorderBrush="Transparent" BorderThickness="0,0,0,2" Padding="14,13,14,12">
+                        <ContentPresenter ContentSource="Header" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Tab" Property="Background" Value="{StaticResource BackgroundBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Tab" Property="Background" Value="{StaticResource AccentLightBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Tab" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsSelected" Value="True">
+                <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Ay satırı: "Ноябрь 2026: Страховка ●  НДС ◐"; renk ve şekil birlikte, yalnız renge dayanmasın -->
+    <DataTemplate x:Key="TaskMarkTemplate">
+        <StackPanel Orientation="Horizontal" Margin="0,0,12,0">
+            <TextBlock Text="{Binding Name}" />
+            <TextBlock x:Name="Dot" Text="{Binding Glyph}" Margin="4,0,0,0" Foreground="{StaticResource WarningBrush}" />
+        </StackPanel>
+        <DataTemplate.Triggers>
+            <DataTrigger Binding="{Binding Done}" Value="True">
+                <Setter TargetName="Dot" Property="Foreground" Value="{StaticResource SuccessBrush}" />
+            </DataTrigger>
+        </DataTemplate.Triggers>
+    </DataTemplate>
+    <DataTemplate x:Key="MonthMarksTemplate">
+        <DockPanel Margin="0,0,0,4">
+            <TextBlock DockPanel.Dock="Left" Text="{Binding Month, StringFormat='{}{0}:'}" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,8,0" />
+            <ItemsControl ItemsSource="{Binding Tasks}" Focusable="False" ItemTemplate="{StaticResource TaskMarkTemplate}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+        </DockPanel>
+    </DataTemplate>
 
 </ResourceDictionary>

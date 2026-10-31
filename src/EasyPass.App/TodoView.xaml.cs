@@ -1,0 +1,83 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
+using EasyPass.Core;
+using static EasyPass.App.Loc;
+
+namespace EasyPass.App;
+
+public partial class TodoView : UserControl
+{
+    internal MainWindow Main = null!;
+    int monthsBack; // from today, so a window left open past midnight on the 31st moves on by itself
+    VaultData? listedData; // an instance never changes once in the vault
+    string listedMonth = "";
+    TodoList? list;
+
+    public TodoView() => InitializeComponent();
+
+    public void Refresh()
+    {
+        if (Main.ActiveVault is not { } vault) return;
+        var month = Work.MonthOf(DateTime.Now.AddMonths(-monthsBack));
+        // typing filters the same list: no need to work it out again on every key
+        if (list == null || listedData != vault.Data || listedMonth != month)
+            (list, listedData, listedMonth) = (Work.Todo(vault.Data, month), vault.Data, month);
+
+        MonthText.Text = MonthName(month);
+        NextMonth.IsEnabled = monthsBack > 0;
+        CountText.Text = string.Format(L("TodoTitleFmt"), list.Done, list.Rows.Count);
+
+        IEnumerable<TodoRow> rows = list.Rows;
+        if (!string.IsNullOrWhiteSpace(TodoSearch.Text))
+        {
+            var found = vault.Search(TodoSearch.Text, vault.Entries.Count).Select(e => e.Id).ToHashSet();
+            rows = rows.Where(r => found.Contains(r.Entry.Id));
+        }
+        var names = new Dictionary<TodoGroup, string>
+        {
+            [TodoGroup.NotStarted] = L("TodoNotStarted"),
+            [TodoGroup.Unfinished] = L("TodoUnfinished"),
+            [TodoGroup.Done] = L("TodoDone"),
+        };
+        var months = new Dictionary<string, string>();
+        string Name(string m) => months.TryGetValue(m, out var name) ? name : months[m] = MonthName(m);
+        var tasks = vault.Data.Tasks;
+        var items = rows.Select(r => new TodoItem(r.Entry.Id, r.Entry.FullName == "" ? r.Entry.Username : r.Entry.FullName, r.Entry.Username, names[r.Group],
+            new[] { r.LastMonth == null ? null : MonthMarks.Of(tasks, Name(r.LastMonth), r.LastTasks), MonthMarks.Of(tasks, Name(month), r.ThisTasks) }
+                .OfType<MonthMarks>().ToList())).ToList();
+
+        var view = new ListCollectionView(items);
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(TodoItem.Group)));
+        TodoList.ItemsSource = view;
+        EmptyText.Visibility = list.Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    void PrevMonth_Click(object sender, RoutedEventArgs e) { monthsBack++; Refresh(); }
+
+    void NextMonth_Click(object sender, RoutedEventArgs e) { monthsBack--; Refresh(); }
+
+    void TodoSearch_TextChanged(object sender, TextChangedEventArgs e) { if (Main != null) Refresh(); }
+
+    void Row_Click(object sender, MouseButtonEventArgs e) => Open(sender);
+
+    void Row_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && e.OriginalSource == sender) Open(sender);
+    }
+
+    void Open(object row)
+    {
+        if (((ListBoxItem)row).DataContext is TodoItem item) Main.OpenEntry(item.Id);
+    }
+
+    void Hide_Click(object sender, RoutedEventArgs e)
+    {
+        if (((Button)sender).DataContext is not TodoItem item) return;
+        Main.Write(d =>
+        {
+            if (d.Entries.FirstOrDefault(x => x.Id == item.Id) is { } entry) entry.TodoHidden = true;
+        });
+    }
+}

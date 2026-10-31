@@ -50,7 +50,7 @@
     <sys:String x:Key="ErrNeedPassword" xml:space="preserve">Şifreyi girin.</sys:String>
     <sys:String x:Key="Saved" xml:space="preserve">Kaydedildi.</sys:String>
     <sys:String x:Key="ErrSave" xml:space="preserve">Kaydedilemedi: </sys:String>
-    <sys:String x:Key="AskDelete" xml:space="preserve">{0} ({1}) silinsin mi?&#10;Bu işlem geri alınamaz.</sys:String>
+    <sys:String x:Key="AskDelete" xml:space="preserve">{0} ({1}) silinsin mi?&#10;Bu müşterinin iş geçmişi ve hatırlatmaları da silinir.&#10;Bu işlem geri alınamaz.</sys:String>
     <sys:String x:Key="DeleteTitle" xml:space="preserve">Müşteriyi sil</sys:String>
     <sys:String x:Key="ErrDelete" xml:space="preserve">Silinemedi: </sys:String>
     <sys:String x:Key="Deleted" xml:space="preserve">Silindi.</sys:String>
@@ -80,4 +80,32 @@
     <sys:String x:Key="PasswordRemoved" xml:space="preserve">Kasanın ana şifresi kaldırıldı; artık şifre sorulmayacak.</sys:String>
     <sys:String x:Key="ErrRemovePassword" xml:space="preserve">Ana şifre kaldırılamadı (bir sonraki açılışta yeniden denenecek): </sys:String>
     <sys:String x:Key="SiteFields" xml:space="preserve">Sitede girilen bilgiler</sys:String>
+    <sys:String x:Key="TabClients" xml:space="preserve">Müşteriler</sys:String>
+    <sys:String x:Key="TabTodo" xml:space="preserve">Yapılacaklar</sys:String>
+    <sys:String x:Key="TabNotifications" xml:space="preserve">Bildirimler</sys:String>
+    <sys:String x:Key="TabTasks" xml:space="preserve">İşler</sys:String>
+    <sys:String x:Key="TodoDone" xml:space="preserve">Bitti</sys:String>
+    <sys:String x:Key="TodoUnfinished" xml:space="preserve">Tamamlanmadı</sys:String>
+    <sys:String x:Key="TodoNotStarted" xml:space="preserve">Başlanmadı</sys:String>
+    <sys:String x:Key="TodoHide" xml:space="preserve">Listeden çıkar</sys:String>
+    <sys:String x:Key="TodoTitleFmt" xml:space="preserve">Bitti {0} / {1}</sys:String>
+    <sys:String x:Key="TodoPrevMonth" xml:space="preserve">Önceki ay</sys:String>
+    <sys:String x:Key="TodoNextMonth" xml:space="preserve">Sonraki ay</sys:String>
+    <sys:String x:Key="TodoEmpty" xml:space="preserve">Sitede iş işaretlediğiniz müşteriler burada görünür.</sys:String>
+    <sys:String x:Key="NotifDue" xml:space="preserve">Vakti gelenler</sys:String>
+    <sys:String x:Key="NotifPlanned" xml:space="preserve">Planlandı</sys:String>
+    <sys:String x:Key="NotifDismissed" xml:space="preserve">kapatıldı</sys:String>
+    <sys:String x:Key="NotifResolved" xml:space="preserve">tamamlandı</sys:String>
+    <sys:String x:Key="NotifTitle" xml:space="preserve">İş tamamlanmadı</sys:String>
+    <sys:String x:Key="NotifMore" xml:space="preserve">{0} tane daha: bildirimleri aç</sys:String>
+    <sys:String x:Key="NotifEmpty" xml:space="preserve">Hatırlatma yok. Sitede bir işi “Tamamlanmadı” olarak işaretlediğinizde burada görünür.</sys:String>
+    <sys:String x:Key="TaskAdd" xml:space="preserve">+ İş ekle</sys:String>
+    <sys:String x:Key="TaskRename" xml:space="preserve">Yeniden adlandır</sys:String>
+    <sys:String x:Key="TaskDelete" xml:space="preserve">Sil</sys:String>
+    <sys:String x:Key="AskDeleteTask" xml:space="preserve">“{0}” işi silinsin mi?&#10;Sitedeki panelden kalkar, hatırlatmaları kapanır; müşteri geçmişinde adı kalır.</sys:String>
+    <sys:String x:Key="TaskEmpty" xml:space="preserve">Müşterileriniz için yaptığınız işleri ekleyin: sitedeki panelde görünürler.</sys:String>
+    <sys:String x:Key="TrayOpen" xml:space="preserve">Aç</sys:String>
+    <sys:String x:Key="TrayExit" xml:space="preserve">Çıkış</sys:String>
+    <sys:String x:Key="TrayLocked" xml:space="preserve">EasyPass: kasa açılamadı</sys:String>
+    <sys:String x:Key="History" xml:space="preserve">İş geçmişi</sys:String>
 </ResourceDictionary>

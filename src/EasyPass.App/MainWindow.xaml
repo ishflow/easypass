@@ -1,6 +1,7 @@
 <Window x:Class="EasyPass.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:EasyPass.App"
         Title="EasyPass" Width="1100" Height="720" MinWidth="880" MinHeight="580"
         WindowStartupLocation="CenterScreen" Style="{StaticResource AppWindow}"
         Activated="Window_Activated" Closing="Window_Closing">
@@ -70,117 +71,145 @@
 
         <!-- 3. Ana ekran -->
         <Grid x:Name="MainPanel" Visibility="Collapsed">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition />
-            </Grid.RowDefinitions>
+            <TabControl x:Name="Tabs" SelectedIndex="0" Padding="116,0,132,0" SelectionChanged="Tabs_SelectionChanged">
+                <TabItem Header="{DynamicResource TabClients}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition />
+                        </Grid.RowDefinitions>
 
-            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,12">
-                <DockPanel>
-                    <TextBlock Text="EasyPass" FontSize="16" FontWeight="SemiBold" VerticalAlignment="Center" Margin="4,0,24,0" />
-                    <Button Content="{DynamicResource Settings}" DockPanel.Dock="Right" Margin="8,0,0,0" Click="Settings_Click" />
-                    <Button Content="{DynamicResource NewEntry}" DockPanel.Dock="Right" Margin="16,0,0,0" Style="{StaticResource AccentButton}" Click="NewEntry_Click" />
-                    <Grid MaxWidth="520" HorizontalAlignment="Left">
-                        <TextBox x:Name="SearchBox" Padding="12,0" TextChanged="SearchBox_TextChanged" />
-                        <TextBlock Text="{DynamicResource SearchHint}" Margin="14,0" VerticalAlignment="Center" IsHitTestVisible="False"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   Visibility="{Binding Text.IsEmpty, ElementName=SearchBox, Converter={StaticResource BoolToVisibility}}" />
-                    </Grid>
-                </DockPanel>
-            </Border>
+                        <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,12">
+                            <DockPanel>
+                                <Button Content="{DynamicResource NewEntry}" DockPanel.Dock="Right" Margin="16,0,0,0" Style="{StaticResource AccentButton}" Click="NewEntry_Click" />
+                                <Grid MaxWidth="520" HorizontalAlignment="Left">
+                                    <TextBox x:Name="SearchBox" Padding="12,0" TextChanged="SearchBox_TextChanged" />
+                                    <TextBlock Text="{DynamicResource SearchHint}" Margin="14,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Visibility="{Binding Text.IsEmpty, ElementName=SearchBox, Converter={StaticResource BoolToVisibility}}" />
+                                </Grid>
+                            </DockPanel>
+                        </Border>
 
-            <Grid Grid.Row="1">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="460" />
-                    <ColumnDefinition />
-                </Grid.ColumnDefinitions>
-
-                <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0">
-                    <DockPanel>
-                        <TextBlock x:Name="CountText" DockPanel.Dock="Top" Style="{StaticResource Secondary}" FontSize="12" Margin="20,12,20,0" />
-                        <ListBox x:Name="EntryList" SelectionChanged="EntryList_SelectionChanged">
-                            <ListBox.ItemTemplate>
-                                <DataTemplate>
-                                    <DockPanel>
-                                        <TextBlock DockPanel.Dock="Left" Width="110" Margin="0,0,12,0" VerticalAlignment="Center"
-                                                   Text="{Binding Site, Mode=OneWay}" FontSize="12" TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{Binding Site, Mode=OneWay}" Foreground="{StaticResource AccentBrush}" />
-                                    <StackPanel>
-                                        <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
-                                            <TextBlock.Style>
-                                                <!-- eklentinin adsız eklediği kayıtta kullanıcı adı görünsün -->
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Text" Value="{Binding FullName, Mode=OneWay}" />
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding FullName, Mode=OneWay}" Value="">
-                                                            <Setter Property="Text" Value="{Binding Username, Mode=OneWay}" />
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-                                        <StackPanel Orientation="Horizontal" TextBlock.FontSize="12" TextBlock.Foreground="{StaticResource TextSecondaryBrush}">
-                                            <TextBlock Text="{Binding Username, Mode=OneWay}" Margin="0,0,12,0" />
-                                            <TextBlock Text="{Binding Extra1, Mode=OneWay}" Margin="0,0,12,0" />
-                                            <TextBlock Text="{Binding Extra2, Mode=OneWay}" />
-                                        </StackPanel>
-                                    </StackPanel>
-                                    </DockPanel>
-                                </DataTemplate>
-                            </ListBox.ItemTemplate>
-                        </ListBox>
-                    </DockPanel>
-                </Border>
-
-                <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
-                    <StackPanel MaxWidth="600" Margin="32,24" HorizontalAlignment="Stretch">
-                        <TextBlock x:Name="EditTitle" Text="{DynamicResource NewEntry}" Style="{StaticResource Title}" />
-                        <TextBlock Text="{DynamicResource Site}" Style="{StaticResource Label}" />
-                        <ComboBox x:Name="SiteBox" IsEditable="True" />
-                        <TextBlock x:Name="SiteError" Style="{StaticResource Error}" Margin="0,4,0,0" />
-                        <Grid>
+                        <Grid Grid.Row="1">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition />
-                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="460" />
                                 <ColumnDefinition />
                             </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="{DynamicResource FirstName}" Style="{StaticResource Label}" />
-                                <TextBox x:Name="FirstNameBox" />
-                                <TextBlock Text="{DynamicResource Extra1}" Style="{StaticResource Label}" />
-                                <TextBox x:Name="Extra1Box" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="2">
-                                <TextBlock Text="{DynamicResource LastName}" Style="{StaticResource Label}" />
-                                <TextBox x:Name="LastNameBox" />
-                                <TextBlock Text="{DynamicResource Extra2}" Style="{StaticResource Label}" />
-                                <TextBox x:Name="Extra2Box" />
-                            </StackPanel>
+
+                            <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,1,0">
+                                <DockPanel>
+                                    <TextBlock x:Name="CountText" DockPanel.Dock="Top" Style="{StaticResource Secondary}" FontSize="12" Margin="20,12,20,0" />
+                                    <ListBox x:Name="EntryList" SelectionChanged="EntryList_SelectionChanged">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Left" Width="110" Margin="0,0,12,0" VerticalAlignment="Center"
+                                                               Text="{Binding Site, Mode=OneWay}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding Site, Mode=OneWay}" Foreground="{StaticResource AccentBrush}" />
+                                                <StackPanel>
+                                                    <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
+                                                        <TextBlock.Style>
+                                                            <!-- eklentinin adsız eklediği kayıtta kullanıcı adı görünsün -->
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Text" Value="{Binding FullName, Mode=OneWay}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding FullName, Mode=OneWay}" Value="">
+                                                                        <Setter Property="Text" Value="{Binding Username, Mode=OneWay}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <StackPanel Orientation="Horizontal" TextBlock.FontSize="12" TextBlock.Foreground="{StaticResource TextSecondaryBrush}">
+                                                        <TextBlock Text="{Binding Username, Mode=OneWay}" Margin="0,0,12,0" />
+                                                        <TextBlock Text="{Binding Extra1, Mode=OneWay}" Margin="0,0,12,0" />
+                                                        <TextBlock Text="{Binding Extra2, Mode=OneWay}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                                </DockPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </DockPanel>
+                            </Border>
+
+                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                                <StackPanel MaxWidth="600" Margin="32,24" HorizontalAlignment="Stretch">
+                                    <TextBlock x:Name="EditTitle" Text="{DynamicResource NewEntry}" Style="{StaticResource Title}" />
+                                    <TextBlock Text="{DynamicResource Site}" Style="{StaticResource Label}" />
+                                    <ComboBox x:Name="SiteBox" IsEditable="True" />
+                                    <TextBlock x:Name="SiteError" Style="{StaticResource Error}" Margin="0,4,0,0" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition />
+                                            <ColumnDefinition Width="16" />
+                                            <ColumnDefinition />
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="{DynamicResource FirstName}" Style="{StaticResource Label}" />
+                                            <TextBox x:Name="FirstNameBox" />
+                                            <TextBlock Text="{DynamicResource Extra1}" Style="{StaticResource Label}" />
+                                            <TextBox x:Name="Extra1Box" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="{DynamicResource LastName}" Style="{StaticResource Label}" />
+                                            <TextBox x:Name="LastNameBox" />
+                                            <TextBlock Text="{DynamicResource Extra2}" Style="{StaticResource Label}" />
+                                            <TextBox x:Name="Extra2Box" />
+                                        </StackPanel>
+                                    </Grid>
+                                    <TextBlock Text="{DynamicResource Username}" Style="{StaticResource Label}" />
+                                    <TextBox x:Name="UsernameBox" />
+                                    <TextBlock Text="{DynamicResource Password}" Style="{StaticResource Label}" />
+                                    <DockPanel>
+                                        <Button Content="{DynamicResource Copy}" DockPanel.Dock="Right" Margin="8,0,0,0" Click="CopyPassword_Click" />
+                                        <Button x:Name="ShowPasswordButton" Content="{DynamicResource Show}" DockPanel.Dock="Right" Margin="8,0,0,0" Click="TogglePassword_Click" />
+                                        <Grid>
+                                            <PasswordBox x:Name="PasswordBox" />
+                                            <TextBox x:Name="PasswordText" Visibility="Collapsed" />
+                                        </Grid>
+                                    </DockPanel>
+                                    <!-- Sign-up form details from the site (extension "save" prompt), read-only -->
+                                    <StackPanel x:Name="SiteFieldsPanel" Visibility="Collapsed" Margin="0,24,0,0">
+                                        <TextBlock Text="{DynamicResource SiteFields}" Style="{StaticResource Heading}" />
+                                        <StackPanel x:Name="SiteFieldsList" />
+                                    </StackPanel>
+                                    <!-- Month by month, newest first; read-only -->
+                                    <StackPanel x:Name="HistoryPanel" Visibility="Collapsed" Margin="0,24,0,0">
+                                        <TextBlock Text="{DynamicResource History}" Style="{StaticResource Heading}" />
+                                        <ItemsControl x:Name="HistoryList" Focusable="False" ItemTemplate="{StaticResource MonthMarksTemplate}" />
+                                    </StackPanel>
+                                    <TextBlock x:Name="StatusText" Style="{StaticResource Secondary}" Margin="0,16,0,0" />
+                                    <DockPanel Margin="0,16,0,0">
+                                        <Button Content="{DynamicResource Save}" Style="{StaticResource AccentButton}" MinWidth="120" Click="Save_Click" />
+                                        <Button x:Name="DeleteButton" Content="{DynamicResource Delete}" Style="{StaticResource DangerButton}" HorizontalAlignment="Right" Click="Delete_Click" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </ScrollViewer>
                         </Grid>
-                        <TextBlock Text="{DynamicResource Username}" Style="{StaticResource Label}" />
-                        <TextBox x:Name="UsernameBox" />
-                        <TextBlock Text="{DynamicResource Password}" Style="{StaticResource Label}" />
-                        <DockPanel>
-                            <Button Content="{DynamicResource Copy}" DockPanel.Dock="Right" Margin="8,0,0,0" Click="CopyPassword_Click" />
-                            <Button x:Name="ShowPasswordButton" Content="{DynamicResource Show}" DockPanel.Dock="Right" Margin="8,0,0,0" Click="TogglePassword_Click" />
-                            <Grid>
-                                <PasswordBox x:Name="PasswordBox" />
-                                <TextBox x:Name="PasswordText" Visibility="Collapsed" />
-                            </Grid>
-                        </DockPanel>
-                        <!-- Sign-up form details from the site (extension "save" prompt), read-only -->
-                        <StackPanel x:Name="SiteFieldsPanel" Visibility="Collapsed" Margin="0,24,0,0">
-                            <TextBlock Text="{DynamicResource SiteFields}" Style="{StaticResource Heading}" />
-                            <StackPanel x:Name="SiteFieldsList" />
+                    </Grid>
+                </TabItem>
+                <TabItem Header="{DynamicResource TabTodo}">
+                    <local:TodoView x:Name="TodoPage" />
+                </TabItem>
+                <TabItem>
+                    <TabItem.Header>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{DynamicResource TabNotifications}" />
+                            <Border x:Name="DueBadge" Visibility="Collapsed" Background="{StaticResource WarningBrush}" CornerRadius="9" MinWidth="18" Padding="5,0" Margin="6,0,0,0">
+                                <TextBlock x:Name="DueCount" Foreground="White" FontSize="12" FontWeight="SemiBold" TextAlignment="Center" />
+                            </Border>
                         </StackPanel>
-                        <TextBlock x:Name="StatusText" Style="{StaticResource Secondary}" Margin="0,16,0,0" />
-                        <DockPanel Margin="0,16,0,0">
-                            <Button Content="{DynamicResource Save}" Style="{StaticResource AccentButton}" MinWidth="120" Click="Save_Click" />
-                            <Button x:Name="DeleteButton" Content="{DynamicResource Delete}" Style="{StaticResource DangerButton}" HorizontalAlignment="Right" Click="Delete_Click" />
-                        </DockPanel>
-                    </StackPanel>
-                </ScrollViewer>
-            </Grid>
+                    </TabItem.Header>
+                    <local:NotificationsView x:Name="NotificationsPage" />
+                </TabItem>
+                <TabItem Header="{DynamicResource TabTasks}">
+                    <local:TasksView x:Name="TasksPage" />
+                </TabItem>
+            </TabControl>
+            <TextBlock Text="EasyPass" FontSize="16" FontWeight="SemiBold" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,12,0,0" IsHitTestVisible="False" />
+            <Button Content="{DynamicResource Settings}" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,16,0" Click="Settings_Click" />
         </Grid>
 
     </Grid>

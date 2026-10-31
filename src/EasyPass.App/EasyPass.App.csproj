@@ -4,6 +4,7 @@
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>EasyPass</AssemblyName>
@@ -12,6 +13,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- WinForms is here for NotifyIcon only: its names (Application, Button…) must not clash with WPF's -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
     <Resource Include="app.ico" />
     <ProjectReference Include="..\EasyPass.Core\EasyPass.Core.csproj" />
   </ItemGroup>

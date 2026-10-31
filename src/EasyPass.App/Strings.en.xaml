@@ -50,7 +50,7 @@
     <sys:String x:Key="ErrNeedPassword" xml:space="preserve">Enter the password.</sys:String>
     <sys:String x:Key="Saved" xml:space="preserve">Saved.</sys:String>
     <sys:String x:Key="ErrSave" xml:space="preserve">Not saved: </sys:String>
-    <sys:String x:Key="AskDelete" xml:space="preserve">Delete {0} ({1})?&#10;This cannot be undone.</sys:String>
+    <sys:String x:Key="AskDelete" xml:space="preserve">Delete {0} ({1})?&#10;This client's work history and reminders are deleted too.&#10;This cannot be undone.</sys:String>
     <sys:String x:Key="DeleteTitle" xml:space="preserve">Delete client</sys:String>
     <sys:String x:Key="ErrDelete" xml:space="preserve">Could not delete: </sys:String>
     <sys:String x:Key="Deleted" xml:space="preserve">Deleted.</sys:String>
@@ -80,4 +80,32 @@
     <sys:String x:Key="PasswordRemoved" xml:space="preserve">The vault's master password was removed; it won't be asked again.</sys:String>
     <sys:String x:Key="ErrRemovePassword" xml:space="preserve">Could not remove the master password (it will be tried again next time): </sys:String>
     <sys:String x:Key="SiteFields" xml:space="preserve">Details entered on the site</sys:String>
+    <sys:String x:Key="TabClients" xml:space="preserve">Clients</sys:String>
+    <sys:String x:Key="TabTodo" xml:space="preserve">To do</sys:String>
+    <sys:String x:Key="TabNotifications" xml:space="preserve">Notifications</sys:String>
+    <sys:String x:Key="TabTasks" xml:space="preserve">Tasks</sys:String>
+    <sys:String x:Key="TodoDone" xml:space="preserve">Done</sys:String>
+    <sys:String x:Key="TodoUnfinished" xml:space="preserve">Unfinished</sys:String>
+    <sys:String x:Key="TodoNotStarted" xml:space="preserve">Not started</sys:String>
+    <sys:String x:Key="TodoHide" xml:space="preserve">Remove from list</sys:String>
+    <sys:String x:Key="TodoTitleFmt" xml:space="preserve">Done {0} / {1}</sys:String>
+    <sys:String x:Key="TodoPrevMonth" xml:space="preserve">Previous month</sys:String>
+    <sys:String x:Key="TodoNextMonth" xml:space="preserve">Next month</sys:String>
+    <sys:String x:Key="TodoEmpty" xml:space="preserve">Clients appear here once you mark work for them on the site.</sys:String>
+    <sys:String x:Key="NotifDue" xml:space="preserve">Due</sys:String>
+    <sys:String x:Key="NotifPlanned" xml:space="preserve">Planned</sys:String>
+    <sys:String x:Key="NotifDismissed" xml:space="preserve">dismissed</sys:String>
+    <sys:String x:Key="NotifResolved" xml:space="preserve">completed</sys:String>
+    <sys:String x:Key="NotifTitle" xml:space="preserve">Work not finished</sys:String>
+    <sys:String x:Key="NotifMore" xml:space="preserve">{0} more: open notifications</sys:String>
+    <sys:String x:Key="NotifEmpty" xml:space="preserve">No reminders. They appear when you mark a task as “Not finished” on the site.</sys:String>
+    <sys:String x:Key="TaskAdd" xml:space="preserve">+ Add task</sys:String>
+    <sys:String x:Key="TaskRename" xml:space="preserve">Rename</sys:String>
+    <sys:String x:Key="TaskDelete" xml:space="preserve">Delete</sys:String>
+    <sys:String x:Key="AskDeleteTask" xml:space="preserve">Delete the task “{0}”?&#10;It leaves the panel on the site and its reminders close; client history keeps its name.</sys:String>
+    <sys:String x:Key="TaskEmpty" xml:space="preserve">Add the tasks you do for clients: they appear in the panel on the site.</sys:String>
+    <sys:String x:Key="TrayOpen" xml:space="preserve">Open</sys:String>
+    <sys:String x:Key="TrayExit" xml:space="preserve">Exit</sys:String>
+    <sys:String x:Key="TrayLocked" xml:space="preserve">EasyPass: vault not open</sys:String>
+    <sys:String x:Key="History" xml:space="preserve">Work history</sys:String>
 </ResourceDictionary>

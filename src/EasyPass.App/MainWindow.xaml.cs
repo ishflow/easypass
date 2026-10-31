@@ -26,14 +26,32 @@ public partial class MainWindow : Window
     bool asking;            // soru kutusu açıkken arka plan yenilemesi beklesin
     bool passwordShown;
     string lastSite = "";   // yeni müşteri bu siteyle başlar (hızlı giriş)
+    bool quitting;          // false: pencereyi kapatmak tepsiye indirir
+    bool reloading;         // arka planda yeniden okuma sürüyor
+    bool screenStale;       // yeni veri okundu, ekran soru kutusu kapanınca güncellenecek
+    // arka plandaki yeniden okuma ile yazma aynı anda çalışmasın: geç biten okuma, yazmanın kopyaladığı veriyi eskisiyle değiştirirdi
+    readonly object vaultGate = new();
+    readonly TrayIcon tray;
+    readonly ReminderService reminders;
 
     public MainWindow()
     {
         InitializeComponent();
+        TodoPage.Main = this;
+        NotificationsPage.Main = this;
+        TasksPage.Main = this;
+        tray = new TrayIcon(this);
+        Application.Current.Exit += (_, _) => tray.Dispose();
+        reminders = new ReminderService(this, tray);
+        IsVisibleChanged += (_, _) => RefreshTab(); // gizliyken ekran hesaplanmaz, açılınca yetişir
         // eklentinin yazdığı kayıtlar pencere odakta olmasa da görünsün; yalnız dosya tarihi/boyutu bakılır
         new DispatcherTimer(TimeSpan.FromSeconds(2), DispatcherPriority.Background, (_, _) => ReloadFromDisk(), Dispatcher).Start();
         Start();
+        reminders.Check();
     }
+
+    internal Vault? ActiveVault => vault;
+    internal bool IsQuitting => quitting;
 
     Entry? Current => vault?.Entries.FirstOrDefault(e => e.Id == editingId);
 
@@ -99,10 +117,11 @@ public partial class MainWindow : Window
         KeyCache.Save(v.Salt, v.Key);
         ShowPanel(MainPanel);
         if (resetForm) { lastSite = ""; SearchBox.Text = ""; Edit(null); }
-        RefreshList();
+        RefreshTab();
         if (removeError != null) SetStatus(L("ErrRemovePassword") + removeError, error: true);
         else if (hadPassword) SetStatus(L("PasswordRemoved"));
         SearchBox.Focus();
+        reminders.Check();
     }
 
     // Başka bilgisayar kasayı yeniden şifreledi (ör. ana şifresini kaldırdı): şifresizse sessizce yeniden açılır.
@@ -125,6 +144,8 @@ public partial class MainWindow : Window
         editingId = null;
         FillForm(null);
         EntryList.ItemsSource = null;
+        ShowHistory();
+        reminders.Check();
         ShowLock(path, error);
     }
 
@@ -142,7 +163,7 @@ public partial class MainWindow : Window
         return false;
     }
 
-    MessageBoxResult Ask(string text, string caption, MessageBoxButton buttons, MessageBoxImage image, MessageBoxResult defaultResult = MessageBoxResult.None)
+    internal MessageBoxResult Ask(string text, string caption, MessageBoxButton buttons, MessageBoxImage image, MessageBoxResult defaultResult = MessageBoxResult.None)
     {
         asking = true;
         try { return MessageBox.Show(this, text, caption, buttons, image, defaultResult); }
@@ -214,18 +235,27 @@ public partial class MainWindow : Window
 
     void Window_Activated(object? sender, EventArgs e) => ReloadFromDisk();
 
-    void ReloadFromDisk()
+    bool ReloadBlocked => MainPanel.Visibility != Visibility.Visible || !IsEnabled || asking || OwnedWindows.Count > 0;
+
+    async void ReloadFromDisk()
     {
-        if (vault == null || MainPanel.Visibility != Visibility.Visible || !IsEnabled || asking || OwnedWindows.Count > 0) return;
-        var dirty = IsDirty(); // yeniden okumadan önce: değişiklik kullanıcınınsa formu ezme
+        if (vault is not { } v || reloading || ReloadBlocked) return;
+        reloading = true;
         try
         {
-            if (!vault.ReloadIfChanged()) return;
-            if (!dirty) Edit(editingId);
-            RefreshList();
+            // 15-20 MB kasada okuma ~300 ms sürer: arayüz donmasın
+            if (await Task.Run(() => { lock (vaultGate) return v.ReloadIfChanged(); })) screenStale = true;
+            if (vault != v || !screenStale || ReloadBlocked) return;
+            screenStale = false;
+            if (IsDirty()) ShowHistory(); // değişiklik kullanıcınınsa formu ezme
+            else Edit(editingId);
+            RefreshTab();
+            reminders.Check();
         }
         catch (VaultPasswordChangedException)
         {
+            if (vault != v) return;
+            var dirty = IsDirty();
             if (ReopenPasswordless(keepForm: dirty)) return;
             // ana şifre başka bilgisayarda değişti; formda yazılmamış veri varsa kilitleyip silme
             if (dirty) SetStatus(L("ErrKeyChangedDirty"), error: true);
@@ -237,18 +267,112 @@ public partial class MainWindow : Window
             SetStatus(L("ErrReload") + L("ErrUnreadable"), error: true);
         }
         catch (Exception ex) { SetStatus(L("ErrReload") + ex.Message, error: true); }
+        finally { reloading = false; }
     }
 
     void Window_Closing(object? sender, CancelEventArgs e)
     {
-        if (!IsEnabled || !ConfirmLeave()) e.Cancel = true; // !IsEnabled: kasa işi arka planda sürüyor
+        if (quitting) return;
+        e.Cancel = true;
+        if (!IsEnabled || !ConfirmLeave()) return; // !IsEnabled: kasa işi arka planda sürüyor
+        if (vault != null) Edit(editingId); // "Kaydetme" denildi: gizli formda eski değişiklik kalmasın
+        Hide();
+    }
+
+    // --- Tepsi ve çıkış ---
+
+    internal void ShowFromTray()
+    {
+        Show();
+        if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+        Activate();
+    }
+
+    /// <summary>Asks about unsaved changes, in view. True: the app may end now.</summary>
+    internal bool ReadyToLeave()
+    {
+        if (asking || !IsEnabled) { ShowFromTray(); return false; }
+        if (vault != null && IsDirty()) ShowFromTray();
+        if (!ConfirmLeave()) return false;
+        quitting = true;
+        return true;
+    }
+
+    internal void Quit()
+    {
+        if (ReadyToLeave()) Application.Current.Shutdown();
+    }
+
+    internal void ShowNotifications()
+    {
+        ShowFromTray();
+        Tabs.SelectedIndex = 2;
+    }
+
+    internal void ShowDueCount(int count)
+    {
+        var changed = DueCount.Text != count.ToString();
+        DueCount.Text = count.ToString();
+        if (changed && IsVisible && Tabs.SelectedIndex == 2) NotificationsPage.Refresh(); // saati gelen satır "Planlandı"dan çıksın
+        DueBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    // --- Sekmeler ---
+
+    void Tabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (e.OriginalSource == Tabs) RefreshTab(); // içerideki listelerin seçim olayı da buraya kadar gelir
+    }
+
+    /// <summary>Only the tab in view is worked out; the others catch up when opened.</summary>
+    void RefreshTab()
+    {
+        if (vault == null || !IsVisible) return;
+        switch (Tabs.SelectedIndex)
+        {
+            case 0: RefreshList(); break;
+            case 1: TodoPage.Refresh(); break;
+            case 2: NotificationsPage.Refresh(); break;
+            case 3: TasksPage.Refresh(); break;
+        }
+    }
+
+    internal void OpenEntry(string id)
+    {
+        if (!ConfirmLeave()) return;
+        Tabs.SelectedIndex = 0;
+        SearchBox.Text = "";
+        Edit(id);
+        RefreshList();
+        if (EntryList.SelectedItem is { } item) EntryList.ScrollIntoView(item);
+    }
+
+    /// <summary>Changes outside the form (tasks, reminders, the to-do list). False: not saved, the user was told.</summary>
+    internal bool Write(Action<VaultData> change)
+    {
+        if (vault == null) return false;
+        try { lock (vaultGate) vault.Update(change); }
+        catch (VaultPasswordChangedException) when (ReopenPasswordless(keepForm: true)) { return Write(change); } // şifresi başka yerde kaldırıldı
+        catch (VaultPasswordChangedException) { return WriteFailed(L("ErrKeyChangedDirty")); }
+        catch (Exception ex) when (ex is CryptographicException or InvalidDataException) { return WriteFailed(L("ErrSave") + L("ErrUnreadable")); }
+        catch (Exception ex) { return WriteFailed(L("ErrSave") + ex.Message); }
+        ShowHistory();
+        RefreshTab();
+        reminders.Check();
+        return true;
+    }
+
+    bool WriteFailed(string message)
+    {
+        Ask(message, L("ErrTitle"), MessageBoxButton.OK, MessageBoxImage.Error);
+        return false;
     }
 
     void SearchBox_TextChanged(object sender, TextChangedEventArgs e) => RefreshList();
 
     void RefreshList()
     {
-        if (vault == null) return;
+        if (vault == null || !IsVisible || Tabs.SelectedIndex != 0) return;
         var query = SearchBox.Text;
         var items = string.IsNullOrWhiteSpace(query)
             ? vault.Entries.OrderBy(x => x.Site, StringComparer.Ordinal).ThenBy(x => x.FirstName, NameOrder).ThenBy(x => x.LastName, NameOrder).ToList()
@@ -294,6 +418,19 @@ public partial class MainWindow : Window
         EditTitle.SetResourceReference(TextBlock.TextProperty, editingId == null ? "NewEntry" : "EditTitleEdit");
         DeleteButton.IsEnabled = editingId != null;
         SetStatus("");
+        ShowHistory();
+    }
+
+    void ShowHistory()
+    {
+        List<MonthMarks> rows = vault == null || editingId == null ? [] : vault.Data.Work
+            .Where(w => w.EntryId == editingId)
+            .OrderByDescending(w => w.Month, StringComparer.Ordinal)
+            .Select(w => MonthMarks.Of(vault.Data.Tasks, MonthName(w.Month), w.Tasks))
+            .OfType<MonthMarks>()
+            .ToList();
+        HistoryList.ItemsSource = rows;
+        HistoryPanel.Visibility = rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
     void FillForm(Entry? entry)
@@ -386,7 +523,7 @@ public partial class MainWindow : Window
             extra2: Extra2Box.Text, username: UsernameBox.Text, password);
         try
         {
-            vault.Update(list =>
+            lock (vaultGate) vault.Update(list =>
             {
                 var index = list.FindIndex(x => x.Id == id);
                 var now = index < 0 ? null : list[index];
@@ -406,6 +543,7 @@ public partial class MainWindow : Window
                     Username = Pick(form.username, e => e.Username, username),
                     Password = Pick(form.password, e => e.Password, password),
                     Fields = now?.Fields ?? was?.Fields ?? [], // sitedeki bilgiler formda düzenlenmez: olduğu gibi kalır
+                    TodoHidden = now?.TodoHidden ?? false,
                 };
                 if (index < 0) list.Add(entry); // yeni ya da bu arada başka yerde silinmiş
                 else list[index] = entry;
@@ -429,10 +567,11 @@ public partial class MainWindow : Window
             MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
         if (answer != MessageBoxResult.Yes) return;
         var id = entry.Id;
-        try { vault.Update(list => list.RemoveAll(x => x.Id == id)); }
+        try { lock (vaultGate) vault.Update(d => Work.RemoveEntry(d, id)); }
         catch (Exception ex) { SetStatus(L("ErrDelete") + ex.Message, error: true); return; }
         Edit(null);
         RefreshList();
+        reminders.Check(); // silinen müşterinin bildirimi ekranda kalmasın
         SetStatus(L("Deleted"));
     }
 
@@ -484,7 +623,9 @@ public partial class MainWindow : Window
         var lang = AppPaths.Lang;
         var settings = new SettingsWindow(vault) { Owner = this };
         settings.ShowDialog();
-        RefreshList(); // dil değiştiyse sayaç metni de yenilensin
+        RefreshTab(); // dil değiştiyse koddan yazılan metinler de yenilensin
+        ShowHistory();
+        reminders.Check();
         if (AppPaths.Lang != lang) SetStatus(""); // koddan yazılmış durum metni eski dilde kalmasın
         switch (settings.Choice)
         {

@@ -50,7 +50,7 @@
     <sys:String x:Key="ErrNeedPassword" xml:space="preserve">Введите пароль.</sys:String>
     <sys:String x:Key="Saved" xml:space="preserve">Сохранено.</sys:String>
     <sys:String x:Key="ErrSave" xml:space="preserve">Не сохранено: </sys:String>
-    <sys:String x:Key="AskDelete" xml:space="preserve">Удалить {0} ({1})?&#10;Это действие нельзя отменить.</sys:String>
+    <sys:String x:Key="AskDelete" xml:space="preserve">Удалить {0} ({1})?&#10;История работ и напоминания этого клиента тоже будут удалены.&#10;Это действие нельзя отменить.</sys:String>
     <sys:String x:Key="DeleteTitle" xml:space="preserve">Удаление клиента</sys:String>
     <sys:String x:Key="ErrDelete" xml:space="preserve">Не удалось удалить: </sys:String>
     <sys:String x:Key="Deleted" xml:space="preserve">Удалено.</sys:String>
@@ -80,4 +80,32 @@
     <sys:String x:Key="PasswordRemoved" xml:space="preserve">Мастер-пароль хранилища снят, больше он не понадобится.</sys:String>
     <sys:String x:Key="ErrRemovePassword" xml:space="preserve">Не удалось снять мастер-пароль (попробуем при следующем открытии): </sys:String>
     <sys:String x:Key="SiteFields" xml:space="preserve">Данные, введённые на сайте</sys:String>
+    <sys:String x:Key="TabClients" xml:space="preserve">Клиенты</sys:String>
+    <sys:String x:Key="TabTodo" xml:space="preserve">К выполнению</sys:String>
+    <sys:String x:Key="TabNotifications" xml:space="preserve">Уведомления</sys:String>
+    <sys:String x:Key="TabTasks" xml:space="preserve">Работы</sys:String>
+    <sys:String x:Key="TodoDone" xml:space="preserve">Готово</sys:String>
+    <sys:String x:Key="TodoUnfinished" xml:space="preserve">Не завершено</sys:String>
+    <sys:String x:Key="TodoNotStarted" xml:space="preserve">Не начато</sys:String>
+    <sys:String x:Key="TodoHide" xml:space="preserve">Убрать из списка</sys:String>
+    <sys:String x:Key="TodoTitleFmt" xml:space="preserve">Готово {0} / {1}</sys:String>
+    <sys:String x:Key="TodoPrevMonth" xml:space="preserve">Предыдущий месяц</sys:String>
+    <sys:String x:Key="TodoNextMonth" xml:space="preserve">Следующий месяц</sys:String>
+    <sys:String x:Key="TodoEmpty" xml:space="preserve">Здесь появятся клиенты, для которых вы отметили работу на сайте.</sys:String>
+    <sys:String x:Key="NotifDue" xml:space="preserve">Сработали</sys:String>
+    <sys:String x:Key="NotifPlanned" xml:space="preserve">Запланировано</sys:String>
+    <sys:String x:Key="NotifDismissed" xml:space="preserve">закрыто</sys:String>
+    <sys:String x:Key="NotifResolved" xml:space="preserve">выполнено</sys:String>
+    <sys:String x:Key="NotifTitle" xml:space="preserve">Работа не завершена</sys:String>
+    <sys:String x:Key="NotifMore" xml:space="preserve">Ещё {0}: открыть уведомления</sys:String>
+    <sys:String x:Key="NotifEmpty" xml:space="preserve">Напоминаний нет. Они появляются, когда на сайте вы отмечаете работу как «Не завершено».</sys:String>
+    <sys:String x:Key="TaskAdd" xml:space="preserve">+ Добавить работу</sys:String>
+    <sys:String x:Key="TaskRename" xml:space="preserve">Переименовать</sys:String>
+    <sys:String x:Key="TaskDelete" xml:space="preserve">Удалить</sys:String>
+    <sys:String x:Key="AskDeleteTask" xml:space="preserve">Удалить работу «{0}»?&#10;Она исчезнет из панели на сайте, её напоминания закроются, а в истории клиентов название останется.</sys:String>
+    <sys:String x:Key="TaskEmpty" xml:space="preserve">Добавьте работы, которые вы делаете для клиентов: они появятся в панели на сайте.</sys:String>
+    <sys:String x:Key="TrayOpen" xml:space="preserve">Открыть</sys:String>
+    <sys:String x:Key="TrayExit" xml:space="preserve">Выход</sys:String>
+    <sys:String x:Key="TrayLocked" xml:space="preserve">EasyPass: хранилище не открыто</sys:String>
+    <sys:String x:Key="History" xml:space="preserve">История работ</sys:String>
 </ResourceDictionary>

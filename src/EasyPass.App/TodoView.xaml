@@ -1,0 +1,61 @@
+<UserControl x:Class="EasyPass.App.TodoView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,12">
+            <DockPanel>
+                <Button Content="◀" Width="36" Padding="0" AutomationProperties.Name="{DynamicResource TodoPrevMonth}" Click="PrevMonth_Click" />
+                <TextBlock x:Name="MonthText" Width="150" TextAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold" />
+                <Button x:Name="NextMonth" Content="▶" Width="36" Padding="0" AutomationProperties.Name="{DynamicResource TodoNextMonth}" Click="NextMonth_Click" />
+                <TextBlock x:Name="CountText" DockPanel.Dock="Right" FontWeight="SemiBold" VerticalAlignment="Center" Margin="16,0,4,0" />
+                <Grid MaxWidth="520" HorizontalAlignment="Left" Margin="16,0,0,0">
+                    <TextBox x:Name="TodoSearch" Padding="12,0" TextChanged="TodoSearch_TextChanged" />
+                    <TextBlock Text="{DynamicResource SearchHint}" Margin="14,0" VerticalAlignment="Center" IsHitTestVisible="False"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Visibility="{Binding Text.IsEmpty, ElementName=TodoSearch, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+            </DockPanel>
+        </Border>
+        <Grid>
+            <TextBlock x:Name="EmptyText" Text="{DynamicResource TodoEmpty}" Style="{StaticResource Secondary}" Margin="32" Visibility="Collapsed" />
+            <ListBox x:Name="TodoList" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True">
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                        <EventSetter Event="MouseLeftButtonUp" Handler="Row_Click" />
+                        <EventSetter Event="KeyDown" Handler="Row_KeyDown" />
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.GroupStyle>
+                    <GroupStyle>
+                        <GroupStyle.HeaderTemplate>
+                            <DataTemplate>
+                                <TextBlock FontWeight="SemiBold" Margin="12,12,0,4">
+                                    <Run Text="{Binding Name, Mode=OneWay}" />
+                                    <Run Text="{Binding ItemCount, Mode=OneWay}" Foreground="{StaticResource TextSecondaryBrush}" />
+                                </TextBlock>
+                            </DataTemplate>
+                        </GroupStyle.HeaderTemplate>
+                    </GroupStyle>
+                </ListBox.GroupStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="{DynamicResource TodoHide}" Height="30" Padding="10,0" FontSize="12" Margin="12,0,0,0"
+                                    VerticalAlignment="Center" Click="Hide_Click" />
+                            <StackPanel>
+                                <TextBlock TextTrimming="CharacterEllipsis">
+                                    <Run Text="{Binding Title, Mode=OneWay}" FontWeight="SemiBold" />
+                                    <Run Text="{Binding Login, Mode=OneWay}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                                </TextBlock>
+                                <StackPanel TextBlock.FontSize="12">
+                                    <ItemsControl ItemsSource="{Binding Months}" Focusable="False" ItemTemplate="{StaticResource MonthMarksTemplate}" />
+                                </StackPanel>
+                            </StackPanel>
+                        </DockPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
+    </DockPanel>
+</UserControl>
