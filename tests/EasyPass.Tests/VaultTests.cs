@@ -224,12 +224,14 @@ public class VaultTests : IDisposable
     }
 
     // The bytes v1.5 wrote: same capsule, plain text with "entries" only and no todoHidden on the entry.
-    static void WriteV15File(string path, byte[] key)
-    {
-        var plain = System.Text.Encoding.UTF8.GetBytes("""
+    static void WriteV15File(string path, byte[] key) => WriteFile(path, key, """
             {"entries":[{"id":"old1","site":"x.com","firstName":"Ayşe","lastName":"Su","extra1":"","extra2":"","username":"ayse","password":"p",
             "fields":[{"label":"Telefon","value":"0532","secret":false}],"updatedAt":"2026-01-02T03:04:05Z"}]}
             """);
+
+    static void WriteFile(string path, byte[] key, string json)
+    {
+        var plain = System.Text.Encoding.UTF8.GetBytes(json);
         var file = File.ReadAllBytes(path);
         var data = new byte[24 + 12 + 16 + plain.Length];
         file.AsSpan(0, 24).CopyTo(data);
@@ -258,6 +260,29 @@ public class VaultTests : IDisposable
         var w = Vault.Open(path, key);
         Assert.Equal("p", Assert.Single(w.Entries).Password);
         Assert.Equal("НДС", Assert.Single(w.Data.Tasks).Name);
+    }
+
+    [Fact]
+    public void V16_file_without_task_lists_loads_as_not_chosen_and_keeps_a_list_once_chosen()
+    {
+        var path = _tmp.File();
+        var key = Vault.Create(path, "pw").Key;
+        WriteFile(path, key, """
+            {"entries":[{"id":"e1","site":"x.com","username":"u","password":"p","todoHidden":false,"updatedAt":"2026-01-02T03:04:05Z"}],
+             "tasks":[{"id":"t1","name":"НДС","archived":false},{"id":"t2","name":"Страховка","archived":false}],
+             "work":[{"entryId":"e1","month":"2026-11","tasks":{"t1":"done"},"updatedAt":"2026-11-02T03:04:05Z"}],
+             "reminders":[]}
+            """);
+
+        var v = Vault.Open(path, key);
+        Assert.Null(Assert.Single(v.Entries).TaskIds);
+        Assert.Empty(Work.TasksOf(v.Data, v.Entries[0]));
+        Assert.Equal(TodoGroup.Done, Assert.Single(Work.Todo(v.Data, "2026-11").Rows).Group); // the old rule
+
+        v.Update(d => Work.Assign(d, "e1", ["t1", "t2"], DateTime.UtcNow));
+        var w = Vault.Open(path, key);
+        Assert.Equal(["t1", "t2"], Assert.Single(w.Entries).TaskIds);
+        Assert.Equal(TodoGroup.Unfinished, Assert.Single(Work.Todo(w.Data, "2026-11").Rows).Group);
     }
 
     static (Vault V, string EntryId, string TaskId) WithWork(string path)

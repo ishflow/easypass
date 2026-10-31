@@ -20,9 +20,11 @@ public sealed class Entry
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     /// <summary>"Remove from the list" in the to-do view; new work brings the customer back.</summary>
     public bool TodoHidden { get; set; }
+    /// <summary>This customer's tasks (spec §7d); null = not chosen yet. Ids of tasks archived since are kept and read as gone.</summary>
+    public List<string>? TaskIds { get; set; }
     [JsonIgnore] public string FullName => $"{FirstName} {LastName}".Trim();
     internal string? SearchText; // folded once per version of the entry: searches run on every keystroke
-    internal Entry Clone() // Fields is shared: it is replaced, never changed in place
+    internal Entry Clone() // Fields and TaskIds are shared: they are replaced, never changed in place
     {
         var copy = (Entry)MemberwiseClone();
         copy.SearchText = null; // the copy is the one about to change

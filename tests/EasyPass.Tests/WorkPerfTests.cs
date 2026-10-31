@@ -25,6 +25,7 @@ public sealed class BigVault : IDisposable
         var entries = Enumerable.Range(0, Customers).Select(i => new Entry
         {
             Site = Site, FirstName = $"Ад{i}", LastName = $"Фамилия{i}", Username = $"93000000{i:D9}", Password = "p", Extra1 = "Бишкек",
+            TaskIds = i % 2 == 0 ? [task.Id] : null, // both group rules are timed
         }).ToList();
         EntryId = entries[Customers / 2].Id;
         V.Update(d =>

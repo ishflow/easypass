@@ -89,11 +89,20 @@ public class ExtensionContractTests : IDisposable
         var month = Work.MonthOf(DateTime.Now);
 
         var empty = Ask(new { cmd = "work_get", site = X, entryId = _ahmetX });
-        Assert.Equal(["id", "month", "name", "ok", "reminders", "statuses", "tasks", "username"], Keys(empty)); // no password
+        Assert.Equal(["allTasks", "assigned", "id", "month", "name", "ok", "reminders", "statuses", "tasks", "username"], Keys(empty)); // no password
         Assert.Equal((month, "Ahmet Yılmaz", "ahmet.yilmaz"), ((string?)empty["month"], (string?)empty["name"], (string?)empty["username"]));
         Assert.Equal(JsonValueKind.Object, empty["statuses"]!.GetValueKind());
         Assert.Equal(JsonValueKind.Array, empty["reminders"]!.GetValueKind());
-        foreach (var t in empty["tasks"]!.AsArray()) Assert.Equal(["id", "name"], Keys(t!.AsObject()));
+        Assert.Equal(JsonValueKind.False, empty["assigned"]!.GetValueKind());
+        Assert.Empty(empty["tasks"]!.AsArray());
+        Assert.Equal([t1.Id, t2.Id], empty["allTasks"]!.AsArray().Select(t => (string?)t!["id"]));
+        foreach (var t in empty["allTasks"]!.AsArray()) Assert.Equal(["id", "name"], Keys(t!.AsObject()));
+
+        var assigned = Ask(new { cmd = "work_assign", site = X, entryId = _ahmetX, taskIds = new[] { t1.Id, t2.Id } });
+        Assert.Equal(["id", "ok"], Keys(assigned));
+        Assert.Equal("bad_request", (string?)Ask(new { cmd = "work_assign", site = X, entryId = _ahmetX, taskIds = Array.Empty<string>() })["error"]);
+        Assert.Equal("not_found", (string?)Ask(new { cmd = "work_assign", site = Y, entryId = _ahmetX, taskIds = new[] { t1.Id } })["error"]);
+        Assert.Equal("locked", (string?)Ask(new { cmd = "work_assign", site = X, entryId = _ahmetX, taskIds = new[] { t1.Id } }, () => null)["error"]);
 
         var due = DateTime.UtcNow.AddHours(2).ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'"); // Date.prototype.toISOString()
         var saved = Ask(new
@@ -105,6 +114,9 @@ public class ExtensionContractTests : IDisposable
         Assert.Equal(["id", "ok"], Keys(saved));
 
         var full = Ask(new { cmd = "work_get", site = X, entryId = _ahmetX, month });
+        Assert.Equal(JsonValueKind.True, full["assigned"]!.GetValueKind());
+        Assert.Equal([t1.Id, t2.Id], full["tasks"]!.AsArray().Select(t => (string?)t!["id"]));
+        foreach (var t in full["tasks"]!.AsArray()) Assert.Equal(["id", "name"], Keys(t!.AsObject()));
         Assert.Equal("done", (string?)full["statuses"]![t1.Id]);
         Assert.Equal("partial", (string?)full["statuses"]![t2.Id]);
         var reminder = Assert.Single(full["reminders"]!.AsArray())!.AsObject();

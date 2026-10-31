@@ -21,7 +21,7 @@ public static class HostApi
         {
             var cmd = Str(request, "cmd");
             if (cmd is not ("status" or "search" or "get" or "check" or "update" or "add" or "all" or "entry"
-                or "work_get" or "work_save" or "set_name" or "summary")) return Fail(res, "bad_request");
+                or "work_get" or "work_save" or "work_assign" or "set_name" or "summary")) return Fail(res, "bad_request");
             if (getVault() is not { } v)
             {
                 Fail(res, "locked");
@@ -58,6 +58,7 @@ public static class HostApi
                     }),
                 "work_get" => WorkGet(res, request, v),
                 "work_save" => WorkSave(res, request, v),
+                "work_assign" => WorkAssign(res, request, v),
                 "set_name" => SetName(res, request, v),
                 "summary" => Summary(res, v),
                 _ => Add(res, request, v),
@@ -77,7 +78,7 @@ public static class HostApi
             {
                 ["id"] = e.Id, ["firstName"] = e.FirstName, ["lastName"] = e.LastName,
                 ["extra1"] = e.Extra1, ["extra2"] = e.Extra2, ["username"] = e.Username,
-                ["monthStatus"] = Work.MonthStatus(thisMonth, e.Id, month, active),
+                ["monthStatus"] = Work.MonthStatus(thisMonth, e, month, active),
             })]),
         });
     }
@@ -89,20 +90,48 @@ public static class HostApi
         if (req["month"] is not null && (Str(req, "month") is not { } asked || !Work.IsMonth(month = asked))) return Fail(res, "bad_request");
         if (Find(v, id, site) is not { } e) return Fail(res, "not_found");
         var active = Work.ActiveTasks(v.Data);
+        var own = Work.OwnTasks(e, active);
+        var chosen = Work.TasksOf(v.Data, e);
         var statuses = new JsonObject();
         if (v.Data.Work.FirstOrDefault(w => w.EntryId == id && w.Month == month) is { } record)
             foreach (var (task, status) in record.Tasks)
-                if (active.Contains(task)) statuses[task] = status; // an archived id sent back would be refused
+                if (own.Contains(task)) statuses[task] = status; // an archived or unchosen id sent back would be refused
         return Ok(res, new()
         {
             ["username"] = e.Username, ["name"] = e.FullName, ["month"] = month,
-            ["tasks"] = new JsonArray([.. v.Data.Tasks.Where(t => !t.Archived).Select(t => (JsonNode)new JsonObject { ["id"] = t.Id, ["name"] = t.Name })]),
+            ["assigned"] = chosen.Count > 0,
+            ["tasks"] = TaskList(chosen),
+            ["allTasks"] = TaskList(v.Data.Tasks.Where(t => !t.Archived)),
             ["statuses"] = statuses,
             ["reminders"] = new JsonArray([.. v.Data.Reminders.Where(r => r.EntryId == id && r.Month == month && r.ResolvedAt is null).Select(r => (JsonNode)new JsonObject
             {
                 ["taskId"] = r.TaskId, ["dueAt"] = r.DueAt.ToString(IsoUtc, CultureInfo.InvariantCulture), ["dismissed"] = r.DismissedAt is not null,
             })]),
         });
+    }
+
+    static JsonArray TaskList(IEnumerable<WorkTask> tasks) =>
+        new([.. tasks.Select(t => (JsonNode)new JsonObject { ["id"] = t.Id, ["name"] = t.Name })]);
+
+    static JsonObject WorkAssign(JsonObject res, JsonObject req, Vault v)
+    {
+        if (Site(req) is not { } site || Str(req, "entryId") is not { } id || req["taskIds"] is not JsonArray raw || raw.Count > MaxWorkKeys)
+            return Fail(res, "bad_request");
+        var ids = new List<string>();
+        foreach (var item in raw)
+        {
+            if (item is not JsonValue j || !j.TryGetValue(out string? task) || task is null) return Fail(res, "bad_request");
+            ids.Add(task);
+        }
+        if (Find(v, id, site) is null) return Fail(res, "not_found");
+        var found = false;
+        v.Update(d =>
+        {
+            if (!d.Entries.Any(e => e.Id == id && Sites.Matches(e.Site, site))) return;
+            Work.Assign(d, id, ids, DateTime.UtcNow); // refuses unknown and archived tasks, duplicates, an empty list
+            found = true;
+        });
+        return found ? Ok(res, new()) : Fail(res, "not_found");
     }
 
     static JsonObject WorkSave(JsonObject res, JsonObject req, Vault v)
@@ -137,7 +166,7 @@ public static class HostApi
         v.Update(d =>
         {
             if (!d.Entries.Any(e => e.Id == id && Sites.Matches(e.Site, site))) return;
-            Work.Save(d, id, month, statuses, reminders, now); // refuses unknown and archived tasks, bad statuses
+            Work.Save(d, id, month, statuses, reminders, now); // refuses unknown, archived and unchosen tasks, bad statuses
             found = true;
         });
         return found ? Ok(res, new()) : Fail(res, "not_found");

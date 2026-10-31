@@ -6,7 +6,7 @@ public enum TodoGroup { NotStarted, Unfinished, Done }
 public sealed record TodoRow(Entry Entry, TodoGroup Group, string? LastMonth, IReadOnlyDictionary<string, string> LastTasks, IReadOnlyDictionary<string, string> ThisTasks);
 public sealed record TodoList(IReadOnlyList<TodoRow> Rows, int Done, int Unfinished, int NotStarted);
 
-// The monthly work rules, spec §3, §6, §8. Pure: callers run the changing ones inside Vault.Update.
+// The monthly work rules, spec §3, §6, §7d, §8. Pure: callers run the changing ones inside Vault.Update.
 public static class Work
 {
     public const string Done = "done", Partial = "partial";
@@ -19,42 +19,76 @@ public static class Work
     public static bool IsMonth(string s) =>
         DateTime.TryParseExact(s, MonthFormat, CultureInfo.InvariantCulture, DateTimeStyles.None, out _);
 
-    /// <summary>Pass activeTasks to leave archived tasks out, as the to-do groups do.</summary>
-    public static string? MonthStatus(IEnumerable<WorkRecord> work, string entryId, string month, IReadOnlySet<string>? activeTasks = null)
+    /// <summary>The to-do group as a dot: "done", "partial", or null for not started.</summary>
+    public static string? MonthStatus(IEnumerable<WorkRecord> work, Entry entry, string month, IReadOnlySet<string> activeTasks)
     {
-        string? status = null;
-        foreach (var w in work)
-            if (w.EntryId == entryId && w.Month == month)
-                status = Better(status, Status(w.Tasks, activeTasks));
-        return status;
+        var record = work.FirstOrDefault(w => w.EntryId == entry.Id && w.Month == month);
+        return record is null ? null : GroupOf(Chosen(entry, activeTasks), record.Tasks, activeTasks) switch
+        {
+            TodoGroup.Done => Done,
+            TodoGroup.Unfinished => Partial,
+            _ => null,
+        };
+    }
+
+    // null = no list in effect: never chosen, or every chosen task deleted since (the customer is asked again)
+    static List<string>? Chosen(Entry e, IReadOnlySet<string> active) =>
+        e.TaskIds?.Where(active.Contains).ToList() is { Count: > 0 } ids ? ids : null;
+
+    static TodoGroup GroupOf(List<string>? chosen, IReadOnlyDictionary<string, string> tasks, IReadOnlySet<string> active)
+    {
+        if (chosen is null)
+            return Status(tasks, active) switch { Partial => TodoGroup.Unfinished, Done => TodoGroup.Done, _ => TodoGroup.NotStarted };
+        return chosen.All(t => tasks.GetValueOrDefault(t) == Done) ? TodoGroup.Done
+            : chosen.Any(tasks.ContainsKey) ? TodoGroup.Unfinished : TodoGroup.NotStarted;
     }
 
     static string? Better(string? a, string? b) => a == Partial || b == Partial ? Partial : a ?? b;
 
-    static string? Status(IReadOnlyDictionary<string, string> tasks, IReadOnlySet<string>? active)
+    static string? Status(IReadOnlyDictionary<string, string> tasks, IReadOnlySet<string> active)
     {
         string? status = null;
         foreach (var (task, value) in tasks)
-            if (active is null || active.Contains(task))
+            if (active.Contains(task))
                 status = Better(status, value);
         return status;
     }
 
     internal static HashSet<string> ActiveTasks(VaultData d) => [.. d.Tasks.Where(t => !t.Archived).Select(t => t.Id)];
 
+    // what a panel for this customer deals with; anything else in a record is history
+    internal static ICollection<string> OwnTasks(Entry e, HashSet<string> active) => (ICollection<string>?)Chosen(e, active) ?? active;
+
+    /// <summary>The customer's chosen active tasks in pool order; empty when no list is in effect (ask for one).</summary>
+    public static IReadOnlyList<WorkTask> TasksOf(VaultData d, Entry entry) =>
+        entry.TaskIds is { } ids ? [.. d.Tasks.Where(t => !t.Archived && ids.Contains(t.Id))] : [];
+
+    /// <summary>Replaces the customer's list. Records stay; open reminders of tasks off the list close, in any month.</summary>
+    public static void Assign(VaultData d, string entryId, IReadOnlyList<string> taskIds, DateTime nowUtc)
+    {
+        var active = ActiveTasks(d);
+        if (d.Entries.FirstOrDefault(e => e.Id == entryId) is not { } entry || taskIds.Count == 0
+            || taskIds.Distinct().Count() != taskIds.Count || !taskIds.All(active.Contains))
+            throw new ArgumentException("bad_request");
+        entry.TaskIds = [.. taskIds];
+        foreach (var r in d.Reminders)
+            if (r.EntryId == entryId && r.ResolvedAt is null && !taskIds.Contains(r.TaskId))
+                r.ResolvedAt = nowUtc;
+    }
+
     public static void Save(VaultData d, string entryId, string month, IReadOnlyDictionary<string, string> statuses,
         IReadOnlyDictionary<string, DateTime> reminders, DateTime nowUtc)
     {
-        var active = ActiveTasks(d);
-        var entry = d.Entries.FirstOrDefault(e => e.Id == entryId);
-        if (entry is null || !IsMonth(month)
-            || statuses.Any(s => !active.Contains(s.Key) || s.Value is not (Done or Partial))
+        if (d.Entries.FirstOrDefault(e => e.Id == entryId) is not { } entry) throw new ArgumentException("bad_request");
+        var own = OwnTasks(entry, ActiveTasks(d));
+        if (!IsMonth(month)
+            || statuses.Any(s => !own.Contains(s.Key) || s.Value is not (Done or Partial))
             || reminders.Keys.Any(t => statuses.GetValueOrDefault(t) != Partial))
             throw new ArgumentException("bad_request");
 
         var record = d.Work.FirstOrDefault(w => w.EntryId == entryId && w.Month == month);
-        // the panel only knows active tasks: what was done under a since archived task stays in the history
-        var tasks = record is null ? [] : record.Tasks.Where(t => !active.Contains(t.Key)).ToDictionary();
+        // the panel only knows the customer's own active tasks: what was done under an archived or removed one stays in the history
+        var tasks = record is null ? [] : record.Tasks.Where(t => !own.Contains(t.Key)).ToDictionary();
         foreach (var (task, status) in statuses) tasks[task] = status;
         if (tasks.Count == 0)
         {
@@ -132,12 +166,9 @@ public static class Work
         {
             if (e.TodoHidden || !byEntry.TryGetValue(e.Id, out var seen)) continue;
             IReadOnlyDictionary<string, string> thisTasks = seen.This?.Tasks ?? [];
-            var group = Status(thisTasks, active) switch
-            {
-                Partial => TodoGroup.Unfinished,
-                Done => TodoGroup.Done,
-                _ => TodoGroup.NotStarted,
-            };
+            var chosen = Chosen(e, active);
+            var group = GroupOf(chosen, thisTasks, active);
+            if (chosen is not null) thisTasks = thisTasks.Where(t => chosen.Contains(t.Key)).ToDictionary(); // what the group counted
             rows.Add(new TodoRow(e, group, seen.Last?.Month, seen.Last?.Tasks ?? [], thisTasks));
         }
         return new TodoList([.. rows.OrderBy(r => r.Group)],

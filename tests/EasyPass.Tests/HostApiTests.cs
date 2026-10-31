@@ -253,8 +253,10 @@ public class HostApiTests : IDisposable
         var r = Call($$"""{"id":3,"cmd":"work_get","site":"portal.x.com","entryId":"{{_ahmetId}}"}""");
 
         Assert.Equal(("ahmet", "Ahmet Yılmaz", ThisMonth), ((string?)r["username"], (string?)r["name"], (string?)r["month"]));
-        Assert.Equal([t1, t2], r["tasks"]!.AsArray().Select(t => (string?)t!["id"])); // no archived, insertion order
-        Assert.Equal(["Страховка", "НДС"], r["tasks"]!.AsArray().Select(t => (string?)t!["name"]));
+        Assert.False((bool)r["assigned"]!);
+        Assert.Empty(r["tasks"]!.AsArray()); // nothing chosen yet
+        Assert.Equal([t1, t2], r["allTasks"]!.AsArray().Select(t => (string?)t!["id"])); // no archived, insertion order
+        Assert.Equal(["Страховка", "НДС"], r["allTasks"]!.AsArray().Select(t => (string?)t!["name"]));
         Assert.Equal([(t1, "done"), (t2, "partial")], r["statuses"]!.AsObject().Select(p => (p.Key, (string)p.Value!))); // saving back must not meet the archived id
         var rem = Assert.Single(r["reminders"]!.AsArray())!; // only this customer's open one
         Assert.Equal((t2, Iso(due), true), ((string?)rem["taskId"], (string?)rem["dueAt"], (bool)rem["dismissed"]!));
@@ -341,6 +343,95 @@ public class HostApiTests : IDisposable
         Assert.Empty(Vault.Open(_v.Path, _v.Key).Data.Work);
     }
 
+    JsonObject Assign(string taskIds, string? entryId = null, string site = "x.com") =>
+        Call($$"""{"id":1,"cmd":"work_assign","site":"{{site}}","entryId":"{{entryId ?? _ahmetId}}","taskIds":{{taskIds}}}""");
+
+    [Fact]
+    public void Work_assign_stores_the_list_and_work_get_answers_with_it()
+    {
+        var (t1, t2, old) = AddTasks();
+        var due = DateTime.UtcNow.AddHours(2);
+        _v.Update(d =>
+        {
+            d.Work.Add(new WorkRecord { EntryId = _ahmetId, Month = ThisMonth, Tasks = new() { [t1] = "done", [t2] = "partial", [old] = "done" } });
+            d.Reminders.Add(new Reminder { EntryId = _ahmetId, TaskId = t2, Month = ThisMonth, DueAt = due });
+        });
+        // the first choice shows what is already marked this month
+        Assert.Equal([(t1, "done"), (t2, "partial")], Call($$"""{"id":3,"cmd":"work_get","site":"x.com","entryId":"{{_ahmetId}}"}""")["statuses"]!.AsObject().Select(p => (p.Key, (string)p.Value!)));
+
+        Assert.Equal("""{"id":1,"ok":true}""", Assign($"""["{t1}"]""").ToJsonString());
+
+        var disk = Vault.Open(_v.Path, _v.Key).Data;
+        Assert.Equal([t1], disk.Entries.Single(e => e.Id == _ahmetId).TaskIds);
+        Assert.NotNull(Assert.Single(disk.Reminders).ResolvedAt);
+        Assert.Equal("partial", Assert.Single(disk.Work).Tasks[t2]); // history stays
+
+        var r = Call($$"""{"id":3,"cmd":"work_get","site":"x.com","entryId":"{{_ahmetId}}"}""");
+        Assert.True((bool)r["assigned"]!);
+        Assert.Equal([t1], r["tasks"]!.AsArray().Select(t => (string?)t!["id"]));
+        Assert.Equal([t1, t2], r["allTasks"]!.AsArray().Select(t => (string?)t!["id"]));
+        Assert.Equal([(t1, "done")], r["statuses"]!.AsObject().Select(p => (p.Key, (string)p.Value!))); // an unchosen id sent back would be refused
+        Assert.Empty(r["reminders"]!.AsArray());
+
+        Assert.Equal("bad_request", (string?)SaveWork(ThisMonth, $$"""{"{{t2}}":"done"}""")["error"]);
+        Assert.True((bool)SaveWork(ThisMonth, $$"""{"{{t1}}":"done"}""")["ok"]!);
+        Assert.Equal("partial", Assert.Single(Vault.Open(_v.Path, _v.Key).Data.Work).Tasks[t2]);
+
+        // archiving takes the task off the list's effect: asked again once none is left
+        _v.Update(data => Work.ArchiveTask(data, t1, DateTime.UtcNow));
+        var empty = Call($$"""{"id":3,"cmd":"work_get","site":"x.com","entryId":"{{_ahmetId}}"}""");
+        Assert.False((bool)empty["assigned"]!);
+        Assert.Empty(empty["tasks"]!.AsArray());
+    }
+
+    [Fact]
+    public void Work_assign_validates()
+    {
+        var (t1, _, old) = AddTasks();
+        foreach (var bad in new[]
+        {
+            Assign("[]"),
+            Assign("\"x\""),
+            Assign("{}"),
+            Assign("5"),
+            Assign("null"),
+            Assign("[5]"),
+            Assign("[null]"),
+            Assign($"""["{t1}",5]"""),
+            Assign($"""[["{t1}"]]"""),
+            Assign("""["nope"]"""),
+            Assign($"""["{old}"]"""),
+            Assign($"""["{t1}","{t1}"]"""),
+            Assign(new JsonArray([.. Enumerable.Range(0, 201).Select(i => (JsonNode?)$"k{i}")]).ToJsonString()),
+            Call($$"""{"id":1,"cmd":"work_assign","site":"x.com","entryId":"{{_ahmetId}}"}"""),
+            Call($$"""{"id":1,"cmd":"work_assign","site":"x.com","taskIds":["{{t1}}"]}"""),
+            Call($$"""{"id":1,"cmd":"work_assign","entryId":"{{_ahmetId}}","taskIds":["{{t1}}"]}"""),
+        })
+            Assert.Equal("bad_request", (string?)bad["error"]);
+
+        Assert.Equal("not_found", (string?)Assign($"""["{t1}"]""", entryId: _ahmetYId)["error"]); // another site's customer
+        Assert.Equal("not_found", (string?)Assign($"""["{t1}"]""", entryId: "nope")["error"]);
+        Assert.All(Vault.Open(_v.Path, _v.Key).Entries, e => Assert.Null(e.TaskIds));
+    }
+
+    [Fact]
+    public void Search_and_summary_follow_the_customers_list()
+    {
+        var (t1, t2, _) = AddTasks();
+        var ali = _v.Entries.Single(e => e.FirstName == "Ali").Id;
+        Assign($"""["{t1}","{t2}"]""");
+        SaveWork(ThisMonth, $$"""{"{{t1}}":"done"}""");                     // one of two: not finished, the old rule says done
+        SaveWork(ThisMonth, $$"""{"{{t1}}":"done"}""", entryId: ali);       // no list: old rule
+        string? Of(string id) => (string?)Call("""{"id":1,"cmd":"search","site":"x.com","q":""}""")["items"]!.AsArray().Single(i => (string?)i!["id"] == id)!["monthStatus"];
+
+        Assert.Equal("partial", Of(_ahmetId));
+        Assert.Equal("done", Of(ali));
+        Assert.Equal($$"""{"id":1,"ok":true,"month":"{{ThisMonth}}","done":1,"partial":1,"notStarted":0}""", Call("""{"id":1,"cmd":"summary"}""").ToJsonString());
+
+        SaveWork(ThisMonth, $$"""{"{{t1}}":"done","{{t2}}":"done"}""");
+        Assert.Equal("done", Of(_ahmetId));
+    }
+
     [Fact]
     public void Set_name_only_when_both_names_empty()
     {
@@ -425,7 +516,7 @@ public class HostApiTests : IDisposable
     [Fact]
     public void New_commands_answer_locked_without_a_vault()
     {
-        foreach (var cmd in new[] { "work_get", "work_save", "set_name", "summary" })
+        foreach (var cmd in new[] { "work_get", "work_save", "work_assign", "set_name", "summary" })
             Assert.Equal("""{"id":1,"ok":false,"error":"locked"}""", HostApi.Handle(new JsonObject { ["id"] = 1, ["cmd"] = cmd }, () => null).ToJsonString());
     }
 
