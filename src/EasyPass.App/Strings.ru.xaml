@@ -114,13 +114,19 @@
     <sys:String x:Key="WorkSave" xml:space="preserve">Сохранить работы</sys:String>
     <sys:String x:Key="WorkNoTasks" xml:space="preserve">Добавьте работы на вкладке «Работы».</sys:String>
     <sys:String x:Key="WorkRemind" xml:space="preserve">Напоминание:</sys:String>
+    <sys:String x:Key="WorkRemindAt" xml:space="preserve">Напомнит {0}</sys:String>
     <sys:String x:Key="WorkReminderClosed" xml:space="preserve">напоминание закрыто</sys:String>
     <sys:String x:Key="WorkH2" xml:space="preserve">2 часа</sys:String>
+    <sys:String x:Key="WorkH2Short" xml:space="preserve">2 ч</sys:String>
     <sys:String x:Key="WorkH5" xml:space="preserve">5 часов</sys:String>
+    <sys:String x:Key="WorkH5Short" xml:space="preserve">5 ч</sys:String>
     <sys:String x:Key="WorkTomorrow" xml:space="preserve">Завтра</sys:String>
     <sys:String x:Key="WorkD2" xml:space="preserve">Через 2 дня</sys:String>
+    <sys:String x:Key="WorkD2Short" xml:space="preserve">2 дня</sys:String>
     <sys:String x:Key="WorkHours" xml:space="preserve">часов</sys:String>
+    <sys:String x:Key="WorkHoursShort" xml:space="preserve">ч</sys:String>
     <sys:String x:Key="WorkDays" xml:space="preserve">дней</sys:String>
+    <sys:String x:Key="WorkDaysShort" xml:space="preserve">дн</sys:String>
     <sys:String x:Key="WorkPickTitle" xml:space="preserve">Какие работы выполняются для этого клиента каждый месяц?</sys:String>
     <sys:String x:Key="WorkNext" xml:space="preserve">Далее</sys:String>
     <sys:String x:Key="WorkEditList" xml:space="preserve">Изменить список работ</sys:String>

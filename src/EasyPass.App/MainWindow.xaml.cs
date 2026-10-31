@@ -4,6 +4,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -16,6 +17,11 @@ namespace EasyPass.App;
 public partial class MainWindow : Window
 {
     const int SearchLimit = 500;
+    const int MaxRowMarks = 8;      // shortcut: a client with more tasks shows the first 8 in the list row, the detail pane has them all
+    const double FormWideMin = 540; // D's three form columns need this much; the 880 window gets two
+    // (row, column, span) of the form's fields in XAML order; columns 1 and 3 are the gaps
+    static readonly (int Row, int Column, int Span)[] FormWide = [(0, 0, 1), (0, 2, 1), (0, 4, 1), (1, 0, 1), (1, 2, 3), (2, 0, 1), (2, 2, 1), (2, 4, 1)];
+    static readonly (int Row, int Column, int Span)[] FormNarrow = [(0, 0, 1), (0, 2, 1), (1, 0, 1), (1, 2, 1), (2, 0, 3), (3, 0, 1), (3, 2, 1), (4, 0, 3)];
     // tr-TR: Türkçe harfleri doğru sıralar, Kiril adlar da doğal sırada kalır
     static readonly StringComparer NameOrder = StringComparer.Create(CultureInfo.GetCultureInfo("tr-TR"), true);
 
@@ -34,10 +40,13 @@ public partial class MainWindow : Window
     readonly TrayIcon tray;
     readonly ReminderService reminders;
     readonly DrawerWindow drawer;
+    Dictionary<string, Dictionary<string, string>> monthWork = []; // this month's statuses by client, for the list rows
+    bool formWide = true;
 
     public MainWindow()
     {
         InitializeComponent();
+        ((EntryMarksConverter)Resources["EntryMarks"]).Marks = MarksOf;
         TodoPage.Main = this;
         NotificationsPage.Main = this;
         TasksPage.Main = this;
@@ -383,6 +392,11 @@ public partial class MainWindow : Window
         var items = string.IsNullOrWhiteSpace(query)
             ? vault.Entries.OrderBy(x => x.Site, StringComparer.Ordinal).ThenBy(x => x.FirstName, NameOrder).ThenBy(x => x.LastName, NameOrder).ToList()
             : vault.Search(query, SearchLimit).ToList();
+        var month = Work.MonthOf(DateTime.Now);
+        MonthText.Text = MonthName(month);
+        monthWork = [];
+        foreach (var w in vault.Data.Work)
+            if (w.Month == month) monthWork.TryAdd(w.EntryId, w.Tasks);
         refreshing = true;
         EntryList.ItemsSource = items;
         EntryList.SelectedItem = items.FirstOrDefault(x => x.Id == editingId);
@@ -396,6 +410,40 @@ public partial class MainWindow : Window
         }
         CountText.Text = string.Format(L(string.IsNullOrWhiteSpace(query) ? "CountAll" : "CountFound"),
             string.IsNullOrWhiteSpace(query) ? vault.Entries.Count : items.Count);
+    }
+
+    // A row's marks are worked out when the row is realized; the list is virtualized, so only the rows in view pay for it
+    IReadOnlyList<RowMark> MarksOf(Entry entry)
+    {
+        if (vault == null) return [];
+        var statuses = monthWork.GetValueOrDefault(entry.Id);
+        return [.. Work.TasksOf(vault.Data, entry).Take(MaxRowMarks).Select(t =>
+        {
+            var (glyph, state) = statuses?.GetValueOrDefault(t.Id) switch
+            {
+                Work.Done => ("GlyphDone", "TodoDone"),
+                Work.Partial => ("GlyphPartial", "TodoUnfinished"),
+                _ => ("GlyphNone", "TodoNotStarted"),
+            };
+            return new RowMark((ImageSource)FindResource(glyph), $"{t.Name}: {L(state)}");
+        })];
+    }
+
+    void FormGrid_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        var wide = e.NewSize.Width >= FormWideMin;
+        if (wide == formWide) return;
+        formWide = wide;
+        FormGrid.ColumnDefinitions[3].Width = wide ? new GridLength(14) : new GridLength(0);
+        FormGrid.ColumnDefinitions[4].Width = wide ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
+        var places = wide ? FormWide : FormNarrow;
+        for (var i = 0; i < places.Length; i++)
+        {
+            var field = FormGrid.Children[i];
+            Grid.SetRow(field, places[i].Row);
+            Grid.SetColumn(field, places[i].Column);
+            Grid.SetColumnSpan(field, places[i].Span);
+        }
     }
 
     void EntryList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -421,10 +469,21 @@ public partial class MainWindow : Window
         if (Current is Entry current) lastSite = current.Site;
         else SiteBox.Text = lastSite;
         SiteError.Text = "";
-        EditTitle.SetResourceReference(TextBlock.TextProperty, editingId == null ? "NewEntry" : "EditTitleEdit");
+        ShowHead(Current);
         DeleteButton.IsEnabled = editingId != null;
         SetStatus("");
         ShowHistory();
+    }
+
+    // D's head: who is open, or "New client"
+    void ShowHead(Entry? entry)
+    {
+        var name = entry == null ? "" : entry.FullName != "" ? entry.FullName : entry.Username;
+        if (name != "") EditTitle.Text = name;
+        else EditTitle.SetResourceReference(TextBlock.TextProperty, entry == null ? "NewEntry" : "EditTitleEdit");
+        EditLogin.Text = entry?.Username ?? "";
+        EditSite.Text = entry?.Site ?? "";
+        EditSub.Visibility = entry == null ? Visibility.Collapsed : Visibility.Visible;
     }
 
     void ShowHistory()
@@ -646,4 +705,17 @@ public partial class MainWindow : Window
                 break;
         }
     }
+}
+
+// Public: WPF bindings do not see internal types.
+public sealed record RowMark(ImageSource Glyph, string Name);
+
+public sealed class EntryMarksConverter : IValueConverter
+{
+    internal Func<Entry, IReadOnlyList<RowMark>>? Marks;
+
+    public object? Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is Entry entry ? Marks?.Invoke(entry) : null;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
 }

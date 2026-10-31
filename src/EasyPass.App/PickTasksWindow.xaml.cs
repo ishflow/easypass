@@ -16,7 +16,7 @@ public partial class PickTasksWindow : Window
         InitializeComponent();
         foreach (var task in candidates)
         {
-            var box = new CheckBox { Content = task.Name, Margin = new Thickness(0, 0, 0, 6) };
+            var box = new CheckBox { Content = task.Name };
             box.Click += (_, _) => SaveButton.IsEnabled = boxes.Any(b => b.Box.IsChecked == true);
             boxes.Add((box, task.Id));
             Boxes.Children.Add(box);
