@@ -180,6 +180,19 @@ Karar: yalnız şu ikisi; ikisi de yeni istek yükü getirmez.
 - Araç çubuğu penceresinde üstte tek satır: "Этот месяц: готово 120 · не завершено 8 · не начато 300". Yeni `summary` komutu,
   `all`/`entry` gibi yalnız eklentinin kendi penceresinden kabul edilir.
 
+## 7c. Girmeden iş durumu değiştirme (Uba, ilk denemeden sonra)
+
+Uba: müşteri "onları başkasına yaptırdım, bitti" der; siteye girmeden, eklentide ya da programda ismine tıklayıp yeşile çevirebilmeli.
+
+- **Eklenti araç çubuğu penceresi:** müşteriye tıklayınca açılan ayrıntıda, login ve şifreden **önce**, bu ayın işleri: iş adı + Сделано / Не завершено
+  düğmeleri. Çıkış panelinin kuralları aynı (tekrar basınca gri; turuncu için hatırlatma seçimi zorunlu; önceden seçilmiş saat
+  korunur). Yalnız takipli sitenin kayıtlarında görünür. Değişiklik düğmeyle değil **Сохранить** ile yazılır.
+- **Program, Müşteriler sağ paneli** (Yapılacaklar'dan satıra tıklayınca da aynı yer): düzenleme alanlarının üstünde bu ayın işleri, küçük ve
+  sıkışık; aynı düğmeler, aynı hatırlatma seçimi, kendi Сохранить düğmesi. Müşteri formunun kaydından ayrıdır. Altında ay ay geçmiş kalır.
+- Karar: yalnız içinde bulunulan ay değiştirilir; geçmiş aylar salt okunur. §2'deki "uygulama içinden geçmiş düzeltme yok" bu kadar değişti.
+- Host'a yeni kural yok: `work_get`/`work_save` kaydın kendi sitesiyle çağrılır. Eklentide bu yol yalnız kendi penceresinden (`POPUP_ORIGIN`) ve
+  takipli site için açıktır; web sayfası erişemez. Açık bir oturum/panel varsa bozulmaz.
+
 ## 8. Adı yakalama
 
 Uba: numaraya bakıp kim olduğu bilinmiyor; giriş yapınca isim görünüyor, kayda yazılsın, sonra ada göre aransın.
