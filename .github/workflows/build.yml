@@ -38,15 +38,15 @@ jobs:
             try {
               Start-Sleep -Seconds 8
               if ($p.HasExited) { throw "EasyPass exited during start-up (exit code $($p.ExitCode))" }
-              $win = $A::RootElement.FindFirst('Children', (New-Object Windows.Automation.PropertyCondition($A::ProcessIdProperty, $p.Id)))
-              if (-not $win) { throw "EasyPass is running but has no window" }
-              $names = $win.FindAll('Children', [Windows.Automation.Condition]::TrueCondition) | ForEach-Object { $_.Current.Name }
+              # the edge drawer is a second top-level window with the same title
+              $wins = @($A::RootElement.FindAll('Children', (New-Object Windows.Automation.PropertyCondition($A::ProcessIdProperty, $p.Id))))
+              if (-not $wins) { throw "EasyPass is running but has no window" }
               foreach ($f in $field) {
-                if (-not $win.FindFirst('Descendants', (New-Object Windows.Automation.PropertyCondition($A::AutomationIdProperty, $f)))) {
-                  throw "window '$($win.Current.Name)' does not show $f (top-level children: $($names -join ', '))"
+                if (-not ($wins | Where-Object { $_.FindFirst('Descendants', (New-Object Windows.Automation.PropertyCondition($A::AutomationIdProperty, $f))) })) {
+                  throw "no window of $($wins.Count) shows $f"
                 }
               }
-              Write-Host "SMOKE OK: EasyPass.exe still running after 8 s, window '$($win.Current.Name)' shows $field (EASYPASS_HOME=$dir)"
+              Write-Host "SMOKE OK: EasyPass.exe still running after 8 s, $($wins.Count) window(s) show $field (EASYPASS_HOME=$dir)"
             } finally {
               if (-not $p.HasExited) {
                 # closing the window only hides it to the tray
