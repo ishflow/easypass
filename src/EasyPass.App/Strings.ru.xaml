@@ -100,6 +100,7 @@
     <sys:String x:Key="NotifMore" xml:space="preserve">Ещё {0}: открыть уведомления</sys:String>
     <sys:String x:Key="NotifEmpty" xml:space="preserve">Напоминаний нет. Они появляются, когда на сайте вы отмечаете работу как «Не завершено».</sys:String>
     <sys:String x:Key="TaskAdd" xml:space="preserve">+ Добавить работу</sys:String>
+    <sys:String x:Key="TaskAddConfirm" xml:space="preserve">Добавить</sys:String>
     <sys:String x:Key="TaskRename" xml:space="preserve">Переименовать</sys:String>
     <sys:String x:Key="TaskDelete" xml:space="preserve">Удалить</sys:String>
     <sys:String x:Key="AskDeleteTask" xml:space="preserve">Удалить работу «{0}»?&#10;Она исчезнет из панели на сайте, её напоминания закроются, а в истории клиентов название останется.</sys:String>

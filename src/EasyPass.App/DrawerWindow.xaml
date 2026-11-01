@@ -1,32 +1,29 @@
 <Window x:Class="EasyPass.App.DrawerWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="EasyPass" Width="18" Height="52" Style="{StaticResource AppWindow}"
+        Title="EasyPass" Width="18" Height="44" Style="{StaticResource AppWindow}"
         Topmost="True" ShowInTaskbar="False" ShowActivated="False" WindowStyle="None" ResizeMode="NoResize"
         AllowsTransparency="True" Background="Transparent"
         WindowStartupLocation="Manual"
-        SourceInitialized="Window_SourceInitialized" SizeChanged="Window_SizeChanged">
+        SourceInitialized="Window_SourceInitialized">
     <Window.Resources>
-        <!-- 8 px chevrons; the handle points the way the panel will move -->
-        <Geometry x:Key="ChevronLeft">M5.6,1.2 L2.4,4 L5.6,6.8</Geometry>
-        <Geometry x:Key="ChevronRight">M2.4,1.2 L5.6,4 L2.4,6.8</Geometry>
         <Style x:Key="DrawerRow" TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
-            <Setter Property="MinHeight" Value="32" />
-            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="MinHeight" Value="28" />
+            <Setter Property="Padding" Value="8,4" />
             <EventSetter Event="MouseLeftButtonUp" Handler="Row_Click" />
         </Style>
         <Style x:Key="PendingRow" TargetType="ListBoxItem" BasedOn="{StaticResource DrawerRow}">
-            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="MinHeight" Value="36" />
         </Style>
         <Style x:Key="DrawerBar" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource Surface2Brush}" />
             <Setter Property="BorderBrush" Value="{StaticResource LineBrush}" />
             <Setter Property="BorderThickness" Value="0,0,0,1" />
-            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="Padding" Value="12,5" />
         </Style>
         <DataTemplate x:Key="TodoLineTemplate">
             <DockPanel LastChildFill="True">
-                <Image DockPanel.Dock="Left" Source="{Binding Glyph}" Style="{StaticResource StatusGlyph}" Margin="0,2,10,0" VerticalAlignment="Top"
+                <Image DockPanel.Dock="Left" Source="{Binding Glyph}" Style="{StaticResource StatusGlyph}" Margin="0,2,8,0" VerticalAlignment="Top"
                        AutomationProperties.Name="{Binding GlyphName}" />
                 <!-- up to 3 lines, then an ellipsis; the full name is the tooltip -->
                 <TextBlock x:Name="Name" Text="{Binding Name}" FontWeight="Medium" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
@@ -46,7 +43,7 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <Image Source="{Binding Glyph}" Style="{StaticResource StatusGlyph}" Margin="0,2,10,0" VerticalAlignment="Top" AutomationProperties.Name="{Binding GlyphName}" />
+                <Image Source="{Binding Glyph}" Style="{StaticResource StatusGlyph}" Margin="0,2,8,0" VerticalAlignment="Top" AutomationProperties.Name="{Binding GlyphName}" />
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                     <TextBlock Text="{Binding Name}" FontWeight="Medium" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
                                LineHeight="18" LineStackingStrategy="BlockLineHeight" MaxHeight="54" ToolTip="{Binding Name}" />
@@ -64,72 +61,77 @@
             </DataTemplate.Triggers>
         </DataTemplate>
     </Window.Resources>
-    <!-- The handle sits on the panel's left edge; the window grows leftwards, so the panel slides out with it (DrawerWindow.xaml.cs).
-         The window is transparent: only the handle and the panel are drawn. -->
-    <Grid>
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <Border x:Name="Tab" Width="18" Height="52" VerticalAlignment="Center" Background="{StaticResource TextBrush}" CornerRadius="6,0,0,6" Cursor="Hand"
+    <!-- One liquid shape grows out of the wall and the content appears inside it (DrawerShape, DrawerMotion in Core; DrawerWindow.xaml.cs).
+         The window keeps one size all the while; it is transparent, so clicks pass through everything the shape does not cover. -->
+    <Canvas>
+        <Path x:Name="Blob" StrokeThickness="1" />
+        <Canvas x:Name="Content">
+            <Border x:Name="Panel" Visibility="Hidden">
+                <Border.RenderTransform>
+                    <ScaleTransform x:Name="PanelScale" />
+                </Border.RenderTransform>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Border Padding="12,8" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Image Source="{StaticResource BrandMark}" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,8,0" />
+                        <TextBlock Grid.Column="1" Text="{DynamicResource DrawerTitle}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <TextBlock x:Name="MonthText" Grid.Column="2" Style="{StaticResource Secondary}" FontSize="12" Margin="8,0,0,0" TextWrapping="NoWrap" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+                <Border Grid.Row="1" Style="{StaticResource DrawerBar}">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Image Source="{StaticResource GlyphPartial}" Style="{StaticResource StatusGlyphSmall}" AutomationProperties.Name="{DynamicResource TodoUnfinished}" />
+                            <TextBlock x:Name="UnfinishedCount" Style="{StaticResource NumText}" FontSize="12" Margin="4,0,12,0" VerticalAlignment="Center" />
+                            <Image Source="{StaticResource GlyphNone}" Style="{StaticResource StatusGlyphSmall}" AutomationProperties.Name="{DynamicResource TodoNotStarted}" />
+                            <TextBlock x:Name="NotStartedCount" Style="{StaticResource NumText}" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock x:Name="TodoHeading" FontSize="12" FontWeight="SemiBold" Style="{StaticResource NumText}" VerticalAlignment="Center" />
+                    </DockPanel>
+                </Border>
+                <ListBox x:Name="TodoItems" Grid.Row="2" BorderThickness="0" Background="Transparent" Padding="4,2"
+                         ItemContainerStyle="{StaticResource DrawerRow}" ItemTemplate="{StaticResource TodoLineTemplate}"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" />
+                <Border Grid.Row="3" Style="{StaticResource DrawerBar}" BorderThickness="0,1,0,1" BorderBrush="{StaticResource LineBrush}">
+                    <DockPanel>
+                        <TextBlock x:Name="PendingCount" DockPanel.Dock="Right" Style="{StaticResource NumText}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                        <TextBlock Text="{DynamicResource DrawerPending}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </DockPanel>
+                </Border>
+                <ListBox x:Name="PendingItems" Grid.Row="4" BorderThickness="0" Background="Transparent" Padding="4,2"
+                         ItemContainerStyle="{StaticResource PendingRow}" ItemTemplate="{StaticResource PendingLineTemplate}"
+                         VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" />
+            </Grid>
+        </Border>
+        </Canvas>
+        <!-- transparent, drawn on the shape: only takes the mouse and carries the count and the arrow -->
+        <Border x:Name="Tab" Background="Transparent" Cursor="SizeAll"
                 AutomationProperties.Name="{DynamicResource DrawerTitle}" ToolTip="{DynamicResource DrawerTitle}"
-                MouseLeftButtonUp="Tab_Click" MouseEnter="Tab_MouseEnter">
-            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                <Border x:Name="CountBadge" Style="{StaticResource Badge}" Height="14" MinWidth="14" CornerRadius="7" Padding="1,0" Margin="0,0,0,6" HorizontalAlignment="Center">
+                MouseLeftButtonDown="Tab_Down" MouseMove="Tab_Move" MouseLeftButtonUp="Tab_Up" LostMouseCapture="Tab_LostCapture" MouseEnter="Tab_MouseEnter">
+            <StackPanel x:Name="TabContent" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Border x:Name="CountBadge" Style="{StaticResource Badge}" Height="14" MinWidth="14" CornerRadius="7" Padding="1,0" HorizontalAlignment="Center" VerticalAlignment="Center">
                     <TextBlock x:Name="CountText" Style="{StaticResource BadgeText}" FontSize="10" />
                 </Border>
-                <Path x:Name="Glyph" Width="8" Height="8" Data="{StaticResource ChevronLeft}" Stroke="White" StrokeThickness="1.2"
-                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" HorizontalAlignment="Center" />
+                <!-- points left at 0 degrees; DrawerWindow turns it the way the panel will move -->
+                <Path x:Name="Glyph" Width="8" Height="8" Data="M5.6,1.2 L2.4,4 L5.6,6.8" StrokeThickness="1.2" RenderTransformOrigin="0.5,0.5"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Path.RenderTransform>
+                        <RotateTransform x:Name="GlyphTurn" />
+                    </Path.RenderTransform>
+                </Path>
             </StackPanel>
         </Border>
-        <Grid Grid.Column="1" ClipToBounds="True">
-            <Border Width="330" HorizontalAlignment="Left" Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource Line2Brush}"
-                    BorderThickness="1,1,0,1" CornerRadius="10,0,0,10">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="*" />
-                    </Grid.RowDefinitions>
-                    <Border Padding="16,14,16,10" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <Image Source="{StaticResource BrandMark}" Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,10,0" />
-                            <TextBlock Grid.Column="1" Text="{DynamicResource DrawerTitle}" FontWeight="SemiBold" TextWrapping="Wrap" VerticalAlignment="Center" />
-                            <TextBlock x:Name="MonthText" Grid.Column="2" Style="{StaticResource Secondary}" FontSize="12" Margin="10,0,0,0" TextWrapping="NoWrap" VerticalAlignment="Center" />
-                        </Grid>
-                    </Border>
-                    <Border Grid.Row="1" Style="{StaticResource DrawerBar}">
-                        <DockPanel>
-                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                <Image Source="{StaticResource GlyphPartial}" Style="{StaticResource StatusGlyphSmall}" AutomationProperties.Name="{DynamicResource TodoUnfinished}" />
-                                <TextBlock x:Name="UnfinishedCount" Style="{StaticResource NumText}" FontSize="12" Margin="4,0,12,0" VerticalAlignment="Center" />
-                                <Image Source="{StaticResource GlyphNone}" Style="{StaticResource StatusGlyphSmall}" AutomationProperties.Name="{DynamicResource TodoNotStarted}" />
-                                <TextBlock x:Name="NotStartedCount" Style="{StaticResource NumText}" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center" />
-                            </StackPanel>
-                            <TextBlock x:Name="TodoHeading" FontSize="12" FontWeight="SemiBold" Style="{StaticResource NumText}" VerticalAlignment="Center" />
-                        </DockPanel>
-                    </Border>
-                    <ListBox x:Name="TodoItems" Grid.Row="2" BorderThickness="0" Background="Transparent" Padding="6,4"
-                             ItemContainerStyle="{StaticResource DrawerRow}" ItemTemplate="{StaticResource TodoLineTemplate}"
-                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" />
-                    <Border Grid.Row="3" Style="{StaticResource DrawerBar}" BorderThickness="0,1,0,0" BorderBrush="{StaticResource LineBrush}">
-                        <DockPanel>
-                            <TextBlock x:Name="PendingCount" DockPanel.Dock="Right" Style="{StaticResource NumText}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
-                            <TextBlock Text="{DynamicResource DrawerPending}" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
-                        </DockPanel>
-                    </Border>
-                    <ListBox x:Name="PendingItems" Grid.Row="4" BorderThickness="0" Background="Transparent" Padding="6,0,6,6"
-                             ItemContainerStyle="{StaticResource PendingRow}" ItemTemplate="{StaticResource PendingLineTemplate}"
-                             VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" ScrollViewer.CanContentScroll="True" />
-                </Grid>
-            </Border>
-        </Grid>
-    </Grid>
+    </Canvas>
 </Window>

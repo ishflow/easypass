@@ -100,6 +100,7 @@
     <sys:String x:Key="NotifMore" xml:space="preserve">{0} more: open notifications</sys:String>
     <sys:String x:Key="NotifEmpty" xml:space="preserve">No reminders. They appear when you mark a task as “Not finished” on the site.</sys:String>
     <sys:String x:Key="TaskAdd" xml:space="preserve">+ Add task</sys:String>
+    <sys:String x:Key="TaskAddConfirm" xml:space="preserve">Add</sys:String>
     <sys:String x:Key="TaskRename" xml:space="preserve">Rename</sys:String>
     <sys:String x:Key="TaskDelete" xml:space="preserve">Delete</sys:String>
     <sys:String x:Key="AskDeleteTask" xml:space="preserve">Delete the task “{0}”?&#10;It leaves the panel on the site and its reminders close; client history keeps its name.</sys:String>

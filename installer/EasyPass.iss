@@ -7,7 +7,7 @@
 
 #define AppName "EasyPass"
 #ifndef AppVersion
-  #define AppVersion "1.6.0"
+  #define AppVersion "1.6.1"
 #endif
 ; extension/manifest.json içindeki "key" → paketlenmemiş eklentinin sabit kimliği (install.ps1 ile aynı)
 #define DevId "coikeomihlacdkjplpedddjmnkfobaon"

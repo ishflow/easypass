@@ -75,6 +75,13 @@ public static class AppPaths
         set => Write("lang", Languages.Contains(value) ? value : DefaultLang);
     }
 
+    // Where the edge drawer was left; DrawerDock reads it
+    public static string? DrawerSpot
+    {
+        get => (string?)Read()["drawerSpot"];
+        set => Write("drawerSpot", value);
+    }
+
     static JsonObject Read()
     {
         try { return JsonNode.Parse(File.ReadAllText(SettingsFile)) as JsonObject ?? []; }

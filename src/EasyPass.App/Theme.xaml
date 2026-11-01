@@ -11,7 +11,7 @@
          Radii     Radius1(6) Radius(8) Radius3(10)
          Text      Title Heading Section Label Secondary Caption Error NumText
          Surfaces  Card(padded) Pane(no padding) Band Hairline Badge+BadgeText PillDone PillWarn PillNone
-         Buttons   (implicit=secondary) AccentButton DangerButton GhostButton SmallButton IconButton XButton LinkButton Chip ChipOn
+         Buttons   (implicit=secondary) AccentButton DangerButton GhostButton SmallButton IconButton XButton LinkButton AddRowButton Chip ChipOn
          Status    SegGroup + SegButton SegDoneOn SegWarnOn; GlyphDone GlyphPartial GlyphNone + StatusGlyph / StatusGlyphSmall; BrandMark
          Reminder  ReminderBox + ReminderUnitGroup + ReminderUnit ReminderUnitOn
          Effects   ShadowPop ShadowFloat. Implicit: TextBox PasswordBox ComboBox CheckBox ListBox(Item) TabControl TabItem ScrollBar ToolTip.
@@ -506,6 +506,30 @@
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Text" Property="Opacity" Value="0.45" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A list row that opens a new item. A Border cannot dash, so a Rectangle draws the frame -->
+    <Style x:Key="AddRowButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Setter Property="Height" Value="34" />
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Background="Transparent">
+                        <Rectangle x:Name="Frame" RadiusX="6" RadiusY="6" Fill="{StaticResource Surface2Brush}" Stroke="{StaticResource Line2Brush}"
+                                   StrokeThickness="1" StrokeDashArray="4 3" SnapsToDevicePixels="True" />
+                        <Path Data="M7,1.5 V12.5 M1.5,7 H12.5" Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center"
+                              Stroke="{TemplateBinding Foreground}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Frame" Property="Fill" Value="{StaticResource Surface3Brush}" />
+                            <Setter TargetName="Frame" Property="Stroke" Value="{StaticResource TextTertiaryBrush}" />
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

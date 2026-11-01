@@ -100,6 +100,7 @@
     <sys:String x:Key="NotifMore" xml:space="preserve">{0} tane daha: bildirimleri aç</sys:String>
     <sys:String x:Key="NotifEmpty" xml:space="preserve">Hatırlatma yok. Sitede bir işi “Tamamlanmadı” olarak işaretlediğinizde burada görünür.</sys:String>
     <sys:String x:Key="TaskAdd" xml:space="preserve">+ İş ekle</sys:String>
+    <sys:String x:Key="TaskAddConfirm" xml:space="preserve">Ekle</sys:String>
     <sys:String x:Key="TaskRename" xml:space="preserve">Yeniden adlandır</sys:String>
     <sys:String x:Key="TaskDelete" xml:space="preserve">Sil</sys:String>
     <sys:String x:Key="AskDeleteTask" xml:space="preserve">“{0}” işi silinsin mi?&#10;Sitedeki panelden kalkar, hatırlatmaları kapanır; müşteri geçmişinde adı kalır.</sys:String>

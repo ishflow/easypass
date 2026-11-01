@@ -3,10 +3,6 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <Border Style="{StaticResource Pane}">
         <DockPanel>
-            <Border DockPanel.Dock="Top" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="16,12">
-                <Button x:Name="AddTask" Content="{DynamicResource TaskAdd}" Style="{StaticResource AccentButton}"
-                        HorizontalAlignment="Left" Click="AddTask_Click" />
-            </Border>
             <TextBlock x:Name="EmptyText" DockPanel.Dock="Top" Text="{DynamicResource TaskEmpty}" Style="{StaticResource Secondary}" Margin="16,12" Visibility="Collapsed" />
             <ListBox x:Name="TaskList" Padding="6" />
         </DockPanel>
