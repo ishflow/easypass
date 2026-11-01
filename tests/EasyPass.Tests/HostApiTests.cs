@@ -445,13 +445,13 @@ public class HostApiTests : IDisposable
         var unreadable = Set(blank.Id, "Иванов 123"); // no error: the name just stays empty
         Assert.Equal((true, "", "", false), ((bool)unreadable["ok"]!, (string?)unreadable["firstName"], (string?)unreadable["lastName"], (bool)unreadable["changed"]!));
 
-        var set = Set(blank.Id, "Абдылдаева Чолпон Бакытовна");
+        var set = Set(blank.Id, "Тестова Анна Сергеевна");
         Assert.Equal(["changed", "firstName", "id", "lastName", "ok"], set.Select(p => p.Key).Order());
-        Assert.Equal(("Чолпон Бакытовна", "Абдылдаева", true), ((string?)set["firstName"], (string?)set["lastName"], (bool)set["changed"]!));
-        Assert.Equal(("Чолпон Бакытовна", "Абдылдаева", "p"), (Disk(blank.Id).FirstName, Disk(blank.Id).LastName, Disk(blank.Id).Password));
+        Assert.Equal(("Анна Сергеевна", "Тестова", true), ((string?)set["firstName"], (string?)set["lastName"], (bool)set["changed"]!));
+        Assert.Equal(("Анна Сергеевна", "Тестова", "p"), (Disk(blank.Id).FirstName, Disk(blank.Id).LastName, Disk(blank.Id).Password));
 
         var again = Set(blank.Id, "Другой Человек");
-        Assert.Equal(("Чолпон Бакытовна", false), ((string?)again["firstName"], (bool)again["changed"]!));
+        Assert.Equal(("Анна Сергеевна", false), ((string?)again["firstName"], (bool)again["changed"]!));
 
         var stamp = File.ReadAllBytes(_v.Path);
         var typed = Set(half.Id, "Другой Человек"); // one hand-written name is enough to leave the record alone
