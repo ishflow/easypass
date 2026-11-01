@@ -200,9 +200,22 @@ const accountForm = (site, msg, t = say(site)) => `<h1>${t.changePw}</h1>${msg}
   <button id="save">${t.change}</button>
 </form>`;
 
-// salyk flow: the login page keeps its query string in the form, like the real ASP.NET page keeps ReturnUrl.
-const salykLogin = (site, search, msg) => loginForm(site, msg)
-  .replace('action="/login"', `action="/account/login${esc(search)}"`).replace('name="username"', 'name="Username"');
+// salyk flow: the structure of the real pages, with made-up values. The login page keeps its query string in the form, like the real ASP.NET page keeps ReturnUrl.
+const salykLanguage = (value) => `<form method="post" action="/account/setlanguage"><input type="hidden" name="__RequestVerificationToken" value="x"><input type="submit" name="submit" value="${value}"></form>`;
+const salykLogin = (site, search, msg, t = say(site)) => `${salykLanguage('KG')}${salykLanguage('RU')}<h1>${t.signIn}</h1>${msg}
+<form method="post" action="/account/login${esc(search)}">
+  <input id="Username" name="Username" type="number" placeholder="Логин">
+  <input id="Password" name="Password" type="password">
+  <input id="RememberMe" name="RememberMe" type="checkbox" value="true"><input type="hidden" name="RememberMe" value="false">
+  <input type="hidden" name="__Invariant" value="Username"><input type="hidden" name="__RequestVerificationToken" value="x">
+  <button type="submit">Войти</button>
+</form>
+<button type="button" class="ai-salyk-consent-btn" style="display:none">OK</button>
+<script>for (const t of ['input', 'change']) document.addEventListener(t, (e) => sessionStorage.setItem('events', (sessionStorage.getItem('events') || '') + [t, e.target.id, e.target.id === 'Password' ? '' : e.target.value].join(' ') + '\\n'));</script>`;
+// Inside the account: two logout links, the first a picture with no text, the second in a closed menu. Below md the first is hidden too.
+const salykLogout = `<style>.d-none{display:none}@media (min-width:768px){.d-md-flex{display:flex}}</style>
+<div class="d-none d-md-flex"><a id="logout" href="/account/logout"><svg width="20" height="20" viewBox="0 0 20 20"><path d="M2 2h16v16H2z"/></svg></a></div>
+<div style="display:none"><a href="/account/logout">Выход</a></div>`;
 // The organization page. ?multi=1: two rows, of which only a login starting with 93000000000789 finds its own.
 function salykSelect(u, multi) {
   const rows = multi ? [['ОсОО "Ак-Жол"', '93000000000789'], ['Осмонов Бакыт Эркинович', '93000000000111']]
@@ -262,18 +275,20 @@ function handler(sites, states) {
       const toLogin = () => res.writeHead(302, { location: '/account/login?ReturnUrl=%2F' }).end();
       switch (`${req.method} ${url.pathname}`) {
         case 'GET /': // ?nolink: an inside page without a logout link
-          return me ? html(t.account, url.searchParams.has('nolink') ? home(site, me).replace(/ · <a id="logout".*?<\/a>/, '')
-            : home(site, me).replace('href="/logout"', 'href="/account/logout"')) : toLogin();
+          return me ? html('Кабинет - Главная', (url.searchParams.has('nolink') ? '' : salykLogout) + home(site, me).replace(/ · <a id="logout".*?<\/a>/, '')) : toLogin();
         case 'GET /account/login': return html(t.signIn, salykLogin(site, url.search, ''));
         case 'GET /account/forgotpassword': return html(t.signIn, '<h1>Забыли пароль?</h1>'); // public: no password passed yet
         case 'POST /account/login': {
           st.posts = (st.posts || 0) + 1;
           const f = await body(req);
           const u = st.find(f.Username || '');
-          if (!u || u.password !== f.password) return html(t.signIn, salykLogin(site, url.search, `<p class="err" id="error">${t.badLogin}</p>`));
+          if (!u || u.password !== f.Password) return html(t.signIn, salykLogin(site, url.search, `<p class="err" id="error">${t.badLogin}</p>`));
           const multi = url.searchParams.has('multi') ? '&multi=1' : '';
           return res.writeHead(302, { location: `/account/selectorganization?userName=${encodeURIComponent(u.username)}${multi}`, ...cookie(u) }).end();
         }
+        case 'POST /account/setlanguage':
+          st.languagePosts = (st.languagePosts || 0) + 1;
+          return toLogin();
         case 'GET /account/selectorganization': {
           const u = st.half.has(sid) && st.find(url.searchParams.get('userName') || '');
           return u ? html('Войти через', salykSelect(u, url.searchParams.has('multi'))) : toLogin();

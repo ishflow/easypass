@@ -770,9 +770,9 @@ async function salykSuite(lang) {
   const load = (page, action) => Promise.all([page.waitForEvent('load'), action()]);
   async function signIn(page, [login, password], query = '') {
     await page.goto(sp('/account/login' + query));
-    await page.fill('#user', login);
-    await page.fill('#pass', password);
-    await load(page, () => page.click('#go'));
+    await page.fill('#Username', login);
+    await page.fill('#Password', password);
+    await load(page, () => page.click('form[action^="/account/login"] button[type=submit]'));
   }
   const taskButton = async (page, task, name) => button(page, `${task}: ${name}`);
   const workPanel = (page, task = INS) => waitFor(() => taskButton(page, task, t.done), 'work panel');
@@ -837,7 +837,7 @@ async function salykSuite(lang) {
       assert.ok(await hasText(page, `${stored(A)} · ${A[0]}`), 'title');
       assert.equal((await options(page)).length, 0, 'no search panel under the work panel');
       assert.ok(!(await ax(page)).some((n) => n.role === 'combobox'), 'no search box');
-      await waitFor(async () => !(await iconIn(page, '#user')), 'the field icons do not show over the modal panel');
+      await waitFor(async () => !(await iconIn(page, '#Username')), 'the field icons do not show over the modal panel');
       await shot(page, '8-work-panel');
     });
 
@@ -866,8 +866,8 @@ async function salykSuite(lang) {
 
     await scenario('salyk: after the panel the login search opens by itself for the next customer', async () => {
       await waitFor(async () => (await options(page)).length, 'search panel');
-      await waitFor(async () => (await active(page)) === 'user', 'caret in the username field');
-      assert.ok(await iconIn(page, '#user'), 'field icons back');
+      await waitFor(async () => (await active(page)) === 'Username', 'caret in the username field');
+      assert.ok(await iconIn(page, '#Username'), 'field icons back');
     });
 
     await scenarioFresh('second login, same month: states filled, name not read again, current reminder not sent back', async () => {
@@ -1409,7 +1409,8 @@ async function salykSuite(lang) {
     const extra = (who) => ({ id: who[2], site: SY, firstName: '', lastName: '', extra1: '', extra2: '', username: who[0], password: who[1], fields: [], updatedAt: 1, taskIds: null });
     fs.writeFileSync(external, JSON.stringify([...(fs.existsSync(external) ? JSON.parse(fs.readFileSync(external, 'utf8')) : []), extra(E), extra(F)]));
     sites.states.get('salykkabinet').users.push({ first: 'X', last: 'Y', org: E[3], username: E[0], password: E[1] });
-    const checks = async (page) => (await ax(page)).filter((n) => n.role === 'checkbox').map((n) => [n.name, n.checked]);
+    // n.name: the login page's own RememberMe, behind the panel, has none
+    const checks = async (page) => (await ax(page)).filter((n) => n.role === 'checkbox' && n.name).map((n) => [n.name, n.checked]);
     const tick = async (page, name) => clickNode(page, (await ax(page)).find((n) => n.role === 'checkbox' && n.name === name));
     const assignedOf = async (who) => (await workGet(who[2], thisMonth));
     async function exitTo(page, who) { // password → name read → Войти → logout
@@ -1564,7 +1565,7 @@ async function salykSuite(lang) {
       const t0 = Date.now();
       await waitFor(() => hasText(page, t.saved), 'saved mark');
       // the login search reopens after the panel and puts the caret in the username field: compare only once that is done
-      await waitFor(async () => (await active(page)) === 'user', 'caret back in the username field');
+      await waitFor(async () => (await active(page)) === 'Username', 'caret back in the username field');
       const during = await focus();
       assert.notEqual(during, 'EASYPASS-SAVED', 'the mark takes no focus');
       await waitFor(async () => !(await hasText(page, t.saved)), 'mark closes itself', 2500);
@@ -1674,7 +1675,7 @@ async function salykSuite(lang) {
       await load(p, () => p.click('a.btn-light-primary'));
       await load(p, () => p.click('#logout'));
       await waitFor(() => hasText(p, t.ask), 'checklist');
-      const checks = (await ax(p)).filter((n) => n.role === 'checkbox');
+      const checks = (await ax(p)).filter((n) => n.role === 'checkbox' && n.name);
       assert.equal(checks.length, 3);
       assertStacked(await Promise.all(checks.map((n) => probe(p, n, 'label'))), 'checklist rows');
       await shot(p, '22-long-names-checklist');
@@ -1779,7 +1780,7 @@ async function oneClick(browser, { t, SY, sp, A, B, C, INS, stateIn, hostSince, 
       st.stuck = false; // the scenarios after these do not reset it
     }
   });
-  const empty = (p) => p.evaluate(() => [document.getElementById('user').value, document.getElementById('pass').value].join(''));
+  const empty = (p) => p.evaluate(() => [document.getElementById('Username').value, document.getElementById('Password').value].join(''));
 
   try {
     await fresh('fresh sign-in: marker gone, filled, submitted, organization pressed, name read, session open, session_state seen', async () => {
@@ -1805,6 +1806,44 @@ async function oneClick(browser, { t, SY, sp, A, B, C, INS, stateIn, hostSince, 
       await waitFor(() => stateLog(mark).at(-1) === null, 'session_state closed');
       const stored = JSON.stringify(await sw.evaluate(() => chrome.storage.local.get(null)));
       assert.ok(!stored.includes(A[1]) && !stored.includes(A[0]), 'password or login in storage');
+    });
+
+    await fresh('the real pages: 17-digit login in the number field, input and change sent, the button of the password form, never the language forms; the name read', async () => {
+      const mark = hostLog().length;
+      await plant(C[2]);
+      const p = await ctx.newPage();
+      const posts = [];
+      p.on('request', (r) => { if (r.method() === 'POST') posts.push([new URL(r.url()).pathname, new URLSearchParams(r.postData())]); });
+      await p.goto(sp('/account/login' + MARK));
+      await isOpen(C[2]);
+      assert.deepEqual(posts.map(([where]) => where), ['/account/login'], 'one POST, to the login form');
+      assert.equal(st.languagePosts ?? 0, 0);
+      assert.equal(posts[0][1].get('Username'), C[0], 'the 17 digits as they are');
+      assert.equal(posts[0][1].get('Password'), C[1]);
+      const events = (await p.evaluate(() => sessionStorage.getItem('events'))).split('\n').slice(0, -1);
+      assert.deepEqual(events, [`input Username ${C[0]}`, `change Username ${C[0]}`, 'input Password ', 'change Password ']);
+      assert.equal(hostSince(mark, 'set_name')[0]?.text, C[3], 'name read on the organization page');
+      assert.match(await p.title(), /Главная/);
+    });
+
+    await fresh('a real click on the logout picture, which has no text, is seen as the logout; below md the switch still finds the hidden link', async () => {
+      const a = await inside(A);
+      st.stuck = true; // no login page after it: only the click can have closed the session
+      await load(a, () => a.click('#logout svg'));
+      await workPanel(a);
+      assert.equal((await session()).state, 'closed');
+      await clickNode(a, await button(a, t.close));
+      st.stuck = false;
+      st.sessions.clear();
+      await a.setViewportSize({ width: 500, height: 800 });
+      await inside(A, a);
+      assert.equal(await a.locator('#logout').isVisible(), false, 'the picture is hidden at this width');
+      await plant(B[2]);
+      await fromApp(sp('/account/login' + MARK));
+      await workPanel(a);
+      assert.equal(st.logouts, 2);
+      await clickNode(a, await button(a, t.close));
+      await isOpen(B[2]);
     });
 
     await fresh('a page without the marker asks the host nothing; a marker set later by a page script does nothing', async () => {
@@ -1998,7 +2037,7 @@ async function oneClick(browser, { t, SY, sp, A, B, C, INS, stateIn, hostSince, 
       await fromApp(sp('/account/login' + MARK));
       await workPanel(a);
       // by hand, under the panel, as another customer
-      await load(a, () => a.evaluate(([u, p]) => { document.getElementById('user').value = u; document.getElementById('pass').value = p; document.getElementById('go').click(); }, C));
+      await load(a, () => a.evaluate(([u, p]) => { document.getElementById('Username').value = u; document.getElementById('Password').value = p; document.querySelector('form[action^="/account/login"] button[type=submit]').click(); }, C));
       await load(a, () => a.evaluate(() => document.querySelector('a.btn-light-primary').click()));
       await workPanel(a);
       assert.ok(await waiting());

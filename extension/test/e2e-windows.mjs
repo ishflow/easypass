@@ -340,9 +340,9 @@ try {
   async function salykSignIn(page, password) {
     await page.goto(sites.url(salykSite.host, '/account/login'));
     await opened(page);
-    await page.fill('#user', salykUser.username);
-    await page.fill('#pass', password);
-    await Promise.all([page.waitForEvent('load'), page.click('#go')]);
+    await page.fill('#Username', salykUser.username);
+    await page.fill('#Password', password);
+    await Promise.all([page.waitForEvent('load'), page.click('form[action^="/account/login"] button[type=submit]')]);
   }
   async function salykVisit(page) {
     await salykSignIn(page, salykUser.password);
