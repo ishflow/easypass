@@ -261,11 +261,13 @@ function handler(sites, states) {
       };
       const toLogin = () => res.writeHead(302, { location: '/account/login?ReturnUrl=%2F' }).end();
       switch (`${req.method} ${url.pathname}`) {
-        case 'GET /':
-          return me ? html(t.account, home(site, me).replace('href="/logout"', 'href="/account/logout"')) : toLogin();
+        case 'GET /': // ?nolink: an inside page without a logout link
+          return me ? html(t.account, url.searchParams.has('nolink') ? home(site, me).replace(/ · <a id="logout".*?<\/a>/, '')
+            : home(site, me).replace('href="/logout"', 'href="/account/logout"')) : toLogin();
         case 'GET /account/login': return html(t.signIn, salykLogin(site, url.search, ''));
         case 'GET /account/forgotpassword': return html(t.signIn, '<h1>Забыли пароль?</h1>'); // public: no password passed yet
         case 'POST /account/login': {
+          st.posts = (st.posts || 0) + 1;
           const f = await body(req);
           const u = st.find(f.Username || '');
           if (!u || u.password !== f.password) return html(t.signIn, salykLogin(site, url.search, `<p class="err" id="error">${t.badLogin}</p>`));
@@ -283,6 +285,8 @@ function handler(sites, states) {
           return res.writeHead(302, { location: '/' }).end();
         }
         case 'GET /account/logout':
+          st.logouts = (st.logouts || 0) + 1;
+          if (st.stuck) return res.writeHead(302, { location: '/' }).end(); // test hook: logging out leaves the tab signed in
           st.sessions.delete(sid);
           return res.writeHead(302, { location: '/account/login', 'set-cookie': 'sid=; Path=/; Max-Age=0' }).end();
         case 'GET /__expire': // test hook: the site's session times out

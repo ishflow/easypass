@@ -29,7 +29,7 @@ const T = {
     update: 'Update', no: 'No', added: 'Save it?', first: 'First name', last: 'Last name', save: 'Save', search: 'Find a client', eye: 'Show password', show: 'Show',
     done: 'Done', partial: 'Not finished', close: 'Close', h2: '2 hours', h5: '5 hours', tomorrow: 'Tomorrow', d2: 'In 2 days', custom: 'Custom reminder',
     reminderClosed: 'reminder closed', update2: 'Update EasyPass', noTasks: 'Add tasks in EasyPass', locked: 'Vault locked', retry: 'Try again',
-    dotDone: 'Done this month', dotPartial: 'Not finished this month',
+    dotDone: 'Done this month', dotPartial: 'Not finished this month', logoutFailed: 'Could not sign out',
     ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list', add: '+ Add a task', saved: 'Saved',
     summary: (d, p, n) => `This month: done ${d} · not finished ${p} · not started ${n}`,
   },
@@ -38,7 +38,7 @@ const T = {
     update: 'Обновить', no: 'Нет', added: 'Сохранить?', first: 'Имя', last: 'Фамилия', save: 'Сохранить', search: 'Поиск клиента', eye: 'Показать пароль', show: 'Показать',
     done: 'Сделано', partial: 'Не завершено', close: 'Закрыть', h2: '2 часа', h5: '5 часов', tomorrow: 'Завтра', d2: 'Через 2 дня', custom: 'Своё напоминание',
     reminderClosed: 'напоминание закрыто', update2: 'Обновите EasyPass', noTasks: 'Добавьте работы в EasyPass', locked: 'Хранилище заблокировано', retry: 'Повторить',
-    dotDone: 'Готово в этом месяце', dotPartial: 'Не завершено в этом месяце',
+    dotDone: 'Готово в этом месяце', dotPartial: 'Не завершено в этом месяце', logoutFailed: 'Не удалось выйти',
     ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ', add: '+ Добавить работу', saved: 'Сохранено',
     summary: (d, p, n) => `Этот месяц: готово ${d} · не завершено ${p} · не начато ${n}`,
   },
@@ -47,7 +47,7 @@ const T = {
     update: 'Güncelle', no: 'Hayır', added: 'Kaydedilsin mi?', first: 'Ad', last: 'Soyad', save: 'Kaydet', search: 'Müşteri ara', eye: 'Şifreyi göster', show: 'Göster',
     done: 'Yapıldı', partial: 'Bitmedi', close: 'Kapat', h2: '2 saat', h5: '5 saat', tomorrow: 'Yarın', d2: '2 gün sonra', custom: 'Özel hatırlatma',
     reminderClosed: 'hatırlatma kapatıldı', update2: "EasyPass'i güncelleyin", noTasks: "EasyPass'te iş ekleyin", locked: 'Kilitli', retry: 'Yeniden dene',
-    dotDone: 'Bu ay bitti', dotPartial: 'Bu ay yarım',
+    dotDone: 'Bu ay bitti', dotPartial: 'Bu ay yarım', logoutFailed: 'çıkılamadı',
     ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir', add: '+ İş ekle', saved: 'Kaydedildi',
     summary: (d, p, n) => `Bu ay: bitti ${d} · yarım ${p} · başlanmadı ${n}`,
   },
@@ -80,6 +80,11 @@ const variants = {
   // the site draws its own show-password button next to the field
   '/own-eye': (p) => p.replace('<input id="pass" name="pass" type="password">',
     '<input id="pass" name="pass" type="password"><button type="button" class="toggle-password" aria-label="Şifreyi göster">👁</button>'),
+  // the login form arrives late (a slow SPA): within the 5 s the one-click sign-in waits, and after them
+  // a button of the site with no type before the real one, which stops its own click
+  '/decoy-button': (p) => p.replace('<button id="go">', '<button id="decoy" onclick="event.preventDefault()">👁</button><button id="go" type="submit">'),
+  '/late-form': (p) => p.replace('<form id="login"', '<form id="login" hidden').replace('</body>', "<script>setTimeout(() => { document.getElementById('login').hidden = false; }, 700)</script></body>"),
+  '/too-late': (p) => p.replace('<form id="login"', '<form id="login" hidden').replace('</body>', "<script>setTimeout(() => { document.getElementById('login').hidden = false; }, 5600)</script></body>"),
 };
 const serve = (req, res) => req.resume().on('end', () =>
   res.end(Object.entries(variants).find(([p]) => req.url.startsWith(p))?.[1](page0) ?? page0));
@@ -223,11 +228,15 @@ async function submitAndLoad(page, action) {
 const results = [];
 async function scenario(name, fn) {
   try {
-    await fn();
+    // A scenario that never settles must fail, not hang the whole run in silence
+    let timer;
+    const limit = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('scenario timeout: 180 s')), 180000); });
+    await Promise.race([fn(), limit]).finally(() => clearTimeout(timer));
     results.push(`PASS  ${name}`);
   } catch (e) {
     results.push(`FAIL  ${name}\n      ${e.message.split('\n').slice(0, 12).join(' ')}`);
   }
+  console.error(results.at(-1));
 }
 
 async function suite(lang) {
@@ -808,7 +817,7 @@ async function salykSuite(lang) {
     await scenario('salyk: chrome.storage keeps no login, password or name', async () => {
       const stored = JSON.stringify(await sw.evaluate(() => chrome.storage.local.get(null)));
       for (const s of [A[0], A[1], A[3]]) assert.ok(!stored.includes(s), 'found in storage: ' + s);
-      assert.deepEqual(Object.keys((await state()) || {}).filter((k) => !['entryId', 'month', 'at', 'state', 'selected', 'readName'].includes(k)), []);
+      assert.deepEqual(Object.keys((await state()) || {}).filter((k) => !['entryId', 'month', 'at', 'state', 'selected', 'readName', 'site', 'auto'].includes(k)), []);
     });
 
     await scenario('salyk: a click made by a page script is not a logout', async () => {
@@ -1131,7 +1140,7 @@ async function salykSuite(lang) {
 
     await scenarioFresh('new login: saved from the prompt → tracked, typed name in the title; "No" → not tracked', async () => {
       const users = sites.states.get('salykkabinet').users;
-      const fresh = (n) => users.push({ first: 'X', last: 'Y', org: 'Осмонова Гульнара', username: '9500000000000' + n, password: 'Salyk-new' });
+      const fresh = (n) => users.push({ first: 'X', last: 'Y', org: 'Тестова Анна', username: '9500000000000' + n, password: 'Salyk-new' });
       fresh(1);
       fresh(2);
       await signIn(page, ['95000000000001', 'Salyk-new']);
@@ -1173,13 +1182,13 @@ async function salykSuite(lang) {
     // after the list above: one more customer would push its rows past the panel's five
     await scenarioFresh('new login saved nameless on the organization page → the name is read from that page, Войти opens', async () => {
       const login = '95000000000003';
-      sites.states.get('salykkabinet').users.push({ first: 'X', last: 'Y', org: 'Осмонова Гульнара', username: login, password: 'Salyk-new' });
+      sites.states.get('salykkabinet').users.push({ first: 'X', last: 'Y', org: 'Тестова Анна', username: login, password: 'Salyk-new' });
       const mark = hostLog().length;
       await signIn(page, [login, 'Salyk-new']);
       await waitFor(() => hasText(page, t.added), 'save prompt');
       await clickNode(page, await button(page, t.save));
       await waitFor(() => hostSince(mark, 'set_name').length, 'set_name sent');
-      assert.equal(hostSince(mark, 'set_name')[0].text, 'Осмонова Гульнара');
+      assert.equal(hostSince(mark, 'set_name')[0].text, 'Тестова Анна');
       await load(page, () => page.click('a.btn-light-primary'));
       await waitFor(async () => (await state())?.state === 'open', 'session open');
     });
@@ -1554,6 +1563,8 @@ async function salykSuite(lang) {
       await waitFor(async () => !(await taskButton(page, VAT, t.done)), 'panel closed');
       const t0 = Date.now();
       await waitFor(() => hasText(page, t.saved), 'saved mark');
+      // the login search reopens after the panel and puts the caret in the username field: compare only once that is done
+      await waitFor(async () => (await active(page)) === 'user', 'caret back in the username field');
       const during = await focus();
       assert.notEqual(during, 'EASYPASS-SAVED', 'the mark takes no focus');
       await waitFor(async () => !(await hasText(page, t.saved)), 'mark closes itself', 2500);
@@ -1718,6 +1729,458 @@ async function salykSuite(lang) {
       await c.close();
     }
   });
+
+  await oneClick(browser, { t, SY, sp, A, B, C, INS, stateIn, hostSince, load, signIn, press, workPanel });
+}
+
+// Spec §14: the sign-in button of the program, items 3-8. The app's part is the planted request and the #easypass-login address.
+async function oneClick(browser, { t, SY, sp, A, B, C, INS, stateIn, hostSince, load, signIn, press, workPanel }) {
+  const lang = Object.keys(T).find((k) => T[k] === t);
+  const st = sites.states.get('salykkabinet');
+  const MARK = '#easypass-login';
+  const [ctx, sw] = await browser('oneclick', { EP_LOCK: path.join(tmp, 'oc-locked-' + lang) });
+  const lockFile = path.join(tmp, 'oc-locked-' + lang);
+  const plant = (entryId, site = SY, ageMs = 0, w = sw) => w.evaluate(([e, s, a]) => ask({ cmd: '__plant_login', entryId: e, site: s, ageMs: a }), [entryId, site, ageMs]);
+  const session = () => stateIn(sw);
+  const waiting = () => sw.evaluate(() => chrome.storage.local.get('salykSwitch').then((r) => r.salykSwitch ?? null));
+  const isOpen = (entryId, w = sw) => waitFor(async () => { const s = await stateIn(w); return s?.state === 'open' && s.entryId === entryId; }, `session open for ${entryId}`);
+  const logins = () => [...st.sessions.values()];
+  const stateLog = (mark) => hostSince(mark, 'session_state').map((r) => r.entryId);
+  // The browser opening the address the program gives it: a new tab, which the extension may close while it loads.
+  const fromApp = async (url) => {
+    const p = await ctx.newPage();
+    await p.goto(url).catch(() => {});
+    return p;
+  };
+  // keep() reports after the session is stored, and the program must know A before a press may switch away from A.
+  const told = (entryId, w = sw) => waitFor(() => w.evaluate(() => chrome.storage.local.get('salykSent').then((r) => r.salykSent?.entryId)).then((e) => e === entryId), 'the host told who is open');
+  // A customer signed in by hand, inside the account.
+  const inside = async (who, page) => {
+    const p = page || await ctx.newPage();
+    await signIn(p, who);
+    await load(p, () => p.click('a.btn-light-primary'));
+    await isOpen(who[2]);
+    await told(who[2]);
+    return p;
+  };
+  const activeTabUrl = () => sw.evaluate(async () => (await chrome.tabs.query({ active: true }))[0]?.url);
+  const fresh = (name, fn) => scenario('one click: ' + name, async () => {
+    await sw.evaluate(() => chrome.storage.local.remove(['salyk', 'salykSwitch', 'salykSent']));
+    await sw.evaluate(() => { logoutWait = 400; });
+    st.sessions.clear();
+    st.half.clear();
+    st.stuck = false;
+    st.posts = st.logouts = 0;
+    fs.rmSync(lockFile, { force: true });
+    for (const p of ctx.pages().slice(1)) await p.close();
+    try {
+      await fn();
+    } finally {
+      st.stuck = false; // the scenarios after these do not reset it
+    }
+  });
+  const empty = (p) => p.evaluate(() => [document.getElementById('user').value, document.getElementById('pass').value].join(''));
+
+  try {
+    await fresh('fresh sign-in: marker gone, filled, submitted, organization pressed, name read, session open, session_state seen', async () => {
+      const mark = hostLog().length;
+      await plant(A[2]);
+      const p = await fromApp(sp('/account/login' + MARK));
+      await isOpen(A[2]);
+      assert.ok(!p.url().includes('easypass-login'), 'marker left in the address: ' + p.url());
+      assert.equal(new URL(p.url()).pathname, '/', 'inside the account');
+      assert.deepEqual(logins(), [A[0]]);
+      assert.equal(st.posts, 1, 'one submit');
+      assert.equal(hostSince(mark, 'login_take').length, 1);
+      assert.equal(hostSince(mark, 'get').length, 1);
+      const [check] = hostSince(mark, 'check');
+      assert.deepEqual([check.username, check.password, check.entryId], [A[0], A[1], A[2]], 'session attempt with the real fill');
+      const [name] = hostSince(mark, 'set_name');
+      assert.equal(name?.text, A[3], 'name captured');
+      await waitFor(() => stateLog(mark).includes(A[2]), 'session_state open');
+      assert.equal(hostSince(mark, 'session_state')[0].site, SY);
+      // the exit panel works as after a manual sign-in
+      await load(p, () => p.click('#logout'));
+      await workPanel(p);
+      await waitFor(() => stateLog(mark).at(-1) === null, 'session_state closed');
+      const stored = JSON.stringify(await sw.evaluate(() => chrome.storage.local.get(null)));
+      assert.ok(!stored.includes(A[1]) && !stored.includes(A[0]), 'password or login in storage');
+    });
+
+    await fresh('a page without the marker asks the host nothing; a marker set later by a page script does nothing', async () => {
+      const p = await ctx.newPage();
+      const mark = hostLog().length;
+      await p.goto(sp('/account/forgotpassword'));
+      await sleep(300);
+      assert.deepEqual(hostLog().slice(mark), [], 'idle page reached the host');
+      await p.goto(sp('/account/login'));
+      await sleep(200);
+      assert.equal(hostSince(mark, 'login_take').length, 0);
+      await plant(A[2]);
+      await p.evaluate(() => { location.hash = '#easypass-login'; });
+      await sleep(300);
+      assert.equal(hostSince(mark, 'login_take').length, 0, 'hash set after load');
+      assert.equal(hostSince(mark, 'get').length, 0);
+      await plant(B[2], 'nothing.test'); // uses up the request above for the scenarios after this one
+    });
+
+    await fresh('a page cannot call the commands: no chrome.runtime in the page, the background refuses them from anything but the top-frame content script', async () => {
+      const p = await ctx.newPage();
+      await p.goto(sp('/account/login'));
+      assert.equal(await p.evaluate(() => typeof globalThis.chrome?.runtime?.sendMessage), 'undefined', 'page has no way to message the extension');
+      const mark = hostLog().length;
+      for (const u of [sp('/account/login'), base + '/login']) {
+        for (const cmd of ['login_take', 'session_state', 'login_start', '__plant_login']) {
+          const r = await sw.evaluate(([c, x]) => handle({ cmd: c, entryId: 'e9' }, 1, new URL(x)), [cmd, u]);
+          assert.deepEqual(r, { ok: false, error: 'bad_request' }, cmd);
+        }
+      }
+      assert.deepEqual(hostLog().slice(mark).filter((r) => ['login_take', 'session_state', 'login_start', '__plant_login'].includes(r.cmd)).length, 0, 'reached the host');
+    });
+
+    await fresh('expired request, no request, another site\'s request: nothing filled, nothing submitted', async () => {
+      let p;
+      for (const [name, set] of [['expired', () => plant(A[2], SY, 130_000)], ['none', async () => {}], ['other site', () => plant('e1', 'portal-x.test')]]) {
+        const mark = hostLog().length;
+        await set();
+        p = await ctx.newPage(); // a new tab, as from the program: the same address in an open tab would not even reload
+        await p.goto(sp('/account/login' + MARK));
+        await waitFor(() => hostSince(mark, 'login_take').length, 'asked: ' + name);
+        await sleep(200);
+        assert.equal(await empty(p), '', 'filled: ' + name);
+        assert.equal(hostSince(mark, 'get').length, 0, 'get: ' + name);
+        assert.equal(st.posts, 0, 'submitted: ' + name);
+        assert.ok(!p.url().includes('easypass-login'), 'marker: ' + name);
+      }
+      await waitFor(async () => (await options(p)).length, 'the login search still opens');
+      // the other site's request was not used up, and that site gets it
+      const q = await fromApp(base + '/login' + MARK);
+      await waitFor(() => q.url().endsWith('/') || q.url().endsWith('/login'), 'loaded');
+      await waitFor(async () => hostLog().some((r) => r.cmd === 'check' && r.username === 'ahmet.yilmaz'), 'used by its own site');
+    });
+
+    await fresh('wrong password: one submit, stays on the login page, no second try, no auto-press later', async () => {
+      const u = st.find(A[0]);
+      const real = u.password;
+      u.password = 'changed-on-the-site';
+      try {
+        const mark = hostLog().length;
+        await plant(A[2]);
+        const p = await fromApp(sp('/account/login' + MARK));
+        await waitFor(() => p.locator('#error').count(), 'site says wrong password');
+        await sleep(400);
+        assert.equal(st.posts, 1, 'submitted once');
+        assert.equal(hostSince(mark, 'get').length, 1, 'filled once');
+        assert.ok(!(await session())?.auto, 'automatic flow over');
+        assert.deepEqual(logins(), []);
+        // the user types the right one: this sign-in is theirs, "Войти" stays theirs too
+        u.password = real;
+        await signIn(p, A);
+        await sleep(300);
+        assert.match(p.url(), /selectorganization/, 'a manual sign-in is not pressed');
+      } finally {
+        u.password = real;
+      }
+    });
+
+    await fresh('many rows: exactly one match is pressed; no match stops on the page for the user', async () => {
+      await plant(C[2]);
+      const p = await fromApp(sp('/account/login?multi=1' + MARK));
+      await isOpen(C[2]);
+      assert.equal(new URL(p.url()).pathname, '/');
+      await p.close();
+      st.sessions.clear();
+      await sw.evaluate(() => chrome.storage.local.remove(['salyk', 'salykSent']));
+      await plant(A[2]);
+      const q = await fromApp(sp('/account/login?multi=1' + MARK));
+      await waitFor(() => /selectorganization/.test(q.url()), 'organization page');
+      await sleep(400);
+      assert.match(q.url(), /selectorganization/, 'stays for the user');
+      assert.deepEqual(logins(), []);
+      assert.equal((await session()).state, 'attempt');
+      await load(q, () => q.locator('a.btn-light-primary').first().click());
+      await isOpen(A[2]); // the session goes on as usual
+    });
+
+    await fresh('switch A→B, panel Save: A\'s tab in front, new tab closed, panel, Save, B signed in in the same tab', async () => {
+      const a = await inside(A);
+      const mark = hostLog().length;
+      await plant(B[2]);
+      const n = ctx.pages().length;
+      const q = await fromApp(sp('/account/login' + MARK));
+      await waitFor(() => q.isClosed(), 'new tab closed');
+      assert.equal(ctx.pages().length, n);
+      await workPanel(a);
+      assert.equal(new URL(await activeTabUrl()).pathname, new URL(a.url()).pathname, 'A\'s tab in front');
+      assert.ok(await hasText(a, A[0]), 'panel of A');
+      const stored = JSON.stringify(await sw.evaluate(() => chrome.storage.local.get(null)));
+      assert.ok(!stored.includes(B[1]) && !stored.includes(A[1]), 'password in storage');
+      await press(a, INS, t.done);
+      await clickNode(a, await button(a, t.save));
+      await isOpen(B[2]);
+      assert.equal(new URL(a.url()).pathname, '/');
+      assert.deepEqual(logins(), [B[0]]);
+      assert.equal(await waiting(), null, 'switch finished');
+      assert.equal(hostSince(mark, 'work_save')[0].entryId, A[2], 'the Save was A\'s');
+      await waitFor(() => stateLog(mark).at(-1) === B[2], 'session_state B');
+      assert.deepEqual(stateLog(mark), [null, B[2]]);
+    });
+
+    await fresh('switch with panel Close: nothing saved, B signed in', async () => {
+      const a = await inside(A);
+      const mark = hostLog().length;
+      await plant(B[2]);
+      await fromApp(sp('/account/login' + MARK));
+      await workPanel(a);
+      await clickNode(a, await button(a, t.close));
+      await isOpen(B[2]);
+      assert.equal(hostSince(mark, 'work_save').length, 0);
+      assert.equal(st.posts, 2, 'A by hand, B once');
+    });
+
+    await fresh('switch waits past the panel only 30 minutes: an expired one does not sign in', async () => {
+      const a = await inside(A);
+      await plant(B[2]);
+      await fromApp(sp('/account/login' + MARK));
+      await workPanel(a);
+      await sw.evaluate(() => chrome.storage.local.get('salykSwitch').then((r) => chrome.storage.local.set({ salykSwitch: { ...r.salykSwitch, at: Date.now() - 31 * 60_000 } })));
+      const posts = st.posts;
+      await clickNode(a, await button(a, t.close));
+      await sleep(500);
+      assert.equal(st.posts, posts, 'not submitted');
+      assert.equal(await session(), null);
+      assert.equal(await waiting(), null);
+    });
+
+    await fresh('the same customer: their tab in front, new tab closed, nothing filled', async () => {
+      const a = await inside(A);
+      const mark = hostLog().length;
+      await plant(A[2]);
+      const q = await fromApp(sp('/account/login' + MARK));
+      await waitFor(() => q.isClosed(), 'new tab closed');
+      await sleep(200);
+      assert.equal(new URL(await activeTabUrl()).pathname, new URL(a.url()).pathname);
+      assert.equal(hostSince(mark, 'get').length, 0);
+      assert.equal((await session()).state, 'open');
+      assert.equal(await waiting(), null);
+    });
+
+    await fresh('the program does not know the open customer (locked when A signed in): no logout without its question; the next press goes on', async () => {
+      const mark = hostLog().length;
+      fs.writeFileSync(lockFile, '');
+      const a = await ctx.newPage();
+      await signIn(a, A);
+      await load(a, () => a.click('a.btn-light-primary'));
+      await isOpen(A[2]);
+      await waitFor(() => stateLog(mark).length, 'the report refused');
+      fs.rmSync(lockFile);
+      await plant(B[2]);
+      const q = await fromApp(sp('/account/login' + MARK));
+      await waitFor(() => q.isClosed(), 'new tab closed');
+      await told(A[2]); // the program knows now: the next press gets its question
+      await sleep(300);
+      assert.equal(st.logouts, 0, 'logged out without the question');
+      assert.equal(new URL(a.url()).pathname, '/');
+      assert.deepEqual(logins(), [A[0]]);
+      assert.equal((await session()).state, 'open');
+      assert.equal(await waiting(), null);
+      assert.equal(hostSince(mark, 'get').length, 0);
+      await plant(B[2]);
+      await fromApp(sp('/account/login' + MARK));
+      await workPanel(a);
+      await clickNode(a, await button(a, t.close));
+      await isOpen(B[2]);
+    });
+
+    await fresh('a waiting switch, the panel answered on a page inside another account: the tab stays there, the switch ends', async () => {
+      const a = await inside(A);
+      await plant(B[2]);
+      await fromApp(sp('/account/login' + MARK));
+      await workPanel(a);
+      // by hand, under the panel, as another customer
+      await load(a, () => a.evaluate(([u, p]) => { document.getElementById('user').value = u; document.getElementById('pass').value = p; document.getElementById('go').click(); }, C));
+      await load(a, () => a.evaluate(() => document.querySelector('a.btn-light-primary').click()));
+      await workPanel(a);
+      assert.ok(await waiting());
+      await clickNode(a, await button(a, t.close));
+      await waitFor(async () => (await waiting()) === null, 'switch ended');
+      await sleep(300);
+      assert.equal(new URL(a.url()).pathname, '/', 'sent away from the page');
+      assert.deepEqual(logins(), [C[0]]);
+    });
+
+    await fresh('open session, its tab gone: the new tab asks about the old customer, then signs in', async () => {
+      const a = await inside(A);
+      await a.close();
+      await plant(B[2]);
+      const q = await fromApp(sp('/account/login' + MARK));
+      await workPanel(q);
+      assert.ok(await hasText(q, A[0]), 'panel of A');
+      await clickNode(q, await button(q, t.close));
+      await isOpen(B[2]);
+      assert.equal(new URL(q.url()).pathname, '/');
+    });
+
+    await fresh('no logout link: goes to /account/logout, panel, then B', async () => {
+      const a = await inside(A);
+      await a.goto(sp('/?nolink=1'));
+      await plant(B[2]);
+      await fromApp(sp('/account/login' + MARK));
+      await workPanel(a);
+      assert.equal(st.logouts, 1);
+      await clickNode(a, await button(a, t.close));
+      await isOpen(B[2]);
+    });
+
+    await fresh('logging out leaves the tab signed in: short message, state cleared, no loop', async () => {
+      const a = await inside(A);
+      await a.goto(sp('/?nolink=1'));
+      st.stuck = true;
+      await plant(B[2]);
+      const q = await fromApp(sp('/account/login' + MARK));
+      await waitFor(() => q.isClosed(), 'new tab closed');
+      await waitFor(() => hasText(a, t.logoutFailed), 'message');
+      assert.equal(await waiting(), null, 'switch cleared');
+      await sleep(600);
+      assert.equal(st.logouts, 1, 'not tried again');
+      assert.equal((await session()).entryId, A[2], 'A still open');
+      assert.ok(!(await hasText(a, A[0] + ' ')), 'no panel');
+    });
+
+    await fresh('the tab with a waiting switch closed: the switch is dropped', async () => {
+      const a = await inside(A);
+      await plant(B[2]);
+      await fromApp(sp('/account/login' + MARK));
+      await workPanel(a);
+      assert.ok(await waiting());
+      await a.close();
+      await waitFor(async () => (await waiting()) === null, 'switch dropped');
+    });
+
+    await fresh('session_state answered locked blocks nothing; the next change tells the host', async () => {
+      const a = await inside(A);
+      const mark = hostLog().length;
+      fs.writeFileSync(lockFile, '');
+      await load(a, () => a.click('#logout'));
+      await waitFor(() => hasText(a, t.locked), 'panel says locked');
+      await waitFor(() => hostSince(mark, 'session_state').length === 1, 'tried');
+      await clickNode(a, await button(a, t.close));
+      fs.rmSync(lockFile);
+      await inside(B, a);
+      await waitFor(() => stateLog(mark).at(-1) === B[2], 'B reported');
+    });
+  } finally {
+    await ctx.close();
+  }
+
+  // In its own browser: Playwright's handle on the stopped worker never answers again.
+  await scenario('one click: worker restart mid-switch: Close still goes on to B', async () => {
+    const [c, w] = await browser('oc-restart', {});
+    st.sessions.clear();
+    try {
+      const a = await c.newPage();
+      await signIn(a, A);
+      await load(a, () => a.click('a.btn-light-primary'));
+      await isOpen(A[2], w);
+      await told(A[2], w);
+      await plant(B[2], SY, 0, w);
+      const q = await c.newPage();
+      await q.goto(sp('/account/login' + MARK)).catch(() => {});
+      await workPanel(a);
+      // Target.closeTarget leaves a worker running, and Playwright keeps a stopped one in serviceWorkers(): only the target list tells.
+      const cdp = await c.newCDPSession(a);
+      await cdp.send('ServiceWorker.enable');
+      await cdp.send('ServiceWorker.stopAllWorkers');
+      await waitFor(async () => !(await cdp.send('Target.getTargets')).targetInfos.some((x) => x.type === 'service_worker' && x.url.includes(ID)), 'the worker stopped');
+      await clickNode(a, await button(a, t.close));
+      await waitFor(() => [...st.sessions.values()].includes(B[0]) && new URL(a.url()).pathname === '/', 'B signed in', 6000);
+    } finally {
+      await c.close();
+    }
+    st.sessions.clear();
+  });
+
+  await scenario('one click: no tasks defined: the hint path goes on to B too', async () => {
+    const [c, w] = await browser('oc-notasks', { EP_NO_TASKS: 1 });
+    st.sessions.clear();
+    try {
+      const a = await c.newPage();
+      await signIn(a, A);
+      await load(a, () => a.click('a.btn-light-primary'));
+      await isOpen(A[2], w);
+      await told(A[2], w);
+      await plant(B[2], SY, 0, w);
+      const q = await c.newPage();
+      await q.goto(sp('/account/login' + MARK)).catch(() => {});
+      await isOpen(B[2], w);
+      assert.deepEqual([...st.sessions.values()], [B[0]]);
+    } finally {
+      await c.close();
+    }
+    st.sessions.clear();
+  });
+
+  await scenario('one click: other sites: filled and submitted with no session or panel; a late form within 5 s too; sign-up, late and http pages not', async () => {
+    const [c, w] = await browser('oc-other', {});
+    try {
+      const open = async (url, entryId, site = 'portal-x.test') => {
+        await plant(entryId, site, 0, w);
+        const p = await c.newPage();
+        const posts = [];
+        p.on('request', (r) => { if (r.method() === 'POST') posts.push(r.postData()); });
+        await p.goto(url).catch(() => {});
+        return [p, posts];
+      };
+      let mark = hostLog().length;
+      const [p, posts] = await open(base + '/login' + MARK, 'e1');
+      await waitFor(() => posts.length, 'submitted');
+      await sleep(300);
+      assert.deepEqual(posts, ['user=ahmet.yilmaz&pass=eski123'], 'one submit with the real fill');
+      assert.ok(!p.url().includes('easypass-login'));
+      assert.equal(hostSince(mark, 'check').length, 1, 'the usual check');
+      assert.equal(await stateIn(w), null, 'no session');
+      assert.equal(hostSince(mark, 'session_state').length, 0);
+      await p.close();
+
+      const [late, latePosts] = await open(base + '/late-form' + MARK, 'e2');
+      await waitFor(() => latePosts.length, 'late form submitted', 4000);
+      assert.deepEqual(latePosts, ['user=akaya&pass=kaya999']);
+      await waitFor(() => new URL(late.url()).pathname === '/', 'the POST answered'); // closing a tab in the middle of its POST hangs headless Chrome
+      await late.close();
+
+      const [decoy, decoyPosts] = await open(base + '/decoy-button' + MARK, 'e1');
+      await waitFor(() => decoyPosts.length, 'the real submit button pressed, not the button before it');
+      await waitFor(() => new URL(decoy.url()).pathname === '/', 'the POST answered');
+      await decoy.close();
+
+      const [signup, signupPosts] = await open(base + '/signup' + MARK, 'e2');
+      await sleep(400);
+      assert.equal(await signup.inputValue('#pass'), '', 'a form with two passwords is not a login');
+      assert.deepEqual(signupPosts, []);
+      await signup.close();
+
+      mark = hostLog().length;
+      const [insecure, insecurePosts] = await open(at('portal-x.test', plain) + '/login' + MARK, 'e2');
+      await sleep(300);
+      assert.equal(await insecure.inputValue('#pass'), '', 'http page filled');
+      assert.deepEqual(insecurePosts, []);
+      assert.equal(hostSince(mark, 'login_take').length, 0, 'http page asked the host');
+      assert.equal(hostSince(mark, 'get').length, 0);
+      await insecure.close();
+      await w.evaluate(() => ask({ cmd: 'login_take', site: 'portal-x.test' })); // the request the http page left
+
+      if (lang === 'ru') { // one slow case, one language
+        const [slow, slowPosts] = await open(base + '/too-late' + MARK, 'e2');
+        await waitFor(() => slow.locator('#user').isVisible(), 'form appeared', 7000);
+        await sleep(300);
+        assert.equal(await slow.inputValue('#pass'), '', 'filled after the 5 s');
+        assert.deepEqual(slowPosts, []);
+        await slow.close();
+      }
+    } finally {
+      await c.close();
+    }
+  });
 }
 
 try {
@@ -1733,4 +2196,4 @@ try {
 }
 console.log(results.join('\n'));
 console.log(`screenshots: ${out}`);
-process.exitCode = results.some((r) => r.startsWith('FAIL')) ? 1 : 0;
+process.exit(results.some((r) => r.startsWith('FAIL')) ? 1 : 0); // a timed-out scenario leaves its browser open

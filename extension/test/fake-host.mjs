@@ -3,6 +3,7 @@
 // $EP_EXTERNAL (JSON array of entries) stands in for the WPF app writing the vault: re-read on every request.
 // Monthly work is the protocol twin of HostApi.cs (plan: Host protocol). $EP_SALYK adds the salyk site's customers, without
 // names (the first three have all tasks chosen, spec §7d; every other customer starts unassigned); $EP_NO_TASKS: no tasks defined; $EP_OLD_HOST: a v1.5 host; $EP_LOCK (a file): while it exists, work commands say locked.
+// __plant_login stands in for the app's sign-in button writing login-request.json (ageMs: how long ago).
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 
 const fold = (s) => s.toLocaleLowerCase('tr').replace(/[şçğıöü]/g, (c) => 'scgiou'['şçğıöü'.indexOf(c)]);
@@ -47,7 +48,8 @@ const tasks = process.env.EP_NO_TASKS ? [] : process.env.EP_LONG_TASK ? [{ id: '
   : [{ id: 't1', name: 'Страховка' }, { id: 't2', name: 'НДС' }, { id: 't3', name: 'Отчёт' }];
 const work = []; // { entryId, month, tasks }
 const reminders = []; // { entryId, taskId, month, dueAt, dismissedAt, resolvedAt }
-const WORK_CMDS = ['work_get', 'work_save', 'work_assign', 'set_name', 'summary'];
+const WORK_CMDS = ['work_get', 'work_save', 'work_assign', 'set_name', 'summary', 'login_take', 'session_state'];
+let loginRequest = null; // { entryId, site, at }
 const monthOf = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 const isMonth = (s) => /^\d{4}-(0[1-9]|1[0-2])$/.test(s);
 const fullName = (e) => `${e.firstName} ${e.lastName}`.trim();
@@ -194,6 +196,19 @@ function handle(r) {
       const count = (status) => listed.filter((e) => groupOf(e, recordOf(e.id, month)) === status).length;
       return { ok: true, month, done: count('done'), partial: count('partial'), notStarted: count(null) };
     }
+    case 'login_take': { // LoginFiles.TakeLogin: a page of another site neither gets the request nor uses it up
+      if (!r.site) return { ok: false, error: 'bad_request' };
+      const seen = loginRequest;
+      if (!seen || !matches(seen.site, r.site)) return { ok: true, entryId: null };
+      loginRequest = null;
+      return { ok: true, entryId: (Date.now() - seen.at <= 120_000 && find(seen.entryId)?.id) || null };
+    }
+    case 'session_state': // an absent entryId must not read as "logged out"
+      if (!r.site || !('entryId' in r) || (r.entryId !== null && typeof r.entryId !== 'string')) return { ok: false, error: 'bad_request' };
+      return r.entryId === null || find(r.entryId) ? { ok: true } : { ok: false, error: 'not_found' };
+    case '__plant_login': // the app's sign-in button; tests only
+      loginRequest = { entryId: r.entryId, site: r.site, at: Date.now() - (r.ageMs || 0) };
+      return { ok: true };
     case '__dismiss': // the app closing a reminder window; tests only
       for (const x of reminders) x.dismissedAt = new Date().toISOString();
       return { ok: true };

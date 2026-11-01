@@ -1,4 +1,7 @@
 (() => {
+  // Spec §14: the program's sign-in button opened this page. Out of the address first, so nothing later (or a reload) sees it.
+  const marked = location.hash === '#easypass-login';
+  if (marked) history.replaceState(history.state, '', location.pathname + location.search);
   // number: logins that are numbers only, like the INN on cabinet.salyk.kg
   const USER_TYPES = new Set(['text', 'email', 'tel', 'number']);
   const visible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden';
@@ -335,7 +338,7 @@
   }
 
   let sent = '';
-  function captured(scope) {
+  function captured(scope, auto) {
     // back to dots before the form goes out, so the browser never keeps the password as a plain text entry
     for (const el of scope.querySelectorAll('input')) if (revealed.has(el) && el.type !== 'password') reveal(el, false);
     const pws = [...scope.querySelectorAll('input[type=password]')].filter((x) => x.value && visible(x));
@@ -345,7 +348,7 @@
     const password = pws.at(-1).value; // change-password form: last field is the new password
     if (sent === username + '\n' + password) return; // submit + click + Enter fire for one login
     sent = username + '\n' + password;
-    send({ cmd: 'submitted', username, password, change: pws.length > 1, ...formFields(scope, user, pws) }).then(prompt);
+    send({ cmd: 'submitted', username, password, change: pws.length > 1, ...formFields(scope, user, pws), ...(auto && { auto }) }).then(prompt);
   }
 
   // --- What the form asked for: a sign-up form's fields under the site's own labels, for the save prompt and the vault ---
@@ -488,6 +491,7 @@
   }
 
   function placeIcons() {
+    autoFill();
     const want = wanted();
     for (const [f, have] of icons) {
       for (const kind of ['key', 'eye']) {
@@ -517,7 +521,7 @@
   // A login form (nothing typed yet) opens the panel by itself, once per form.
   const autoOpened = new WeakSet(); // password fields whose form already had its turn
   function autoOpen() {
-    if (workPanel || (panel && !panel.hidden)) return;
+    if (workPanel || taking || autoEntry || (panel && !panel.hidden)) return;
     for (const [f, have] of icons) {
       const p = have.key && pairFor(f);
       if (!p || autoOpened.has(p.pass)) continue;
@@ -526,6 +530,39 @@
       // nothing focused yet: put the caret in the field, so typing right away narrows the list (or types a new login)
       return void open(f, p).then(() => { if (!document.activeElement || document.activeElement === document.body) f.focus(); });
     }
+  }
+
+  // Spec §14: the sign-in the program asked for. One try: the form within 5 s, filled by the usual `get`, sent once.
+  const AUTO_WAIT = 5000;
+  let taking = marked, autoEntry = null;
+  function startFill(entryId) {
+    autoEntry = entryId;
+    setTimeout(() => {
+      if (autoEntry !== entryId) return;
+      autoEntry = null;
+      schedule();
+    }, AUTO_WAIT);
+    autoFill();
+  }
+
+  async function autoFill() {
+    if (!autoEntry || workPanel) return;
+    const pass = [...document.querySelectorAll('input')].find((x) => isPassword(x) && visible(x));
+    const p = pass && pairFor(pass);
+    if (!p || !loginForm(p)) return;
+    const entryId = autoEntry;
+    autoEntry = null;
+    close(false);
+    const r = await send({ cmd: 'get', entryId });
+    if (!r.ok) return schedule(); // the search panel says why
+    if (p.user) setValue(p.user, r.username);
+    setValue(p.pass, r.password);
+    // Our own fill makes no trusted event: tell the background here, as the capture listeners do for a manual sign-in.
+    const form = p.pass.form;
+    captured(form || document, true);
+    const go = form?.querySelector('button[type=submit], input[type=submit], input[type=image]') || form?.querySelector('button:not([type])');
+    if (go) go.click();
+    else form?.requestSubmit();
   }
 
   // A mouse click in a login form's username field (re)opens the panel there, the caret staying in the field.
@@ -602,6 +639,14 @@
     } else schedule();
   });
 
+  chrome.runtime.onMessage.addListener((m) => { if (m.fill) startFill(m.fill); }); // a switch of customer went on (salyk.js's site)
+  if (marked) {
+    send({ cmd: 'login_start' }).then((r) => {
+      taking = false;
+      if (r?.fill) startFill(r.fill);
+      else schedule();
+    });
+  }
   schedule();
   send({ cmd: 'pending' }).then(prompt);
 })();

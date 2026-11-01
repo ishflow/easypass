@@ -2,7 +2,7 @@
 // No timers: it acts on page load and on clicks. The background keeps the session; login and password never come here from it.
 (() => {
   // The organization page (spec §8), the only place that reads the site's structure.
-  const SELECT = { row: 'tr', name: 'span.text-gray-800', number: 'span.text-gray-600' };
+  const SELECT = { row: 'tr', name: 'span.text-gray-800', number: 'span.text-gray-600', enter: 'a.btn-light-primary' };
   const LOGOUT = 'a[href*="logout" i], form[action*="logout" i] button, form[action*="logout" i] input[type=submit]';
   const MAX_HOURS = 8760, MAX_DAYS = 364; // the host refuses a reminder over a year away
 
@@ -11,21 +11,21 @@
       done: 'Done', partial: 'Not finished', save: 'Save', close: 'Close', retry: 'Try again',
       h2: '2 hours', h5: '5 hours', tomorrow: 'Tomorrow', d2: 'In 2 days', custom: 'Custom reminder', hours: 'hours', days: 'days',
       h2s: '2 h', h5s: '5 h', d2s: '2 days', hoursS: 'h', daysS: 'd', willRemind: 'Will remind',
-      remind: 'Reminder:', reminderClosed: 'reminder closed', noTasks: 'Add tasks in EasyPass', add: '+ Add a task', saved: 'Saved', ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list', update: 'Update EasyPass',
+      remind: 'Reminder:', reminderClosed: 'reminder closed', noTasks: 'Add tasks in EasyPass', add: '+ Add a task', saved: 'Saved', logoutFailed: 'Could not sign out of the site. Sign out by hand, then press the sign-in button again.', ask: 'Which tasks are done for this client every month?', next: 'Next', edit: 'Edit task list', update: 'Update EasyPass',
       locked: 'Vault locked — open EasyPass and enter the master password', noHost: 'Not connected — run the EasyPass setup again', error: 'Error: ',
     },
     ru: {
       done: 'Сделано', partial: 'Не завершено', save: 'Сохранить', close: 'Закрыть', retry: 'Повторить',
       h2: '2 часа', h5: '5 часов', tomorrow: 'Завтра', d2: 'Через 2 дня', custom: 'Своё напоминание', hours: 'часов', days: 'дней',
       h2s: '2 ч', h5s: '5 ч', d2s: '2 дня', hoursS: 'ч', daysS: 'дн', willRemind: 'Напомнит',
-      remind: 'Напоминание:', reminderClosed: 'напоминание закрыто', noTasks: 'Добавьте работы в EasyPass', add: '+ Добавить работу', saved: 'Сохранено', ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ', update: 'Обновите EasyPass',
+      remind: 'Напоминание:', reminderClosed: 'напоминание закрыто', noTasks: 'Добавьте работы в EasyPass', add: '+ Добавить работу', saved: 'Сохранено', logoutFailed: 'Не удалось выйти из кабинета. Выйдите вручную и снова нажмите кнопку входа.', ask: 'Какие работы делаются этому клиенту каждый месяц?', next: 'Далее', edit: 'Изменить список работ', update: 'Обновите EasyPass',
       locked: 'Хранилище заблокировано — откройте EasyPass и введите мастер-пароль', noHost: 'Нет связи — запустите install.ps1', error: 'Ошибка: ',
     },
     tr: {
       done: 'Yapıldı', partial: 'Bitmedi', save: 'Kaydet', close: 'Kapat', retry: 'Yeniden dene',
       h2: '2 saat', h5: '5 saat', tomorrow: 'Yarın', d2: '2 gün sonra', custom: 'Özel hatırlatma', hours: 'saat', days: 'gün',
       h2s: '2 sa', h5s: '5 sa', d2s: '2 gün', hoursS: 'sa', daysS: 'gün', willRemind: 'Hatırlatılacak',
-      remind: 'Hatırlatma:', reminderClosed: 'hatırlatma kapatıldı', noTasks: "EasyPass'te iş ekleyin", add: '+ İş ekle', saved: 'Kaydedildi', ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir', update: "EasyPass'i güncelleyin",
+      remind: 'Hatırlatma:', reminderClosed: 'hatırlatma kapatıldı', noTasks: "EasyPass'te iş ekleyin", add: '+ İş ekle', saved: 'Kaydedildi', logoutFailed: 'Siteden çıkılamadı. Elle çıkış yapıp giriş düğmesine yeniden basın.', ask: 'Bu müşteriye her ay hangi işler yapılır?', next: 'İleri', edit: 'İş listesini değiştir', update: "EasyPass'i güncelleyin",
       locked: "Kilitli — EasyPass'i açıp ana şifreyi girin", noHost: 'Bağlantı yok — kurulum betiğini çalıştırın', error: 'Hata: ',
     },
   };
@@ -242,8 +242,12 @@
 
   function showHint() {
     send({ cmd: 'work_close', entryId }); // nothing to ask: this visit is over
+    showNote(T.noTasks);
+  }
+
+  function showNote(text) {
     shell();
-    const box = el('div', 'hint', T.noTasks);
+    const box = el('div', 'hint', text);
     box.setAttribute('role', 'status');
     box.append(btn('', T.close, () => { host.remove(); host = root = null; }));
     root.append(box);
@@ -477,25 +481,48 @@
     dialog.querySelector('button').focus();
   }
 
-  function readName(username) {
+  // The customer's own row (spec §8): the only one, or the only one whose number the login starts with.
+  function ownRow(username) {
     const rows = [...document.querySelectorAll(SELECT.row)].filter((r) => r.querySelector(SELECT.name));
     const mine = rows.length === 1 ? rows : rows.filter((r) => {
       const number = r.querySelector(SELECT.number)?.textContent.trim();
       return number && username.startsWith(number);
     });
-    if (mine.length !== 1) return; // never a wrong name: leave it empty
-    const text = mine[0].querySelector(SELECT.name).textContent.replace(/\s+/g, ' ').trim();
-    if (text.split(' ').length >= 2 && !/\d/.test(text) && text.length < 100) send({ cmd: 'salyk_name', text });
+    return mine.length === 1 ? mine[0] : null;
   }
 
-  async function pageLoaded() {
-    const r = await send({ cmd: 'salyk_page' });
-    if (r?.readName) readName(r.username);
-    if (r?.panel === undefined && r?.ok !== false) return void (dialog && closeModal()); // nothing to ask (any more)
-    entryId = r.panel?.entryId;
+  function readName(username) {
+    const row = ownRow(username);
+    if (!row) return; // never a wrong name: leave it empty
+    const text = row.querySelector(SELECT.name).textContent.replace(/\s+/g, ' ').trim();
+    if (text.split(' ').length >= 2 && !/\d/.test(text) && text.length < 100) return send({ cmd: 'salyk_name', text });
+  }
+
+  async function loadTexts() {
     const asked = await send({ cmd: 'lang' });
     lang = TEXT[asked] ? asked : 'ru';
     T = TEXT[lang];
+  }
+
+  async function logoutFailed() {
+    await loadTexts();
+    if (!dialog) showNote(T.logoutFailed);
+  }
+
+  // A new page ends this by itself; a logout that goes nowhere ends the switch when the time is up.
+  const waitExit = (ms) => setTimeout(async () => {
+    if ((await send({ cmd: 'salyk_exit_late' }))?.failed) logoutFailed();
+  }, ms);
+
+  async function pageLoaded() {
+    const r = await send({ cmd: 'salyk_page' });
+    if (r?.readName) await readName(r.username); // sent before "Войти" leaves this page
+    if (r?.press) ownRow(r.username)?.querySelector(SELECT.enter)?.click();
+    if (r?.exitWait) waitExit(r.exitWait);
+    if (r?.failed) logoutFailed();
+    if (r?.panel === undefined && r?.ok !== false) return void (dialog && closeModal()); // nothing to ask (any more)
+    entryId = r.panel?.entryId;
+    await loadTexts();
     if (r.ok === false) return showError(r.error); // the extension itself could not answer
     if (!r.panel.ok) return showError(r.panel.error);
     const { assigned = true, allTasks = r.panel.tasks } = r.panel; // a host from before §7d has one list for everybody
@@ -510,6 +537,16 @@
   document.addEventListener('click', (e) => {
     if (e.isTrusted && e.target.closest?.(LOGOUT)) send({ cmd: 'salyk_logout' });
   }, true);
-  chrome.runtime.onMessage.addListener((r) => { if (r.readName) readName(r.username); }); // a login saved on this page
+  chrome.runtime.onMessage.addListener((r, sender, reply) => {
+    if (r.readName) readName(r.username); // a login saved on this page
+    if (r.logout) { // the program asked to sign in someone else
+      const link = document.querySelector(LOGOUT);
+      reply(!!link); // none: the background sends the tab to the logout address
+      if (link) {
+        waitExit(r.logout);
+        link.click();
+      }
+    }
+  });
   pageLoaded();
 })();
