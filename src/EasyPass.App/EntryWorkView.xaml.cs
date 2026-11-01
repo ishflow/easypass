@@ -204,8 +204,8 @@ public partial class EntryWorkView : UserControl
     StackPanel Row(WorkTask task, string? focusTask)
     {
         var partial = draft.GetValueOrDefault(task.Id) == Work.Partial;
-        var row = new StackPanel();
-        var line = new DockPanel { MinHeight = 34 };
+        var row = new StackPanel { Margin = new Thickness(0, 0, 0, 8) };
+        var line = new DockPanel { MinHeight = 36 };
         var states = new StackPanel { Orientation = Orientation.Horizontal };
         states.Children.Add(StateButton(task.Id, Work.Done, "WorkBtnDone", "SegDoneOn"));
         states.Children.Add(StateButton(task.Id, Work.Partial, "WorkBtnPartial", "SegWarnOn"));
@@ -288,7 +288,7 @@ public partial class EntryWorkView : UserControl
         body.Children.Add(row);
         if (ReminderLine(task, chosen, current) is { } at) body.Children.Add(at);
         return new Border { Child = body, Background = (Brush)FindResource("SurfaceBrush"), BorderBrush = (Brush)FindResource("WarnLineBrush"), BorderThickness = new Thickness(1),
-            CornerRadius = (CornerRadius)FindResource("Radius"), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 2, 0, 4) };
+            CornerRadius = (CornerRadius)FindResource("Radius"), Padding = new Thickness(12, 8, 12, 8), Margin = new Thickness(0, 6, 0, 2) };
     }
 
     // When it will remind, on its own line: the new choice, else what is already set

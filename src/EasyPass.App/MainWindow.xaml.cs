@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Security.Cryptography;
@@ -458,14 +459,17 @@ public partial class MainWindow : Window
         if (!ConfirmLeave()) return;
         Edit(null);
         RefreshList();
+        EditScroll.UpdateLayout(); // the section may have just opened
         FirstNameBox.Focus();
     }
 
     void Edit(string? id)
     {
+        var was = editingId;
         if (id != editingId) EditScroll.ScrollToTop();
         editingId = id;
         if (Current == null) editingId = null; // başka yerde silinmiş olabilir
+        if (editingId != was || editingId == null) CredentialsToggle.IsChecked = editingId == null; // closed on every switch; a new client has only the form
         FillForm(Current);
         if (Current is Entry current) lastSite = current.Site;
         else SiteBox.Text = lastSite;
@@ -485,6 +489,8 @@ public partial class MainWindow : Window
         EditLogin.Text = entry?.Username ?? "";
         EditSite.Text = entry?.Site ?? "";
         EditSub.Visibility = entry == null ? Visibility.Collapsed : Visibility.Visible;
+        SignInButton.IsEnabled = entry != null;
+        SignInButton.Visibility = entry?.Site == "" ? Visibility.Collapsed : Visibility.Visible;
     }
 
     void ShowHistory()
@@ -575,7 +581,7 @@ public partial class MainWindow : Window
         // yalnız "com" gibi bir ad her .com sitesiyle eşleşirdi (spec §3a): gerçek bir host adı iste
         var validSite = site.Contains('.') && Uri.CheckHostName(site) is UriHostNameType.Dns or UriHostNameType.IPv4;
         SiteError.Text = site == "" ? L("ErrNeedSite") : !validSite ? L("ErrBadSite") : "";
-        if (SiteError.Text != "") { SiteBox.Focus(); return false; }
+        if (SiteError.Text != "") { CredentialsToggle.IsChecked = true; EditScroll.UpdateLayout(); SiteBox.Focus(); return false; }
         var first = FirstNameBox.Text.Trim();
         var last = LastNameBox.Text.Trim();
         var extra1 = Extra1Box.Text.Trim();
@@ -583,9 +589,9 @@ public partial class MainWindow : Window
         var username = UsernameBox.Text.Trim();
         var password = FormPassword;
         // eklentinin adsız eklediği kayıt da düzenlenebilsin: ad yalnız yeni kayıtta zorunlu
-        if (editingId == null && first == "" && last == "") { SetStatus(L("ErrNeedName"), error: true); return false; }
-        if (username == "") { SetStatus(L("ErrNeedUsername"), error: true); return false; }
-        if (password == "") { SetStatus(L("ErrNeedPassword"), error: true); return false; }
+        if (editingId == null && first == "" && last == "") return SaveRefused(L("ErrNeedName"));
+        if (username == "") return SaveRefused(L("ErrNeedUsername"));
+        if (password == "") return SaveRefused(L("ErrNeedPassword"));
 
         var id = editingId ?? Guid.NewGuid().ToString("N");
         var was = loaded;
@@ -621,14 +627,46 @@ public partial class MainWindow : Window
             });
         }
         catch (VaultPasswordChangedException) when (ReopenPasswordless(keepForm: true)) { return Save(); } // şifresi başka yerde kaldırıldı
-        catch (VaultPasswordChangedException) { SetStatus(L("ErrKeyChangedDirty"), error: true); return false; }
-        catch (Exception ex) when (ex is CryptographicException or InvalidDataException) { SetStatus(L("ErrSave") + L("ErrUnreadable"), error: true); return false; }
-        catch (Exception ex) { SetStatus(L("ErrSave") + ex.Message, error: true); return false; }
+        catch (VaultPasswordChangedException) { return SaveRefused(L("ErrKeyChangedDirty")); }
+        catch (Exception ex) when (ex is CryptographicException or InvalidDataException) { return SaveRefused(L("ErrSave") + L("ErrUnreadable")); }
+        catch (Exception ex) { return SaveRefused(L("ErrSave") + ex.Message); }
 
         Edit(id);
         RefreshList();
         SetStatus(L("Saved"));
         return true;
+    }
+
+    // The form's data is still unsaved: it must be in view
+    bool SaveRefused(string message)
+    {
+        CredentialsToggle.IsChecked = true;
+        SetStatus(message, error: true);
+        return false;
+    }
+
+    // Spec §14: the browser takes it from here, the password never passes through the program
+    void SignIn_Click(object sender, RoutedEventArgs e)
+    {
+        if (vault == null || !ConfirmLeave()) return;
+        if (Unsaved) Edit(editingId); // "No" above: the form goes back to what is saved
+        if (Current is not Entry entry || entry.Site == "") return;
+        if (LoginFiles.ReadSession() is { } session && session.EntryId != entry.Id && Sites.Matches(entry.Site, session.Site)
+            && vault.Entries.FirstOrDefault(x => x.Id == session.EntryId) is { } other
+            && !AskYes(string.Format(L("AskCloseClient"), EntryLineConverter.Title(other)))) return;
+        try
+        {
+            LoginFiles.WriteLogin(entry.Id, entry.Site);
+            Process.Start(new ProcessStartInfo(Sites.LoginUrl(entry.Site)) { UseShellExecute = true });
+        }
+        catch (Exception ex) { WriteFailed(L("ErrFailed") + ex.Message); }
+    }
+
+    bool AskYes(string text)
+    {
+        asking = true;
+        try { return new ConfirmWindow(text) { Owner = this }.ShowDialog() == true; }
+        finally { asking = false; }
     }
 
     void Delete_Click(object sender, RoutedEventArgs e)
@@ -710,6 +748,19 @@ public partial class MainWindow : Window
 
 // Public: WPF bindings do not see internal types.
 public sealed record RowMark(ImageSource Glyph, string Name);
+
+// A client's list row (spec §14): the name, else the login, else the site; the line below never repeats the title and never stands empty.
+public sealed class EntryLineConverter : IValueConverter
+{
+    internal static string Title(Entry e) => e.FullName != "" ? e.FullName : e.Username != "" ? e.Username : e.Site;
+
+    static string Sub(Entry e) => e.FullName != "" ? string.Join(" · ", new[] { e.Username, e.Site }.Where(s => s != "")) : e.Username != "" ? e.Site : "";
+
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is not Entry entry ? "" : (string)parameter == "Title" ? Title(entry) : Sub(entry);
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => throw new NotSupportedException();
+}
 
 public sealed class EntryMarksConverter : IValueConverter
 {

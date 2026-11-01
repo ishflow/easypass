@@ -135,4 +135,9 @@
     <sys:String x:Key="DrawerTitle" xml:space="preserve">Дела и напоминания</sys:String>
     <sys:String x:Key="DrawerTodoFmt" xml:space="preserve">К выполнению: {0}</sys:String>
     <sys:String x:Key="DrawerPending" xml:space="preserve">Ожидающие напоминания</sys:String>
+    <sys:String x:Key="SignIn" xml:space="preserve">Войти на сайт</sys:String>
+    <sys:String x:Key="AskCloseClient" xml:space="preserve">Открыт клиент {0}. Закрыть его?</sys:String>
+    <sys:String x:Key="Yes" xml:space="preserve">Да</sys:String>
+    <sys:String x:Key="No" xml:space="preserve">Нет</sys:String>
+    <sys:String x:Key="CredentialsTitle" xml:space="preserve">Данные для входа</sys:String>
 </ResourceDictionary>

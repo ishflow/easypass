@@ -3,9 +3,9 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Visibility="Collapsed">
     <!-- This month's work for the open client; rows are built in code (EntryWorkView.xaml.cs) -->
-    <Border Style="{StaticResource Band}">
+    <Border Style="{StaticResource Band}" Padding="20,18,20,18">
         <StackPanel>
-            <DockPanel Margin="0,0,0,8">
+            <DockPanel Margin="0,0,0,14">
                 <Button x:Name="EditLink" DockPanel.Dock="Right" Style="{StaticResource LinkButton}" Content="{DynamicResource WorkEditList}" FontSize="12"
                         VerticalAlignment="Center" Margin="8,0,0,0" Click="EditList_Click" />
                 <WrapPanel VerticalAlignment="Center">
@@ -15,7 +15,7 @@
             </DockPanel>
             <TextBlock x:Name="EmptyText" Text="{DynamicResource WorkNoTasks}" Style="{StaticResource Secondary}" FontSize="12" Visibility="Collapsed" />
             <StackPanel x:Name="Rows" />
-            <StackPanel x:Name="Actions" Margin="0,10,0,0">
+            <StackPanel x:Name="Actions" Margin="0,12,0,0">
                 <DockPanel>
                     <Button x:Name="AddLink" DockPanel.Dock="Left" Style="{StaticResource LinkButton}" Content="{DynamicResource TaskAdd}" VerticalAlignment="Center" Click="AddTasks_Click" />
                     <Button x:Name="SaveButton" Content="{DynamicResource WorkSave}" Style="{StaticResource AccentButton}"

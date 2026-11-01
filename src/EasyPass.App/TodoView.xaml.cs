@@ -15,7 +15,12 @@ public partial class TodoView : UserControl
     string listedMonth = "";
     TodoList? list;
 
-    public TodoView() => InitializeComponent();
+    public TodoView()
+    {
+        InitializeComponent();
+        // an Auto row sets no limit of its own: without this one the done list would not scroll or virtualize
+        SizeChanged += (_, _) => { if (Window.GetWindow(this) is { } window) DonePane.MaxHeight = window.ActualHeight * 0.3; };
+    }
 
     public void Refresh()
     {
@@ -48,7 +53,12 @@ public partial class TodoView : UserControl
         var items = rows.Select(r => new TodoItem(r.Entry.Id, r.Entry.FullName == "" ? r.Entry.Username : r.Entry.FullName, r.Entry.Username, names[r.Group], r.Group,
             r.LastMonth == null ? null : MonthMarks.Of(tasks, Name(r.LastMonth), r.LastTasks), MonthMarks.Of(tasks, Name(month), r.ThisTasks))).ToList();
 
-        var view = new ListCollectionView(items);
+        var done = items.Where(i => i.Kind == TodoGroup.Done).ToList();
+        DoneList.ItemsSource = done;
+        DoneCount.Text = done.Count.ToString();
+        DonePane.Visibility = done.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        var view = new ListCollectionView(items.Where(i => i.Kind != TodoGroup.Done).ToList());
         view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(TodoItem.Group)));
         TodoList.ItemsSource = view;
         EmptyText.Visibility = list.Rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;

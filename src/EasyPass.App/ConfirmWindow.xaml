@@ -1,0 +1,15 @@
+<Window x:Class="EasyPass.App.ConfirmWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{DynamicResource SignIn}" Width="400" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Style="{StaticResource AppWindow}">
+    <DockPanel Background="{StaticResource SurfaceBrush}">
+        <Border DockPanel.Dock="Bottom" Background="{StaticResource Surface2Brush}" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="24,14,24,16">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="{DynamicResource Yes}" Style="{StaticResource AccentButton}" MinWidth="72" Margin="0,0,8,0" IsDefault="True" Click="Yes_Click" />
+                <Button Content="{DynamicResource No}" MinWidth="72" IsCancel="True" />
+            </StackPanel>
+        </Border>
+        <TextBlock x:Name="Message" Style="{StaticResource Heading}" TextWrapping="Wrap" Margin="24,22,24,22" />
+    </DockPanel>
+</Window>

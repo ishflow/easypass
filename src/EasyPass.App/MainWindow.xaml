@@ -7,6 +7,9 @@
         Activated="Window_Activated" Closing="Window_Closing">
     <Window.Resources>
         <local:EntryMarksConverter x:Key="EntryMarks" />
+        <local:EntryLineConverter x:Key="EntryLine" />
+        <!-- A cog with teeth: Theme's GearIcon reads as a sun at this size -->
+        <PathGeometry x:Key="GearCog" Figures="M6.72,2.86 L7.01,0.97 L8.99,0.97 L9.28,2.86 L10.73,3.46 L12.27,2.33 L13.67,3.73 L12.54,5.27 L13.14,6.72 L15.03,7.01 L15.03,8.99 L13.14,9.28 L12.54,10.73 L13.67,12.27 L12.27,13.67 L10.73,12.54 L9.28,13.14 L8.99,15.03 L7.01,15.03 L6.72,13.14 L5.27,12.54 L3.73,13.67 L2.33,12.27 L3.46,10.73 L2.86,9.28 L0.97,8.99 L0.97,7.01 L2.86,6.72 L3.46,5.27 L2.33,3.73 L3.73,2.33 L5.27,3.46 Z M10.2,8 A2.2,2.2 0 1 1 5.8,8 A2.2,2.2 0 1 1 10.2,8 Z" />
         <Style x:Key="FieldLabel" TargetType="TextBlock" BasedOn="{StaticResource Label}">
             <Setter Property="Margin" Value="0,0,0,4" />
             <Setter Property="TextWrapping" Value="Wrap" />
@@ -22,12 +25,56 @@
         <!-- eklentinin adsız eklediği kayıtta kullanıcı adı görünsün -->
         <Style x:Key="EntryName" TargetType="TextBlock">
             <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="Text" Value="{Binding FullName, Mode=OneWay}" />
+            <Setter Property="Text" Value="{Binding Converter={StaticResource EntryLine}, ConverterParameter=Title, Mode=OneWay}" />
+        </Style>
+        <Style x:Key="EntrySub" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+            <Setter Property="Typography.NumeralAlignment" Value="Tabular" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+            <Setter Property="Text" Value="{Binding Converter={StaticResource EntryLine}, ConverterParameter=Sub, Mode=OneWay}" />
             <Style.Triggers>
-                <DataTrigger Binding="{Binding FullName, Mode=OneWay}" Value="">
-                    <Setter Property="Text" Value="{Binding Username, Mode=OneWay}" />
-                </DataTrigger>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
             </Style.Triggers>
+        </Style>
+        <Style x:Key="StatusLine" TargetType="TextBlock" BasedOn="{StaticResource Secondary}">
+            <Setter Property="Margin" Value="0,8,0,0" />
+            <Style.Triggers>
+                <Trigger Property="Text" Value="">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="SectionToggle" TargetType="ToggleButton">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusRing}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Row" Background="Transparent" Height="46" Padding="20,0">
+                            <StackPanel Orientation="Horizontal">
+                                <Path x:Name="Chevron" Data="M4,1.5 L9,6.5 L4,11.5" Width="13" Height="13" Margin="0,0,10,0" VerticalAlignment="Center" RenderTransformOrigin="0.5,0.5"
+                                      Stroke="{StaticResource TextBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                <ContentPresenter VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Row" Property="Background" Value="{StaticResource Surface2Brush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chevron" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <RotateTransform Angle="90" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <!-- A long name wraps and the box grows, it is never cut -->
         <Style x:Key="NameBox" TargetType="TextBox" BasedOn="{StaticResource {x:Type TextBox}}">
@@ -107,7 +154,7 @@
 
         <!-- 3. Ana ekran -->
         <Grid x:Name="MainPanel" Visibility="Collapsed">
-            <TabControl x:Name="Tabs" SelectedIndex="0" Padding="116,0,48,0" SelectionChanged="Tabs_SelectionChanged">
+            <TabControl x:Name="Tabs" SelectedIndex="0" Padding="116,0,140,0" SelectionChanged="Tabs_SelectionChanged">
                 <TabItem Header="{DynamicResource TabClients}">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -134,6 +181,12 @@
                                     <TextBlock x:Name="CountText" Style="{StaticResource Secondary}" FontSize="12" />
                                 </DockPanel>
                                 <ListBox x:Name="EntryList" Padding="6,0" VirtualizingPanel.VirtualizationMode="Recycling" SelectionChanged="EntryList_SelectionChanged">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem" BasedOn="{StaticResource {x:Type ListBoxItem}}">
+                                            <Setter Property="Padding" Value="10,6" />
+                                            <Setter Property="Margin" Value="0,0,0,2" />
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
                                     <ListBox.ItemTemplate>
                                         <DataTemplate>
                                             <DockPanel Background="Transparent">
@@ -163,24 +216,8 @@
                                                 </ItemsControl>
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Style="{StaticResource EntryName}" FontWeight="Medium" />
-                                                    <DockPanel>
-                                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Username, Mode=OneWay}" Style="{StaticResource NumText}" FontSize="12" TextTrimming="CharacterEllipsis"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}" />
-                                                        <TextBlock DockPanel.Dock="Left" Text="·" FontSize="12" Margin="6,0" Foreground="{StaticResource TextSecondaryBrush}">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding Site, Mode=OneWay}" Value="">
-                                                                            <Setter Property="Visibility" Value="Collapsed" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                        <!-- aynı müşteri birçok sitede: site satırda görünmeli -->
-                                                        <TextBlock Text="{Binding Site, Mode=OneWay}" FontSize="12" TextTrimming="CharacterEllipsis"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}" />
-                                                    </DockPanel>
+                                                    <!-- aynı müşteri birçok sitede: site satırda görünmeli -->
+                                                    <TextBlock Style="{StaticResource EntrySub}" />
                                                 </StackPanel>
                                             </DockPanel>
                                         </DataTemplate>
@@ -191,87 +228,102 @@
 
                         <Border Grid.Column="2" Style="{StaticResource Pane}">
                             <DockPanel>
-                                <Border DockPanel.Dock="Top" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="20,16,20,12">
-                                    <StackPanel>
-                                        <TextBlock x:Name="EditTitle" Text="{DynamicResource NewEntry}" Style="{StaticResource Title}" Margin="0" TextWrapping="Wrap" />
-                                        <WrapPanel x:Name="EditSub" Margin="0,4,0,0" Visibility="Collapsed">
-                                            <TextBlock x:Name="EditLogin" Style="{StaticResource NumText}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
-                                            <Ellipse Width="3" Height="3" Margin="10,0" VerticalAlignment="Center" Fill="{StaticResource Line2Brush}" />
-                                            <TextBlock x:Name="EditSite" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
-                                        </WrapPanel>
-                                    </StackPanel>
+                                <Border DockPanel.Dock="Top" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,0,0,1" Padding="20,18,20,16">
+                                    <DockPanel>
+                                        <Button x:Name="SignInButton" DockPanel.Dock="Right" Style="{StaticResource AccentButton}" Height="36" Padding="16,0" Margin="16,0,0,0" VerticalAlignment="Top"
+                                                AutomationProperties.Name="{DynamicResource SignIn}" Click="SignIn_Click">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{DynamicResource SignIn}" VerticalAlignment="Center" />
+                                                <Path Data="M7.5,1.5 H11.5 A1,1 0 0 1 12.5,2.5 V11.5 A1,1 0 0 1 11.5,12.5 H7.5 M1.5,7 H8.5 M5.5,4 L8.5,7 L5.5,10" Width="14" Height="14" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                      Stroke="White" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                            </StackPanel>
+                                        </Button>
+                                        <StackPanel>
+                                            <TextBlock x:Name="EditTitle" Text="{DynamicResource NewEntry}" Style="{StaticResource Title}" Margin="0" TextWrapping="Wrap" />
+                                            <WrapPanel x:Name="EditSub" Margin="0,6,0,0" Visibility="Collapsed">
+                                                <TextBlock x:Name="EditLogin" Style="{StaticResource NumText}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                                                <Ellipse Width="3" Height="3" Margin="10,0" VerticalAlignment="Center" Fill="{StaticResource Line2Brush}" />
+                                                <TextBlock x:Name="EditSite" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+                                            </WrapPanel>
+                                            <!-- here, not in the section below: it can be closed or scrolled away -->
+                                            <TextBlock x:Name="StatusText" Style="{StaticResource StatusLine}" />
+                                        </StackPanel>
+                                    </DockPanel>
                                 </Border>
                                 <ScrollViewer x:Name="EditScroll" VerticalScrollBarVisibility="Auto">
                                     <StackPanel>
                                         <local:EntryWorkView x:Name="WorkPage" />
-                                        <StackPanel Margin="20,14">
-                                            <!-- FormGrid_SizeChanged moves these eight by position: keep their order -->
-                                            <Grid x:Name="FormGrid" SizeChanged="FormGrid_SizeChanged">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition />
-                                                    <ColumnDefinition Width="14" />
-                                                    <ColumnDefinition />
-                                                    <ColumnDefinition Width="14" />
-                                                    <ColumnDefinition />
-                                                </Grid.ColumnDefinitions>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
-                                                <StackPanel Margin="0,0,0,10">
-                                                    <TextBlock Text="{DynamicResource LastName}" Style="{StaticResource FieldLabel}" />
-                                                    <TextBox x:Name="LastNameBox" Style="{StaticResource NameBox}" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="2" Margin="0,0,0,10">
-                                                    <TextBlock Text="{DynamicResource FirstName}" Style="{StaticResource FieldLabel}" />
-                                                    <TextBox x:Name="FirstNameBox" Style="{StaticResource NameBox}" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="4" Margin="0,0,0,10">
-                                                    <TextBlock Text="{DynamicResource Site}" Style="{StaticResource FieldLabel}" />
-                                                    <ComboBox x:Name="SiteBox" IsEditable="True" />
-                                                    <TextBlock x:Name="SiteError" Style="{StaticResource FieldError}" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Row="1" Margin="0,0,0,10">
-                                                    <TextBlock Text="{DynamicResource Username}" Style="{StaticResource FieldLabel}" />
-                                                    <TextBox x:Name="UsernameBox" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3" Margin="0,0,0,10">
-                                                    <TextBlock Text="{DynamicResource Password}" Style="{StaticResource FieldLabel}" />
-                                                    <DockPanel>
-                                                        <Button Content="{DynamicResource Copy}" DockPanel.Dock="Right" Margin="6,0,0,0" Click="CopyPassword_Click" />
-                                                        <Button x:Name="ShowPasswordButton" Content="{DynamicResource Show}" DockPanel.Dock="Right" Margin="6,0,0,0" Click="TogglePassword_Click" />
-                                                        <Grid>
-                                                            <PasswordBox x:Name="PasswordBox" />
-                                                            <TextBox x:Name="PasswordText" Visibility="Collapsed" />
-                                                        </Grid>
+                                        <ToggleButton x:Name="CredentialsToggle" Style="{StaticResource SectionToggle}" Content="{DynamicResource CredentialsTitle}"
+                                                      AutomationProperties.Name="{DynamicResource CredentialsTitle}" />
+                                        <StackPanel x:Name="CredentialsBody" Visibility="{Binding IsChecked, ElementName=CredentialsToggle, Converter={StaticResource BoolToVisibility}}">
+                                            <StackPanel Margin="20,4,20,14">
+                                                <!-- FormGrid_SizeChanged moves these eight by position: keep their order -->
+                                                <Grid x:Name="FormGrid" SizeChanged="FormGrid_SizeChanged">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition Width="14" />
+                                                        <ColumnDefinition />
+                                                        <ColumnDefinition Width="14" />
+                                                        <ColumnDefinition />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <StackPanel Margin="0,0,0,10">
+                                                        <TextBlock Text="{DynamicResource LastName}" Style="{StaticResource FieldLabel}" />
+                                                        <TextBox x:Name="LastNameBox" Style="{StaticResource NameBox}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2" Margin="0,0,0,10">
+                                                        <TextBlock Text="{DynamicResource FirstName}" Style="{StaticResource FieldLabel}" />
+                                                        <TextBox x:Name="FirstNameBox" Style="{StaticResource NameBox}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="4" Margin="0,0,0,10">
+                                                        <TextBlock Text="{DynamicResource Site}" Style="{StaticResource FieldLabel}" />
+                                                        <ComboBox x:Name="SiteBox" IsEditable="True" />
+                                                        <TextBlock x:Name="SiteError" Style="{StaticResource FieldError}" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Row="1" Margin="0,0,0,10">
+                                                        <TextBlock Text="{DynamicResource Username}" Style="{StaticResource FieldLabel}" />
+                                                        <TextBox x:Name="UsernameBox" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Row="1" Grid.Column="2" Grid.ColumnSpan="3" Margin="0,0,0,10">
+                                                        <TextBlock Text="{DynamicResource Password}" Style="{StaticResource FieldLabel}" />
+                                                        <DockPanel>
+                                                            <Button Content="{DynamicResource Copy}" DockPanel.Dock="Right" Margin="6,0,0,0" Click="CopyPassword_Click" />
+                                                            <Button x:Name="ShowPasswordButton" Content="{DynamicResource Show}" DockPanel.Dock="Right" Margin="6,0,0,0" Click="TogglePassword_Click" />
+                                                            <Grid>
+                                                                <PasswordBox x:Name="PasswordBox" />
+                                                                <TextBox x:Name="PasswordText" Visibility="Collapsed" />
+                                                            </Grid>
+                                                        </DockPanel>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                                                        <TextBlock Text="{DynamicResource Extra1}" Style="{StaticResource FieldLabel}" />
+                                                        <TextBox x:Name="Extra1Box" />
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,10">
+                                                        <TextBlock Text="{DynamicResource Extra2}" Style="{StaticResource FieldLabel}" />
+                                                        <TextBox x:Name="Extra2Box" />
+                                                    </StackPanel>
+                                                    <DockPanel Grid.Row="2" Grid.Column="4" Margin="0,0,0,10" VerticalAlignment="Bottom">
+                                                        <Button Content="{DynamicResource Save}" Click="Save_Click" />
+                                                        <Button x:Name="DeleteButton" Content="{DynamicResource Delete}" Style="{StaticResource DangerButton}" Height="26" Padding="10,0" FontSize="12"
+                                                                HorizontalAlignment="Right" Margin="6,0,0,0" Click="Delete_Click" />
                                                     </DockPanel>
-                                                </StackPanel>
-                                                <StackPanel Grid.Row="2" Margin="0,0,0,10">
-                                                    <TextBlock Text="{DynamicResource Extra1}" Style="{StaticResource FieldLabel}" />
-                                                    <TextBox x:Name="Extra1Box" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,10">
-                                                    <TextBlock Text="{DynamicResource Extra2}" Style="{StaticResource FieldLabel}" />
-                                                    <TextBox x:Name="Extra2Box" />
-                                                </StackPanel>
-                                                <DockPanel Grid.Row="2" Grid.Column="4" Margin="0,0,0,10" VerticalAlignment="Bottom">
-                                                    <Button Content="{DynamicResource Save}" Click="Save_Click" />
-                                                    <Button x:Name="DeleteButton" Content="{DynamicResource Delete}" Style="{StaticResource DangerButton}" Height="26" Padding="10,0" FontSize="12"
-                                                            HorizontalAlignment="Right" Margin="6,0,0,0" Click="Delete_Click" />
-                                                </DockPanel>
-                                            </Grid>
-                                            <TextBlock x:Name="StatusText" Style="{StaticResource Secondary}" />
-                                        </StackPanel>
-                                        <!-- Sign-up form details from the site (extension "save" prompt), read-only -->
-                                        <Border x:Name="SiteFieldsPanel" Visibility="Collapsed" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="20,14">
-                                            <StackPanel>
-                                                <TextBlock Text="{DynamicResource SiteFields}" Style="{StaticResource Section}" Margin="0,0,0,6" />
-                                                <StackPanel x:Name="SiteFieldsList" />
+                                                </Grid>
                                             </StackPanel>
-                                        </Border>
+                                            <!-- Sign-up form details from the site (extension "save" prompt), read-only -->
+                                            <Border x:Name="SiteFieldsPanel" Visibility="Collapsed" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="20,14">
+                                                <StackPanel>
+                                                    <TextBlock Text="{DynamicResource SiteFields}" Style="{StaticResource Section}" Margin="0,0,0,6" />
+                                                    <StackPanel x:Name="SiteFieldsList" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
                                         <!-- Month by month, newest first; read-only -->
                                         <Border x:Name="HistoryPanel" Visibility="Collapsed" BorderBrush="{StaticResource LineBrush}" BorderThickness="0,1,0,0" Padding="20,14">
                                             <StackPanel>
@@ -308,9 +360,13 @@
                 <Image Source="{StaticResource BrandMark}" Width="18" Height="18" Margin="0,0,8,0" />
                 <TextBlock Text="EasyPass" FontWeight="SemiBold" VerticalAlignment="Center" />
             </StackPanel>
-            <Button Style="{StaticResource IconButton}" ToolTip="{DynamicResource Settings}" AutomationProperties.Name="{DynamicResource Settings}"
-                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,6,8,0" Click="Settings_Click">
-                <Path Data="{StaticResource GearIcon}" Width="16" Height="16" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.4" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+            <Button AutomationProperties.Name="{DynamicResource Settings}" Padding="10,0"
+                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,7,10,0" Click="Settings_Click">
+                <StackPanel Orientation="Horizontal">
+                    <Path Data="{StaticResource GearCog}" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center"
+                          Stroke="{StaticResource TextBrush}" StrokeThickness="1.3" StrokeLineJoin="Round" />
+                    <TextBlock Text="{DynamicResource Settings}" VerticalAlignment="Center" />
+                </StackPanel>
             </Button>
         </Grid>
 

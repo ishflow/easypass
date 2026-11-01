@@ -135,4 +135,9 @@
     <sys:String x:Key="DrawerTitle" xml:space="preserve">To do and reminders</sys:String>
     <sys:String x:Key="DrawerTodoFmt" xml:space="preserve">To do: {0}</sys:String>
     <sys:String x:Key="DrawerPending" xml:space="preserve">Pending reminders</sys:String>
+    <sys:String x:Key="SignIn" xml:space="preserve">Sign in to site</sys:String>
+    <sys:String x:Key="AskCloseClient" xml:space="preserve">Client {0} is open. Close it?</sys:String>
+    <sys:String x:Key="Yes" xml:space="preserve">Yes</sys:String>
+    <sys:String x:Key="No" xml:space="preserve">No</sys:String>
+    <sys:String x:Key="CredentialsTitle" xml:space="preserve">Sign-in details</sys:String>
 </ResourceDictionary>

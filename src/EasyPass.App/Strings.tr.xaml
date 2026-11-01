@@ -135,4 +135,9 @@
     <sys:String x:Key="DrawerTitle" xml:space="preserve">Yapılacaklar ve hatırlatmalar</sys:String>
     <sys:String x:Key="DrawerTodoFmt" xml:space="preserve">Yapılacaklar: {0}</sys:String>
     <sys:String x:Key="DrawerPending" xml:space="preserve">Bekleyen hatırlatmalar</sys:String>
+    <sys:String x:Key="SignIn" xml:space="preserve">Siteye giriş yap</sys:String>
+    <sys:String x:Key="AskCloseClient" xml:space="preserve">{0} müşterisi açık. Kapatılsın mı?</sys:String>
+    <sys:String x:Key="Yes" xml:space="preserve">Evet</sys:String>
+    <sys:String x:Key="No" xml:space="preserve">Hayır</sys:String>
+    <sys:String x:Key="CredentialsTitle" xml:space="preserve">Giriş bilgileri</sys:String>
 </ResourceDictionary>
