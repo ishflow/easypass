@@ -272,3 +272,29 @@ Ekran yerleşimi ayrıntısı (mevcut tema içinde), `Update` API şekli, sını
 - Alt bölüm: bekleyenler, yani açık hatırlatması olan yarım işler: müşteri adı, iş adı, saat. Vakti geçenler önce.
 - Satıra tıklayınca program penceresi o müşteriyle açılır. Şifre hiçbir yerde görünmez.
 - Veri açıkken hesaplanır, kapalıyken iş yapmaz (§7a). Kasa açık değilse çıkıntı görünmez. Liste sanallaştırılmış.
+
+## 14. Tek tıkla giriş ve görünüm düzeltmeleri (Uba, ikinci deneme)
+
+Uba uyuyor, soru sorulmaz; "Karar" satırları koordinatörün.
+
+### Görünüm
+- **Müşteri sağ paneli:** Ad, soyad, site, login, parola, ek bilgiler, form düğmeleri ve site alanları ok işaretli **Данные для входа** bölümünde; ok belirgin, varsayılan kapalı, basınca açılır, tekrar basınca kapanır. Karar: her müşteri değişiminde kapalı başlar; kaydedilmemiş form hatasında açık kalır. Yukarıdaki iş bloğu rahatlatılır: satırlar arası boşluk artar, sıkışıklık kalkar. Geçmiş en altta kalır.
+- **Sol liste:** İkinci satır (login · site) daha küçük ve gri; satır aralıkları dengeli, kompakt. Karar: ad yoksa başlık login olur, ikinci satırda login tekrar edilmez, yalnız site yazar. Login da boşsa başlık site olur, boş satır kalmaz.
+- **Ayarlar:** Güneşe benzeyen ikon yerine görünür **Настройки** yazılı düğme (dişli + yazı).
+- **К выполнению:** Login tek satır, asla bölünmez (genişlik 17 haneye göre). İş etiketleri tek satır: uzun ad kısaltılır (…), tam ad ipucunda; satıra sığmayanlar "+N". Bu liste satırları tek satır yüksekliğinde. §13'ün sarma kuralının tek istisnası budur, çünkü Uba burada kısaltılmış istedi.
+- **Bölümler net ayrılır:** Не завершено ve Не начато belirgin başlık bandıyla. **Готово aşağıya sabit, ayrı bir bölme:** küçük satırlar, kendi kaydırması, en çok pencerenin %30'u; boşsa görünmez. Üst liste kalan alanı kaplar.
+
+### Tek tıkla giriş
+Sağ panelin üst sağında belirgin birincil düğme **Войти на сайт**. Tüm müşteriler için geçerli.
+
+1. Program düğmeye basılınca `session.json`'a bakar. Takipli sitede başka müşteri açıksa ortada onay: "Открыт клиент X. Закрыть его?" Да / Нет. Нет: hiçbir şey olmaz. Aynı müşteri açıksa soru yok.
+2. Program `login-request.json` yazar (entryId, site, zaman; 120 sn geçerli, tek kullanımlık) ve varsayılan tarayıcıda `Sites.LoginUrl(site)` açar: takipli site için `https://cabinet.salyk.kg/account/login#easypass-login`, diğerlerinde `https://<site>/#easypass-login`. Chrome açıksa yeni sekme olur. Bu dosyalar `AppPaths` klasöründe (bilgisayara özel, buluta gitmez), şifre içermez.
+3. İçerik betiği adreste `#easypass-login` görürse işareti adresten siler ve background'a bildirir. Yalnız o zaman host'a sorulur; başka sayfalarda iş yok (§7a). Background `login_take {site}` ile hedefi alır. Site uyuşmazsa ya da süresi geçtiyse hiçbir şey olmaz.
+4. **Başka müşteri açıksa (takipli site):** o müşterinin sekmesi öne gelir, yeni sekme kapanır, sekmede çıkış bağlantısına tıklanır (bulunamazsa `/account/logout`). Sekme yoksa yeni sekme kullanılır. Bilinen çıkış paneli açılır. **Kaydet ya da Kapat sonrası aynı sekme** giriş sayfasına döner, hedef müşteri yazılır ve gönderilir. Bu bekleme en çok 30 dakika.
+5. **Aynı müşteri açıksa:** o sekme öne gelir, yeni sekme kapanır.
+6. **Oturum yoksa:** form bulununca (en çok 5 sn beklenir) login ve şifre mevcut `get` ile doldurulur, giriş düğmesine basılır, oturum takibi elle girişteki gibi başlar. Seçim sayfasında tek uygun satır varsa "Войти"ye de basılır; çok satırlıysa §8 kuralıyla tam eşleşen satır, yoksa kullanıcıya bırakılır. Hatalı şifrede tekrar denenmez.
+7. Oturum değiştikçe background `session_state {site, entryId|null}` yollar, host `session.json` yazar.
+8. Güvenlik: şifre yalnız mevcut `get` ile, site kontrolüyle gelir; http sayfada doldurulmaz. `login_take` ve `session_state` host'ta site kontrollüdür ve web sayfası çağıramaz. Otomatik gönderim yalnız programdaki düğmeden doğan istekle olur. Yeni izin yalnız `host_permissions` ile takipli site (sekme bulmak için).
+
+### Teslim
+Testler + Windows kontrolü + bağımsız inceleme geçince `feat/is-takibi` main'e birleşir, GitHub'a gönderilir, kurulum dosyasıyla `v1.6.0` Release yayımlanır (Uba açıkça istedi). Eklenti kurulumla gelir; kurulum sonunda klasörü açan seçenek vardır.
