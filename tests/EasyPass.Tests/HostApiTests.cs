@@ -516,8 +516,90 @@ public class HostApiTests : IDisposable
     [Fact]
     public void New_commands_answer_locked_without_a_vault()
     {
-        foreach (var cmd in new[] { "work_get", "work_save", "work_assign", "set_name", "summary" })
+        foreach (var cmd in new[] { "work_get", "work_save", "work_assign", "set_name", "summary", "login_take", "session_state" })
             Assert.Equal("""{"id":1,"ok":false,"error":"locked"}""", HostApi.Handle(new JsonObject { ["id"] = 1, ["cmd"] = cmd }, () => null).ToJsonString());
+    }
+
+    static void NoLoginFiles()
+    {
+        LoginFiles.TakeLogin("x.com");
+        LoginFiles.TakeLogin("y.com");
+        LoginFiles.ClearSession();
+    }
+
+    [Fact]
+    public void Login_take_gives_the_entry_once_to_its_own_site()
+    {
+        NoLoginFiles();
+        Assert.Equal("""{"id":1,"ok":true,"entryId":null}""", Call("""{"id":1,"cmd":"login_take","site":"x.com"}""").ToJsonString());
+
+        LoginFiles.WriteLogin(_ahmetId, "x.com");
+        Assert.Equal("""{"id":2,"ok":true,"entryId":null}""", Call("""{"id":2,"cmd":"login_take","site":"y.com"}""").ToJsonString());
+        Assert.Equal($$"""{"id":3,"ok":true,"entryId":"{{_ahmetId}}"}""", Call("""{"id":3,"cmd":"login_take","site":"portal.x.com"}""").ToJsonString());
+        Assert.Null(Call("""{"id":4,"cmd":"login_take","site":"x.com"}""")["entryId"]);
+    }
+
+    [Fact]
+    public void Login_take_never_names_a_missing_or_other_sites_entry()
+    {
+        NoLoginFiles();
+        LoginFiles.WriteLogin("nope", "x.com");
+        Assert.Equal("""{"id":1,"ok":true,"entryId":null}""", Call("""{"id":1,"cmd":"login_take","site":"x.com"}""").ToJsonString());
+        LoginFiles.WriteLogin(_ahmetYId, "x.com"); // the file says x.com, the entry says y.com
+        Assert.Equal("""{"id":2,"ok":true,"entryId":null}""", Call("""{"id":2,"cmd":"login_take","site":"x.com"}""").ToJsonString());
+    }
+
+    [Fact]
+    public void Login_take_refused_or_locked_keeps_the_request()
+    {
+        NoLoginFiles();
+        LoginFiles.WriteLogin(_ahmetId, "x.com");
+        foreach (var json in new[]
+        {
+            """{"id":1,"cmd":"login_take"}""",
+            """{"id":1,"cmd":"login_take","site":"  "}""",
+            """{"id":1,"cmd":"login_take","site":5}""",
+        })
+            Assert.Equal("bad_request", (string?)Call(json)["error"]);
+        var locked = HostApi.Handle(new JsonObject { ["id"] = 1, ["cmd"] = "login_take", ["site"] = "x.com" }, () => null);
+        Assert.Equal("locked", (string?)locked["error"]);
+        Assert.Equal(_ahmetId, (string?)Call("""{"id":2,"cmd":"login_take","site":"x.com"}""")["entryId"]);
+    }
+
+    [Fact]
+    public void Session_state_writes_and_clears_for_its_own_site()
+    {
+        NoLoginFiles();
+        Assert.Equal("""{"id":1,"ok":true}""", Call($$"""{"id":1,"cmd":"session_state","site":"www.portal.x.com","entryId":"{{_ahmetId}}"}""").ToJsonString());
+        Assert.Equal(("portal.x.com", _ahmetId), (LoginFiles.ReadSession()!.Site, LoginFiles.ReadSession()!.EntryId));
+
+        // another site's end of session must not erase this one
+        Assert.Equal("""{"id":2,"ok":true}""", Call("""{"id":2,"cmd":"session_state","site":"y.com","entryId":null}""").ToJsonString());
+        Assert.NotNull(LoginFiles.ReadSession());
+
+        Assert.Equal("""{"id":3,"ok":true}""", Call("""{"id":3,"cmd":"session_state","site":"portal.x.com","entryId":null}""").ToJsonString());
+        Assert.Null(LoginFiles.ReadSession());
+        Assert.Equal("""{"id":4,"ok":true}""", Call("""{"id":4,"cmd":"session_state","site":"portal.x.com","entryId":null}""").ToJsonString());
+    }
+
+    [Fact]
+    public void Session_state_refusals_leave_the_file_alone()
+    {
+        NoLoginFiles();
+        LoginFiles.WriteSession("x.com", _ahmetId);
+        Assert.Equal("not_found", (string?)Call($$"""{"id":1,"cmd":"session_state","site":"x.com","entryId":"{{_ahmetYId}}"}""")["error"]);
+        Assert.Equal("not_found", (string?)Call("""{"id":1,"cmd":"session_state","site":"x.com","entryId":"nope"}""")["error"]);
+        foreach (var json in new[]
+        {
+            """{"id":1,"cmd":"session_state","site":"x.com"}""", // absent must not read as "logged out"
+            """{"id":1,"cmd":"session_state","site":"x.com","entryId":5}""",
+            """{"id":1,"cmd":"session_state","entryId":null}""",
+            """{"id":1,"cmd":"session_state","site":"  ","entryId":null}""",
+        })
+            Assert.Equal("bad_request", (string?)Call(json)["error"]);
+        var locked = HostApi.Handle(JsonNode.Parse("""{"id":1,"cmd":"session_state","site":"x.com","entryId":null}""")!.AsObject(), () => null);
+        Assert.Equal("locked", (string?)locked["error"]);
+        Assert.Equal(_ahmetId, LoginFiles.ReadSession()?.EntryId);
     }
 
     [Fact]

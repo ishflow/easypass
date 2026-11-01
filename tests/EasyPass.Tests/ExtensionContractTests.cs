@@ -144,6 +144,35 @@ public class ExtensionContractTests : IDisposable
     }
 
     [Fact]
+    public void One_click_login_contract()
+    {
+        // background.js: { cmd: 'login_take', site } after content.js saw #easypass-login; { cmd: 'session_state', site, entryId|null } on session change
+        LoginFiles.ClearSession();
+        LoginFiles.TakeLogin(X);
+        var none = Ask(new { cmd = "login_take", site = X });
+        Assert.Equal(["entryId", "id", "ok"], Keys(none));
+        Assert.Equal(JsonValueKind.Null, none["entryId"]?.GetValueKind() ?? JsonValueKind.Null); // present and null: nothing happens
+
+        LoginFiles.WriteLogin(_ahmetX, X);
+        Assert.Null(Ask(new { cmd = "login_take", site = Y })["entryId"]);
+        var taken = Ask(new { cmd = "login_take", site = X });
+        Assert.Equal(["entryId", "id", "ok"], Keys(taken)); // an id, never a password
+        Assert.Equal(_ahmetX, (string?)taken["entryId"]);
+        Assert.Null(Ask(new { cmd = "login_take", site = X })["entryId"]);
+        Assert.Equal("bad_request", (string?)Ask(new { cmd = "login_take" })["error"]);
+        Assert.Equal("locked", (string?)Ask(new { cmd = "login_take", site = X }, () => null)["error"]);
+
+        Assert.Equal(["id", "ok"], Keys(Ask(new { cmd = "session_state", site = X, entryId = _ahmetX })));
+        Assert.Equal((X, _ahmetX), (LoginFiles.ReadSession()!.Site, LoginFiles.ReadSession()!.EntryId));
+        Assert.Equal("not_found", (string?)Ask(new { cmd = "session_state", site = Y, entryId = _ahmetX })["error"]);
+        Assert.Equal("bad_request", (string?)Ask(new { cmd = "session_state", site = X })["error"]);
+        Assert.Equal("locked", (string?)Ask(new { cmd = "session_state", site = X, entryId = (string?)null }, () => null)["error"]);
+        Assert.NotNull(LoginFiles.ReadSession());
+        Assert.Equal(["id", "ok"], Keys(Ask(new { cmd = "session_state", site = X, entryId = (string?)null })));
+        Assert.Null(LoginFiles.ReadSession());
+    }
+
+    [Fact]
     public void Popup_lists_every_site_and_opens_one_entry()
     {
         // popup.js → { cmd: 'all', q } and { cmd: 'entry', entryId }; background adds the extension's own host as site

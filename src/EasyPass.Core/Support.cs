@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 
@@ -39,6 +40,13 @@ public static class Sites
         var p = Normalize(pageHost);
         return e.Length > 0 && (p == e || p.EndsWith("." + e, StringComparison.Ordinal));
     }
+
+    const string TaxCabinet = "cabinet.salyk.kg";
+
+    // The #easypass-login mark tells the content script this page was opened by the program's sign-in button (spec §14).
+    public static string LoginUrl(string site) => Matches(site, TaxCabinet)
+        ? $"https://{TaxCabinet}/account/login#easypass-login"
+        : $"https://{Normalize(site)}/#easypass-login";
 }
 
 public static class AppPaths
@@ -82,6 +90,64 @@ public static class AppPaths
         // a torn write would read back as {} and drop vaultPath, sending the app to the setup screen
         File.WriteAllText(SettingsFile + ".tmp", o.ToJsonString());
         File.Move(SettingsFile + ".tmp", SettingsFile, overwrite: true);
+    }
+}
+
+public sealed record SiteSession(string Site, string EntryId, DateTime At);
+
+// The app's "sign in" button and the host share these two files (spec §14). They stay on this computer and never hold a password.
+public static class LoginFiles
+{
+    static readonly TimeSpan LoginLife = TimeSpan.FromSeconds(120);
+
+    static string LoginFile => Path.Combine(AppPaths.Dir, "login-request.json");
+    static string SessionFile => Path.Combine(AppPaths.Dir, "session.json");
+
+    public static void WriteLogin(string entryId, string site) => Write(LoginFile, site, entryId);
+
+    // The entry the program asked to sign in on this page's site, once. A page of another site neither gets the request nor uses it up.
+    public static string? TakeLogin(string site)
+    {
+        if (Read(LoginFile) is not { } seen || !Sites.Matches(seen.Site, site)) return null;
+        var claimed = $"{LoginFile}.{Guid.NewGuid():N}";
+        try
+        {
+            File.Move(LoginFile, claimed); // only one of two hosts asking together wins the move
+            var taken = Read(claimed); // a newer click may have replaced what was seen
+            File.Delete(claimed);
+            return taken is not null && Sites.Matches(taken.Site, site) && (DateTime.UtcNow - taken.At).Duration() <= LoginLife ? taken.EntryId : null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
+    }
+
+    public static void WriteSession(string site, string entryId) => Write(SessionFile, site, entryId);
+
+    public static void ClearSession() { if (File.Exists(SessionFile)) File.Delete(SessionFile); }
+
+    public static SiteSession? ReadSession() => Read(SessionFile);
+
+    static void Write(string file, string site, string entryId)
+    {
+        Directory.CreateDirectory(AppPaths.Dir);
+        var temp = $"{file}.{Guid.NewGuid():N}.tmp";
+        File.WriteAllText(temp, new JsonObject
+        {
+            ["site"] = Sites.Normalize(site), ["entryId"] = entryId, ["at"] = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture),
+        }.ToJsonString());
+        File.Move(temp, file, overwrite: true);
+    }
+
+    static SiteSession? Read(string file)
+    {
+        // whatever is wrong with the file (missing, torn, hand-edited, duplicate keys) it reads as nothing
+        try
+        {
+            var o = JsonNode.Parse(File.ReadAllText(file))!.AsObject();
+            return DateTime.TryParse((string?)o["at"], CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out var at)
+                && (string?)o["site"] is { Length: > 0 } site && (string?)o["entryId"] is { Length: > 0 } id
+                ? new SiteSession(site, id, at) : null;
+        }
+        catch (Exception) { return null; }
     }
 }
 

@@ -7,6 +7,7 @@ namespace EasyPass.Core;
 // "all" and "entry" reach every site's entries: only the extension's own toolbar popup sends them
 // (background.js refuses them from web pages, which only ever see their own site's entries).
 // "summary" is popup-only too; "work_*" and "set_name" come only from a tracked site, with the sender's real site.
+// "login_take" and "session_state" are sent by background.js itself, never on a web page's behalf (spec §14).
 public static class HostApi
 {
     const int AllLimit = 200; // the popup scrolls through these; typing narrows the search to the rest
@@ -21,7 +22,7 @@ public static class HostApi
         {
             var cmd = Str(request, "cmd");
             if (cmd is not ("status" or "search" or "get" or "check" or "update" or "add" or "all" or "entry"
-                or "work_get" or "work_save" or "work_assign" or "set_name" or "summary")) return Fail(res, "bad_request");
+                or "work_get" or "work_save" or "work_assign" or "set_name" or "summary" or "login_take" or "session_state")) return Fail(res, "bad_request");
             if (getVault() is not { } v)
             {
                 Fail(res, "locked");
@@ -61,6 +62,9 @@ public static class HostApi
                 "work_assign" => WorkAssign(res, request, v),
                 "set_name" => SetName(res, request, v),
                 "summary" => Summary(res, v),
+                "login_take" => Site(request) is not { } takeSite ? Fail(res, "bad_request")
+                    : Ok(res, new() { ["entryId"] = LoginFiles.TakeLogin(takeSite) is { } taken ? Find(v, taken, takeSite)?.Id : null }),
+                "session_state" => SessionState(res, request, v),
                 _ => Add(res, request, v),
             };
         }
@@ -191,6 +195,21 @@ public static class HostApi
 
     // a name typed by hand always wins over one read from the site
     static bool NoName(Entry e) => string.IsNullOrWhiteSpace(e.FirstName) && string.IsNullOrWhiteSpace(e.LastName);
+
+    static JsonObject SessionState(JsonObject res, JsonObject req, Vault v)
+    {
+        // an absent entryId must not read as "logged out"
+        if (Site(req) is not { } site || !req.ContainsKey("entryId")) return Fail(res, "bad_request");
+        if (req["entryId"] is null)
+        {
+            if (LoginFiles.ReadSession() is { } open && Sites.Matches(open.Site, site)) LoginFiles.ClearSession();
+            return Ok(res, new());
+        }
+        if (Str(req, "entryId") is not { } id) return Fail(res, "bad_request");
+        if (Find(v, id, site) is null) return Fail(res, "not_found");
+        LoginFiles.WriteSession(site, id);
+        return Ok(res, new());
+    }
 
     static JsonObject Summary(JsonObject res, Vault v)
     {
